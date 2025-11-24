@@ -1,0 +1,16 @@
+package: api
+output: pkg/api/api.gen.go
+# template: go-chi-server
+# options:
+#   generate:
+#     - types
+#     - chi-server
+    # - skip-prune-unused-schemas
+    # - skip-prune-unused-components
+    # - skip-prune-unused-paths
+
+generate:
+  strict-server: true
+  chi-server: true
+  models: true
+  # skip-validation: false
