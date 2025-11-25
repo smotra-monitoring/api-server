@@ -271,7 +271,7 @@ server/
 │   └── api/                # Generated API code (from OpenAPI spec)
 │       └── api.gen.go      # Generated with oapi-codegen
 ├── api/                    # OpenAPI specification
-│   ├── config.yaml         # oapi-codegen configuration
+│   ├── oapi-codegen.yaml   # oapi-codegen configuration
 │   └── spec.yaml           # OpenAPI 3.0 specification
 ├── bin/                    # Compiled binaries (gitignored)
 ├── data/                   # Database files for SQLite (gitignored)

@@ -40,7 +40,7 @@ clean: ## Clean build artifacts
 
 generate-oapi: ## Generate code from OpenAPI spec
 	@echo "Generating API code from OpenAPI spec..."
-	@oapi-codegen -config api/config.yaml api/spec.yaml
+	@oapi-codegen -config api/oapi-codegen.yaml api/spec.yaml
 	@echo "Code generation complete"
 
 fmt: ## Format Go code
