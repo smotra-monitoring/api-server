@@ -33,7 +33,7 @@ func New(config Config) *Logger {
 	// Create handler based on format
 	var handler slog.Handler
 	opts := &slog.HandlerOptions{
-		Level: level,
+		Level:     level,
 		AddSource: level == slog.LevelDebug, // Add source location for debug level
 	}
 
