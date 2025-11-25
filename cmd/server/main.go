@@ -60,8 +60,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx := context.Background()
-	if err := db.Open(ctx); err != nil {
+	db_ctx := context.Background()
+	if err := db.Open(db_ctx); err != nil {
 		log.Error("failed to open database", "error", err)
 		os.Exit(1)
 	}
