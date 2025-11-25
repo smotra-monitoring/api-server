@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/smotra-monitoring/server/internal/logger"
@@ -91,7 +92,8 @@ func RequestID(next http.Handler) http.Handler {
 // CORS returns a middleware that handles CORS
 func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		allowedOrigins := []string{"https://dashboard.smotra.net", "http://localhost:3000"} // In production, set this to your allowed origins
+		w.Header().Set("Access-Control-Allow-Origin", strings.Join(allowedOrigins, ", "))
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
 		w.Header().Set("Access-Control-Max-Age", "86400")
