@@ -1,0 +1,2681 @@
+openapi: 3.0.3
+info:
+  title: Distributed Monitoring System API
+  description: |
+    API for a distributed monitoring system that tracks reachability and performance 
+    of agents installed on various hosts. This system provides real-time monitoring, 
+    alerting, and reporting capabilities.
+    
+    ## Authentication
+    
+    ### OAuth2 Authentication
+    This API supports OAuth2 authentication with multiple identity providers:
+    - **Authorization Code Flow**: For web applications and dashboards
+    - **Client Credentials Flow**: For service-to-service communication
+    - **PKCE**: Supported for enhanced security in public clients
+    
+    Supported Identity Providers:
+    - Okta
+    - Auth0
+    - Azure AD / Microsoft Entra ID
+    - Google Workspace
+    - Generic OIDC providers
+    
+    ### Agent Authentication
+    Agents use API keys for authentication (separate from OAuth2).
+    
+    ## Rate Limiting
+    - Agent endpoints: 1000 requests per minute per agent
+    - User endpoints: 100 requests per minute per user
+    - Admin endpoints: 50 requests per minute per user
+    
+    ## WebSocket API
+    For real-time updates, see the AsyncAPI specification at `/docs/websocket-api.yaml`
+    
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: Source Available License
+    url: https://github.com/smotra-monitoring/monitoring-system/blob/main/LICENSE
+
+servers:
+  - url: https://api.smotra.net/api/v1
+    description: Production server
+  - url: https://staging-api.smotra.net/api/v1
+    description: Staging server
+  - url: http://localhost:8080/api/v1
+    description: Local development server
+
+tags:
+  - name: agent
+    description: Agent-related operations (data submission, configuration)
+  - name: result
+    description: Result and metrics retrieval operations
+  - name: configuration
+    description: Agent configuration management
+  - name: alerts
+    description: Alert management and notification settings
+  - name: authentication
+    description: User authentication and authorization
+  - name: users
+    description: User management operations
+  - name: organizations
+    description: Multi-tenant organization management
+  - name: health
+    description: System health and monitoring endpoints
+  - name: websocket
+    description: WebSocket connection management
+
+security:
+  - OAuth2AuthorizationCode: []
+  - OAuth2ClientCredentials: []
+
+paths:
+  # ============================================
+  # AGENT ENDPOINTS
+  # ============================================
+  
+  /agent/report:
+    post:
+      tags:
+        - agent
+      summary: Submit agent monitoring report
+      description: |
+        Agents use this endpoint to submit collected monitoring data including 
+        reachability checks, performance metrics, and system health information.
+        
+        This endpoint supports batch submissions for efficiency when agents are 
+        recovering from offline periods.
+      operationId: submitAgentStatus
+      security:
+        - AgentApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentStatus'
+            examples:
+              singleCheck:
+                summary: Single reachability check
+                value: {
+                  "agent_id":"e65ed2cc-6581-44dd-aa3b-6445b2ed8b25",
+                  "cached_reports":0,
+                  "checks_failed":0,
+                  "checks_performed":0,
+                  "checks_successful":0,
+                  "failed_report_count":0,
+                  "is_running":true,
+                  "last_report_at":null,
+                  "server_connected":false,
+                  "started_at":"2025-11-21T19:38:43.290410900Z",
+                  "stopped_at":null
+                }
+      responses:
+        '202':
+          description: Report accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportAcknowledgment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /agent/register:
+    post:
+      tags:
+        - agent
+      summary: Register a new agent
+      description: |
+        Register a new agent with the monitoring system. Requires appropriate 
+        permissions to register agents within the organization.
+      operationId: registerAgent
+      security:
+        - OAuth2AuthorizationCode: [agent:write]
+        - OAuth2ClientCredentials: [agent:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRegistration'
+      responses:
+        '201':
+          description: Agent registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCredentials'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Agent already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /agent/{agentId}/configuration:
+    get:
+      tags:
+        - agent
+        - configuration
+      summary: Get agent configuration
+      description: Retrieve current configuration for a specific agent
+      operationId: getAgentConfiguration
+      security:
+        - AgentApiKey: []
+        - OAuth2AuthorizationCode: [agent:read]
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - name: version
+          in: query
+          description: Configuration version (returns latest if not specified)
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConfiguration'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - agent
+        - configuration
+      summary: Update agent configuration
+      description: Update configuration for a specific agent
+      operationId: updateAgentConfiguration
+      security:
+        - OAuth2AuthorizationCode: [agent:write, config:write]
+        - OAuth2ClientCredentials: [agent:write, config:write]
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentConfiguration'
+      responses:
+        '200':
+          description: Configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConfiguration'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /agent/{agentId}/heartbeat:
+    post:
+      tags:
+        - agent
+      summary: Send agent heartbeat
+      description: Lightweight endpoint for agents to signal they are alive
+      operationId: sendAgentHeartbeat
+      security:
+        - AgentApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentHeartbeat'
+      responses:
+        '204':
+          description: Heartbeat received
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # RESULT ENDPOINTS
+  # ============================================
+
+  /result/report:
+    get:
+      tags:
+        - result
+      summary: Get monitoring results report
+      description: |
+        Retrieve aggregated monitoring results and metrics based on filters.
+        Supports various aggregation intervals and metric types.
+        
+        Permissions: Requires `metrics:read` scope
+      operationId: getResultReport
+      security:
+        - OAuth2AuthorizationCode: [metrics:read]
+        - OAuth2ClientCredentials: [metrics:read]
+      parameters:
+        - name: agent_id
+          in: query
+          description: Filter by specific agent(s)
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: target
+          in: query
+          description: Filter by monitored target
+          schema:
+            type: string
+        - name: metric_type
+          in: query
+          description: Type of metric to retrieve
+          schema:
+            type: string
+            enum: [icmp_ping, tcp_check, http_check, traceroute, custom]
+        - name: start_time
+          in: query
+          required: true
+          description: Start of time range (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          required: true
+          description: End of time range (RFC3339 format)
+          schema:
+            type: string
+            format: date-time
+        - name: aggregation
+          in: query
+          description: Aggregation interval
+          schema:
+            type: string
+            enum: [1m, 5m, 15m, 1h, 6h, 1d]
+            default: 5m
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [reachable, unreachable, degraded, unknown]
+          style: form
+          explode: true
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Number of results per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: format
+          in: query
+          description: Response format
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+      responses:
+        '200':
+          description: Report generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReport'
+            text/csv:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /result/metrics:
+    get:
+      tags:
+        - result
+      summary: Get raw metrics data
+      description: Retrieve raw, unaggregated metrics data points
+      operationId: getMetrics
+      security:
+        - OAuth2AuthorizationCode: [metrics:read]
+        - OAuth2ClientCredentials: [metrics:read]
+      parameters:
+        - name: agent_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: start_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: metric_type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+  /result/summary:
+    get:
+      tags:
+        - result
+      summary: Get summary statistics
+      description: Get high-level summary statistics for the monitoring system
+      operationId: getSummary
+      security:
+        - OAuth2AuthorizationCode: [metrics:read]
+        - OAuth2ClientCredentials: [metrics:read]
+      parameters:
+        - name: time_range
+          in: query
+          schema:
+            type: string
+            enum: [1h, 24h, 7d, 30d]
+            default: 24h
+      responses:
+        '200':
+          description: Summary statistics retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryStatistics'
+
+  # ============================================
+  # ALERT ENDPOINTS
+  # ============================================
+
+  /alerts:
+    get:
+      tags:
+        - alerts
+      summary: List all alerts
+      description: Retrieve list of configured alerts
+      operationId: listAlerts
+      security:
+        - OAuth2AuthorizationCode: [alerts:read]
+        - OAuth2ClientCredentials: [alerts:read]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, acknowledged, resolved]
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [critical, warning, info]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Alerts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alert'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - alerts
+      summary: Create new alert rule
+      description: Create a new alert rule configuration
+      operationId: createAlert
+      security:
+        - OAuth2AuthorizationCode: [alerts:write]
+        - OAuth2ClientCredentials: [alerts:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRule'
+      responses:
+        '201':
+          description: Alert rule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /alerts/{alertId}:
+    get:
+      tags:
+        - alerts
+      summary: Get alert details
+      operationId: getAlert
+      security:
+        - OAuth2AuthorizationCode: [alerts:read]
+      parameters:
+        - $ref: '#/components/parameters/AlertId'
+      responses:
+        '200':
+          description: Alert details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - alerts
+      summary: Delete alert rule
+      operationId: deleteAlert
+      security:
+        - OAuth2AuthorizationCode: [alerts:write, alerts:delete]
+      parameters:
+        - $ref: '#/components/parameters/AlertId'
+      responses:
+        '204':
+          description: Alert rule deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /alerts/{alertId}/acknowledge:
+    post:
+      tags:
+        - alerts
+      summary: Acknowledge an alert
+      operationId: acknowledgeAlert
+      security:
+        - OAuth2AuthorizationCode: [alerts:write]
+      parameters:
+        - $ref: '#/components/parameters/AlertId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  description: Optional note about the acknowledgment
+                  example: "Investigating the issue"
+      responses:
+        '200':
+          description: Alert acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # AUTHENTICATION & AUTHORIZATION ENDPOINTS
+  # ============================================
+
+  /auth/oauth2/authorize:
+    get:
+      tags:
+        - authentication
+      summary: OAuth2 authorization endpoint
+      description: |
+        Initiate OAuth2 authorization flow. Redirects user to identity provider.
+        
+        Supported providers:
+        - okta
+        - auth0
+        - azure
+        - google
+        - generic (custom OIDC provider)
+      operationId: oauth2Authorize
+      security: []
+      parameters:
+        - name: provider
+          in: query
+          required: true
+          description: Identity provider to use
+          schema:
+            type: string
+            enum: [okta, auth0, azure, google, generic]
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [code]
+            default: code
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: scope
+          in: query
+          required: true
+          description: Space-separated list of scopes
+          schema:
+            type: string
+            example: "openid profile email metrics:read"
+        - name: state
+          in: query
+          required: true
+          description: CSRF protection token
+          schema:
+            type: string
+        - name: code_challenge
+          in: query
+          description: PKCE code challenge
+          schema:
+            type: string
+        - name: code_challenge_method
+          in: query
+          description: PKCE code challenge method
+          schema:
+            type: string
+            enum: [S256]
+      responses:
+        '302':
+          description: Redirect to identity provider
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+
+  /auth/oauth2/callback:
+    get:
+      tags:
+        - authentication
+      summary: OAuth2 callback endpoint
+      description: |
+        Callback endpoint for OAuth2 authorization flow.
+        Identity provider redirects user here after authentication.
+      operationId: oauth2Callback
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: Authorization code from identity provider
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          description: CSRF protection token (must match original request)
+          schema:
+            type: string
+        - name: error
+          in: query
+          description: Error code if authorization failed
+          schema:
+            type: string
+        - name: error_description
+          in: query
+          description: Human-readable error description
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to application with tokens
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/oauth2/token:
+    post:
+      tags:
+        - authentication
+      summary: Exchange authorization code for tokens
+      description: |
+        Exchange authorization code for access and refresh tokens.
+        Also supports refresh token grant type.
+      operationId: oauth2Token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/AuthorizationCodeTokenRequest'
+                - $ref: '#/components/schemas/RefreshTokenRequest'
+                - $ref: '#/components/schemas/ClientCredentialsTokenRequest'
+            encoding:
+              grant_type:
+                style: form
+      responses:
+        '200':
+          description: Tokens issued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/oauth2/revoke:
+    post:
+      tags:
+        - authentication
+      summary: Revoke access or refresh token
+      description: Revoke a previously issued token
+      operationId: oauth2Revoke
+      security:
+        - OAuth2AuthorizationCode: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: Token to revoke
+                token_type_hint:
+                  type: string
+                  enum: [access_token, refresh_token]
+                  description: Hint about token type
+      responses:
+        '200':
+          description: Token revoked successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/userinfo:
+    get:
+      tags:
+        - authentication
+      summary: Get current user information
+      description: Retrieve information about the authenticated user
+      operationId: getUserInfo
+      security:
+        - OAuth2AuthorizationCode: [openid, profile, email]
+      responses:
+        '200':
+          description: User information retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags:
+        - authentication
+      summary: User logout
+      description: Logout user and revoke tokens
+      operationId: logout
+      security:
+        - OAuth2AuthorizationCode: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                post_logout_redirect_uri:
+                  type: string
+                  format: uri
+                  description: Where to redirect after logout
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  logout_url:
+                    type: string
+                    format: uri
+                    description: Identity provider logout URL
+
+  # ============================================
+  # USER MANAGEMENT ENDPOINTS
+  # ============================================
+  
+  /users:
+    get:
+      tags:
+        - users
+      summary: List users
+      description: List all users in the organization
+      operationId: listUsers
+      security:
+        - OAuth2AuthorizationCode: [users:read]
+      parameters:
+        - name: organization_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [admin, operator, viewer]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - users
+      summary: Create user
+      description: Create a new user (admin only)
+      operationId: createUser
+      security:
+        - OAuth2AuthorizationCode: [users:write, admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{userId}:
+    get:
+      tags:
+        - users
+      summary: Get user details
+      operationId: getUser
+      security:
+        - OAuth2AuthorizationCode: [users:read]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - users
+      summary: Update user
+      operationId: updateUser
+      security:
+        - OAuth2AuthorizationCode: [users:write]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - users
+      summary: Delete user
+      operationId: deleteUser
+      security:
+        - OAuth2AuthorizationCode: [users:write, users:delete, admin]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: User deleted successfully
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}/roles:
+    put:
+      tags:
+        - users
+      summary: Update user roles
+      operationId: updateUserRoles
+      security:
+        - OAuth2AuthorizationCode: [users:write, roles:write, admin]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - roles
+              properties:
+                roles:
+                  type: array
+                  items:
+                    type: string
+                    enum: [admin, operator, viewer]
+                  minItems: 1
+      responses:
+        '200':
+          description: Roles updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  # ============================================
+  # ORGANIZATION MANAGEMENT ENDPOINTS
+  # ============================================
+
+  /organizations:
+    get:
+      tags:
+        - organizations
+      summary: List organizations
+      description: List all organizations (super admin only)
+      operationId: listOrganizations
+      security:
+        - OAuth2AuthorizationCode: [admin, super_admin]
+      responses:
+        '200':
+          description: Organizations retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organizations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Organization'
+
+    post:
+      tags:
+        - organizations
+      summary: Create organization
+      operationId: createOrganization
+      security:
+        - OAuth2AuthorizationCode: [admin, super_admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '201':
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+
+  /organizations/{organizationId}:
+    get:
+      tags:
+        - organizations
+      summary: Get organization details
+      operationId: getOrganization
+      security:
+        - OAuth2AuthorizationCode: [org:read]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+      responses:
+        '200':
+          description: Organization details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+
+  # ============================================
+  # WEBSOCKET CONNECTION ENDPOINTS
+  # ============================================
+
+  /websocket/token:
+    post:
+      tags:
+        - websocket
+      summary: Get WebSocket connection token
+      description: |
+        Generate a temporary token for establishing WebSocket connection.
+        Token is valid for 5 minutes and single use only.
+      operationId: getWebSocketToken
+      security:
+        - OAuth2AuthorizationCode: [websocket:connect]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - subscriptions
+              properties:
+                subscriptions:
+                  type: array
+                  description: List of topics to subscribe to
+                  items:
+                    type: string
+                    enum:
+                      - alerts
+                      - metrics
+                      - agent_status
+                      - system_events
+                  example: ["alerts", "metrics"]
+                filters:
+                  type: object
+                  description: Optional filters for subscriptions
+                  properties:
+                    agent_ids:
+                      type: array
+                      items:
+                        type: string
+                    alert_severity:
+                      type: array
+                      items:
+                        type: string
+                        enum: [critical, warning, info]
+      responses:
+        '200':
+          description: WebSocket token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - token
+                  - websocket_url
+                  - expires_at
+                properties:
+                  token:
+                    type: string
+                    description: Temporary token for WebSocket connection
+                    example: "ws_tok_1234567890abcdef"
+                  websocket_url:
+                    type: string
+                    format: uri
+                    description: WebSocket endpoint URL
+                    example: "wss://api.smotra.net/ws"
+                  expires_at:
+                    type: string
+                    format: date-time
+                    description: Token expiration time
+                  subscriptions:
+                    type: array
+                    items:
+                      type: string
+                    description: Confirmed subscriptions
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # HEALTH & MONITORING ENDPOINTS
+  # ============================================
+
+  /healthz:
+    get:
+      tags:
+        - health
+      summary: Health check endpoint
+      description: Check if the server is healthy and operational
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: Server is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /healthz/ready:
+    get:
+      tags:
+        - health
+      summary: Readiness check
+      description: Check if server is ready to accept traffic
+      operationId: readinessCheck
+      security: []
+      responses:
+        '200':
+          description: Server is ready
+        '503':
+          description: Server is not ready
+
+  /healthz/live:
+    get:
+      tags:
+        - health
+      summary: Liveness check
+      description: Check if server is alive (for Kubernetes liveness probe)
+      operationId: livenessCheck
+      security: []
+      responses:
+        '200':
+          description: Server is alive
+
+  /metrics:
+    get:
+      tags:
+        - health
+      summary: Prometheus metrics endpoint
+      description: Expose metrics in Prometheus format
+      operationId: prometheusMetrics
+      security: []
+      responses:
+        '200':
+          description: Metrics in Prometheus format
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                # HELP monitoring_agents_total Total number of registered agents
+                # TYPE monitoring_agents_total gauge
+                monitoring_agents_total 42
+                
+                # HELP monitoring_checks_total Total number of checks performed
+                # TYPE monitoring_checks_total counter
+                monitoring_checks_total{status="success"} 15234
+                monitoring_checks_total{status="failure"} 156
+
+# ============================================
+# COMPONENTS
+# ============================================
+
+components:
+  securitySchemes:
+    OAuth2AuthorizationCode:
+      type: oauth2
+      description: |
+        OAuth2 Authorization Code flow with PKCE support.
+        Supports multiple identity providers including Okta, Auth0, Azure AD, and Google.
+      flows:
+        authorizationCode:
+          authorizationUrl: /api/v1/auth/oauth2/authorize
+          tokenUrl: /api/v1/auth/oauth2/token
+          refreshUrl: /api/v1/auth/oauth2/token
+          scopes:
+            openid: "OpenID Connect scope"
+            profile: "Access to user profile information"
+            email: "Access to user email"
+            offline_access: "Request refresh token"
+            metrics:read: "Read access to metrics and monitoring data"
+            metrics:write: "Write access to metrics (internal use)"
+            agent:read: "Read access to agent information"
+            agent:write: "Manage agents (register, configure)"
+            config:read: "Read configuration"
+            config:write: "Modify configuration"
+            alerts:read: "Read alerts"
+            alerts:write: "Create and modify alert rules"
+            alerts:delete: "Delete alert rules"
+            users:read: "Read user information"
+            users:write: "Manage users"
+            users:delete: "Delete users"
+            roles:read: "Read role information"
+            roles:write: "Manage user roles"
+            org:read: "Read organization information"
+            org:write: "Manage organization"
+            websocket:connect: "Connect to WebSocket for real-time updates"
+            admin: "Administrative access"
+            super_admin: "Super admin access across all organizations"
+    
+    OAuth2ClientCredentials:
+      type: oauth2
+      description: |
+        OAuth2 Client Credentials flow for service-to-service authentication.
+        Used for automated systems and integrations.
+      flows:
+        clientCredentials:
+          tokenUrl: /api/v1/auth/oauth2/token
+          scopes:
+            metrics:read: "Read access to metrics"
+            metrics:write: "Write access to metrics"
+            agent:read: "Read agent information"
+            agent:write: "Manage agents"
+            alerts:read: "Read alerts"
+            alerts:write: "Manage alerts"
+    
+    AgentApiKey:
+      type: apiKey
+      in: header
+      name: X-Agent-API-Key
+      description: |
+        API key for agent authentication. Each agent receives a unique API key
+        upon registration. This key should be kept secure and rotated periodically.
+
+  parameters:
+    AgentId:
+      name: agentId
+      in: path
+      required: true
+      description: Unique identifier for the agent
+      schema:
+        type: string
+        format: uuid
+        example: "969915ca-5580-4d89-b791-03d89c0f90ac"
+    
+    AlertId:
+      name: alertId
+      in: path
+      required: true
+      description: Unique identifier for the alert
+      schema:
+        type: string
+        format: uuid
+    
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: Unique identifier for the user
+      schema:
+        type: string
+        format: uuid
+    
+    OrganizationId:
+      name: organizationId
+      in: path
+      required: true
+      description: Unique identifier for the organization
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    # ============================================
+    # AGENT SCHEMAS
+    # ============================================
+
+    # ============================================
+    # CHECKED 
+    # ============================================
+
+
+    AgentStatus:
+      type: object
+      required:
+        - agent_id
+        - is_running
+        - started_at
+        - stopped_at
+        - checks_performed
+        - checks_successful
+        - checks_failed
+        - last_report_at
+        - failed_report_count
+        - server_connected
+        - cached_reports
+      properties:
+        agent_id:
+          type: string
+          description: Unique identifier for the agent
+          example: "agent-001"
+        is_running:
+          type: boolean
+          description: Whether the agent is currently running
+          example: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the agent started in UTC (RFC3339), null if never started
+          example: "2025-11-21T00:04:00.484745200Z"
+        stopped_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the agent stopped in UTC (RFC3339), null if running
+          example: "2025-11-21T00:04:00.484745200Z"
+        checks_performed:
+          type: integer
+          description: Total number of checks performed by the agent
+          example: 12345
+        checks_successful:
+          type: integer
+          description: Number of successful checks
+          example: 12000
+        checks_failed:
+          type: integer
+          description: Number of failed checks
+          example: 345
+        last_report_at:
+          type: string
+          format: date-time
+          description: Timestamp of the last report received from the agent (RFC3339)
+          example: "2025-11-21T12:00:00Z"
+        failed_report_count:
+          type: integer
+          description: Number of consecutive failed report attempts
+          example: 0
+        server_connected:
+          type: boolean
+          description: Whether the agent is currently connected to the server
+          example: true
+        cached_reports:
+          type: integer
+          description: Number of reports cached locally on the agent
+          example: 0
+
+    MonitoringResult:
+      type: object
+      required:
+        - id
+        - agent_id
+        - target
+        - check_type
+        - timestamp
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the monitoring result
+          example: "irusdf-1234-abcd-5678-efghijklmnop"
+        agent_id:
+          type: string
+          description: Unique identifier for the agent
+          example: "agent-001"
+        target:
+          description: Monitoring target information
+          $ref: '#/components/schemas/MonitoringEndpoint'
+        check_type:
+          $ref: '#/components/schemas/CheckType'
+          description: Type of check performed
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp when the report was generated (RFC3339)
+          example: "2025-11-19T10:30:00Z"
+
+    CheckType:
+      oneOf:
+        - $ref: '#/components/schemas/PingCheck'
+        - $ref: '#/components/schemas/TracerouteCheck'
+        - $ref: '#/components/schemas/TcpConnectCheck'
+        - $ref: '#/components/schemas/UdpConnectCheck'
+        - $ref: '#/components/schemas/HttpGetCheck'
+        - $ref: '#/components/schemas/PluginCheck'
+      discriminator:
+        propertyName: type
+        mapping:
+          ping: '#/components/schemas/PingCheck'
+          traceroute: '#/components/schemas/TracerouteCheck'
+          tcpconnect: '#/components/schemas/TcpConnectCheck'
+          udpconnect: '#/components/schemas/UdpConnectCheck'
+          httpget: '#/components/schemas/HttpGetCheck'
+          plugin: '#/components/schemas/PluginCheck'
+
+    PingCheck:
+      type: object
+      required: [type, result]
+      properties:
+        type:
+          type: string
+          enum: [ping]
+        result:
+          $ref: '#/components/schemas/PingResult'
+
+    PingResult:
+      type: object
+      properties:
+        resolved_ip:
+          type: string
+          nullable: true
+        successes:
+          type: integer
+          format: int32
+        failures:
+          type: integer
+          format: int32
+        success_latencies:
+          type: array
+          items:
+            type: number
+            format: double
+        avg_response_time_ms:
+          type: number
+          format: double
+          nullable: true
+        errors:
+          type: array
+          items:
+            type: string
+
+    TracerouteCheck:
+      type: object
+      required: [type, result]
+      properties:
+        type:
+          type: string
+          enum: [traceroute]
+        result:
+          $ref: '#/components/schemas/TracerouteResult'
+
+    TracerouteResult:
+      type: object
+      properties:
+        hops:
+          type: array
+          items:
+            $ref: '#/components/schemas/TracerouteHop'
+        target_reached:
+          type: boolean
+        total_time_ms:
+          type: number
+          format: double
+          nullable: true
+        errors:
+          type: array
+          items:
+            type: string
+
+    TracerouteHop:
+      type: object
+      properties:
+        hop:
+          type: integer
+          format: int32
+        address:
+          type: string
+          format: ipv4
+          nullable: true
+        response_time_ms:
+          type: number
+          format: double
+          nullable: true
+        hostname:
+          type: string
+          nullable: true
+
+    TcpConnectCheck:
+      type: object
+      required: [type, result]
+      properties:
+        type:
+          type: string
+          enum: [tcpconnect]
+        result:
+          $ref: '#/components/schemas/TcpConnectResult'
+
+    TcpConnectResult:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        connect_time_ms:
+          type: number
+          format: double
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        resolved_ip:
+          type: string
+          nullable: true
+
+    UdpConnectCheck:
+      type: object
+      required: [type, result]
+      properties:
+        type:
+          type: string
+          enum: [udpconnect]
+        result:
+          $ref: '#/components/schemas/UdpConnectResult'
+
+    UdpConnectResult:
+      type: object
+      properties:
+        probe_successful:
+          type: boolean
+        response_time_ms:
+          type: number
+          format: double
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        resolved_ip:
+          type: string
+          nullable: true
+
+    HttpGetCheck:
+      type: object
+      required: [type, result]
+      properties:
+        type:
+          type: string
+          enum: [httpget]
+        result:
+          $ref: '#/components/schemas/HttpGetResult'
+
+    HttpGetResult:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          format: int32
+          nullable: true
+        response_time_ms:
+          type: number
+          format: double
+          nullable: true
+        response_size_bytes:
+          type: integer
+          format: int64
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        success:
+          type: boolean
+
+    PluginCheck:
+      type: object
+      required: [type, result]
+      properties:
+        type:
+          type: string
+          enum: [plugin]
+        result:
+          $ref: '#/components/schemas/PluginResult'
+
+    PluginResult:
+      type: object
+      properties:
+        plugin_name:
+          type: string
+        plugin_version:
+          type: string
+        success:
+          type: boolean
+        response_time_ms:
+          type: number
+          format: double
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        data:
+          type: object
+          additionalProperties:
+            type: string
+
+    # ============================================
+    # NOT CHECKED 
+    # ============================================
+
+    Metric:
+      type: object
+      required:
+        - type
+        - target
+        - status
+      properties:
+        type:
+          type: string
+          enum: [icmp_ping, tcp_check, http_check, traceroute, custom]
+          description: Type of check performed
+        target:
+          type: string
+          description: Target host, IP, or URL
+          example: "192.168.1.100"
+        status:
+          type: string
+          enum: [reachable, unreachable, degraded, unknown]
+          description: Status of the check
+        response_time_ms:
+          type: number
+          format: float
+          nullable: true
+          description: Response time in milliseconds
+          example: 12.5
+        packet_loss_percent:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          nullable: true
+          description: Packet loss percentage for ping checks
+        status_code:
+          type: integer
+          nullable: true
+          description: HTTP status code for HTTP checks
+        error_message:
+          type: string
+          nullable: true
+          description: Error message if check failed
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metric-specific data
+
+    AgentRegistration:
+      type: object
+      required:
+        - hostname
+        - ip_address
+      properties:
+        hostname:
+          type: string
+          example: "web-server-01"
+        ip_address:
+          type: string
+          format: ipv4
+          example: "192.168.1.100"
+        agent_version:
+          type: string
+          example: "1.2.3"
+        os:
+          type: string
+          example: "linux"
+        arch:
+          type: string
+          example: "x86_64"
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+          description: Custom tags for organizing agents
+          example:
+            environment: "production"
+            datacenter: "us-east-1"
+
+    AgentCredentials:
+      type: object
+      required:
+        - agent_id
+        - api_key
+      properties:
+        agent_id:
+          type: string
+          example: "agent-001"
+        api_key:
+          type: string
+          description: API key for agent authentication
+          example: "ak_1234567890abcdef"
+        configuration_url:
+          type: string
+          format: uri
+          example: "https://api.smotra.net/api/v1/agent/agent-001/configuration"
+
+    AgentConfiguration:
+      type: object
+      required:
+        - agent_id
+        - version
+      properties:
+        agent_id:
+          type: string
+        version:
+          type: integer
+          description: Configuration version number
+        monitoring_interval_seconds:
+          type: integer
+          minimum: 10
+          default: 60
+          description: Interval between monitoring checks
+        reporting_interval_seconds:
+          type: integer
+          minimum: 30
+          default: 300
+          description: Interval for sending reports to server
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonitoringEndpoint'
+        plugins:
+          type: array
+          items:
+            $ref: '#/components/schemas/PluginConfiguration'
+        thresholds:
+          $ref: '#/components/schemas/Thresholds'
+        retry_policy:
+          $ref: '#/components/schemas/RetryPolicy'
+
+    MonitoringEndpoint:
+      type: object
+      required:
+        - id
+        - address
+      properties:
+        id:
+          type: string
+        address:
+          type: string
+          description: IP address, hostname, or URL
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        enabled:
+          type: boolean
+          default: true
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags associated with the target
+          example: ["database", "critical"]
+
+    PluginConfiguration:
+      type: object
+      required:
+        - name
+        - enabled
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        enabled:
+          type: boolean
+        configuration:
+          type: object
+          additionalProperties: true
+
+    Thresholds:
+      type: object
+      properties:
+        response_time_warning_ms:
+          type: number
+          format: float
+          default: 100
+        response_time_critical_ms:
+          type: number
+          format: float
+          default: 500
+        packet_loss_warning_percent:
+          type: number
+          format: float
+          default: 10
+        packet_loss_critical_percent:
+          type: number
+          format: float
+          default: 50
+
+    RetryPolicy:
+      type: object
+      properties:
+        max_retries:
+          type: integer
+          minimum: 0
+          default: 3
+        retry_delay_seconds:
+          type: integer
+          minimum: 1
+          default: 5
+        backoff_multiplier:
+          type: number
+          format: float
+          minimum: 1
+          default: 2
+
+    AgentHeartbeat:
+      type: object
+      required:
+        - timestamp
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [healthy, degraded]
+          default: healthy
+        cpu_usage_percent:
+          type: number
+          format: float
+        memory_usage_mb:
+          type: number
+          format: float
+
+    ReportAcknowledgment:
+      type: object
+      required:
+        - request_id
+        - status
+        - received_at
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [accepted, queued]
+        received_at:
+          type: string
+          format: date-time
+        configuration_version:
+          type: integer
+          description: Latest configuration version available
+        update_available:
+          type: boolean
+          description: Whether agent update is available
+
+    # ============================================
+    # RESULT SCHEMAS
+    # ============================================
+
+    ResultReport:
+      type: object
+      required:
+        - time_range
+        - data
+        - pagination
+      properties:
+        time_range:
+          type: object
+          required:
+            - start
+            - end
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+        aggregation:
+          type: string
+          example: "5m"
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AggregatedMetric'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        metadata:
+          type: object
+          properties:
+            total_checks:
+              type: integer
+            successful_checks:
+              type: integer
+            failed_checks:
+              type: integer
+            average_response_time_ms:
+              type: number
+              format: float
+
+    AggregatedMetric:
+      type: object
+      required:
+        - timestamp
+        - agent_id
+        - target
+        - metric_type
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        agent_id:
+          type: string
+        hostname:
+          type: string
+        target:
+          type: string
+        metric_type:
+          type: string
+        status:
+          type: string
+          enum: [reachable, unreachable, degraded, unknown]
+        avg_response_time_ms:
+          type: number
+          format: float
+        min_response_time_ms:
+          type: number
+          format: float
+        max_response_time_ms:
+          type: number
+          format: float
+        p50_response_time_ms:
+          type: number
+          format: float
+        p95_response_time_ms:
+          type: number
+          format: float
+        p99_response_time_ms:
+          type: number
+          format: float
+        success_rate_percent:
+          type: number
+          format: float
+        check_count:
+          type: integer
+
+    MetricsResponse:
+      type: object
+      required:
+        - metrics
+        - pagination
+      properties:
+        metrics:
+          type: array
+          items:
+            type: object
+            required:
+              - timestamp
+              - metric
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              metric:
+                $ref: '#/components/schemas/Metric'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    SummaryStatistics:
+      type: object
+      properties:
+        time_range:
+          type: string
+          example: "24h"
+        total_agents:
+          type: integer
+        active_agents:
+          type: integer
+        inactive_agents:
+          type: integer
+        total_targets:
+          type: integer
+        reachable_targets:
+          type: integer
+        unreachable_targets:
+          type: integer
+        degraded_targets:
+          type: integer
+        total_checks:
+          type: integer
+        successful_checks:
+          type: integer
+        failed_checks:
+          type: integer
+        average_response_time_ms:
+          type: number
+          format: float
+        active_alerts:
+          type: integer
+        by_agent:
+          type: array
+          items:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              hostname:
+                type: string
+              status:
+                type: string
+              checks_performed:
+                type: integer
+              success_rate_percent:
+                type: number
+
+    # ============================================
+    # ALERT SCHEMAS
+    # ============================================
+
+    Alert:
+      type: object
+      required:
+        - id
+        - rule_id
+        - status
+        - severity
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        rule_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, acknowledged, resolved]
+        severity:
+          type: string
+          enum: [critical, warning, info]
+        agent_id:
+          type: string
+        target:
+          type: string
+        metric_type:
+          type: string
+        threshold_value:
+          type: number
+        current_value:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+        acknowledged_at:
+          type: string
+          format: date-time
+          nullable: true
+        acknowledged_by:
+          type: string
+          nullable: true
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    AlertRule:
+      type: object
+      required:
+        - name
+        - condition
+        - severity
+        - notifications
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          example: "High Response Time Alert"
+        description:
+          type: string
+        enabled:
+          type: boolean
+          default: true
+        condition:
+          $ref: '#/components/schemas/AlertCondition'
+        severity:
+          type: string
+          enum: [critical, warning, info]
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationChannel'
+        cooldown_seconds:
+          type: integer
+          minimum: 0
+          default: 300
+          description: Minimum time between repeat notifications
+
+    AlertCondition:
+      type: object
+      required:
+        - metric
+        - operator
+        - threshold
+      properties:
+        metric:
+          type: string
+          enum: [response_time_ms, packet_loss_percent, status, uptime_percent]
+        operator:
+          type: string
+          enum: [greater_than, less_than, equals, not_equals]
+        threshold:
+          type: number
+        duration_seconds:
+          type: integer
+          minimum: 0
+          description: Condition must be true for this duration before alerting
+        aggregation:
+          type: string
+          enum: [avg, min, max, sum, count]
+          default: avg
+        filters:
+          type: object
+          properties:
+            agent_ids:
+              type: array
+              items:
+                type: string
+            targets:
+              type: array
+              items:
+                type: string
+            metric_types:
+              type: array
+              items:
+                type: string
+
+    NotificationChannel:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [discord, email, webhook, slack, pagerduty, teams]
+        configuration:
+          type: object
+          additionalProperties: true
+          description: Channel-specific configuration
+          examples:
+            - type: discord
+              configuration:
+                webhook_url: "https://discord.com/api/webhooks/..."
+            - type: email
+              configuration:
+                recipients: ["ops@example.com"]
+                subject_template: "[{{ severity }}] {{ title }}"
+            - type: slack
+              configuration:
+                channel: "#alerts"
+                webhook_url: "https://hooks.slack.com/services/..."
+
+    # ============================================
+    # AUTHENTICATION & AUTHORIZATION SCHEMAS
+    # ============================================
+
+    AuthorizationCodeTokenRequest:
+      type: object
+      required:
+        - grant_type
+        - code
+        - redirect_uri
+        - client_id
+      properties:
+        grant_type:
+          type: string
+          enum: [authorization_code]
+        code:
+          type: string
+          description: Authorization code from callback
+        redirect_uri:
+          type: string
+          format: uri
+          description: Must match original authorization request
+        client_id:
+          type: string
+        client_secret:
+          type: string
+          description: Required for confidential clients
+        code_verifier:
+          type: string
+          description: PKCE code verifier
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - grant_type
+        - refresh_token
+      properties:
+        grant_type:
+          type: string
+          enum: [refresh_token]
+        refresh_token:
+          type: string
+        scope:
+          type: string
+          description: Optional scope restriction
+
+    ClientCredentialsTokenRequest:
+      type: object
+      required:
+        - grant_type
+        - client_id
+        - client_secret
+      properties:
+        grant_type:
+          type: string
+          enum: [client_credentials]
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        scope:
+          type: string
+          description: Space-separated list of requested scopes
+
+    TokenResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
+      properties:
+        access_token:
+          type: string
+          description: JWT access token
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          example: "Bearer"
+        expires_in:
+          type: integer
+          description: Token lifetime in seconds
+          example: 3600
+        refresh_token:
+          type: string
+          description: Refresh token (only for authorization_code grant)
+          example: "rt_1234567890abcdef"
+        scope:
+          type: string
+          description: Space-separated list of granted scopes
+          example: "openid profile email metrics:read"
+        id_token:
+          type: string
+          description: OpenID Connect ID token (if openid scope requested)
+
+    UserInfo:
+      type: object
+      required:
+        - sub
+      properties:
+        sub:
+          type: string
+          description: Subject identifier (user ID)
+          example: "user-12345"
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        email_verified:
+          type: boolean
+        name:
+          type: string
+          example: "John Doe"
+        given_name:
+          type: string
+          example: "John"
+        family_name:
+          type: string
+          example: "Doe"
+        picture:
+          type: string
+          format: uri
+          example: "https://example.com/avatar.jpg"
+        organization_id:
+          type: string
+          format: uuid
+        roles:
+          type: array
+          items:
+            type: string
+          example: ["admin", "operator"]
+        permissions:
+          type: array
+          items:
+            type: string
+          example: ["metrics:read", "agent:write"]
+
+    # ============================================
+    # USER MANAGEMENT SCHEMAS
+    # ============================================
+
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [admin, operator, viewer]
+        organization_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        identity_provider:
+          type: string
+          description: Which OAuth2 provider the user authenticated with
+          example: "okta"
+        external_id:
+          type: string
+          description: User ID from external identity provider
+
+    CreateUserRequest:
+      type: object
+      required:
+        - email
+        - roles
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [admin, operator, viewer]
+          minItems: 1
+        organization_id:
+          type: string
+          format: uuid
+          description: Required for super admins creating users in other orgs
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [admin, operator, viewer]
+
+    # ============================================
+    # ORGANIZATION SCHEMAS
+    # ============================================
+
+    Organization:
+      type: object
+      required:
+        - id
+        - name
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Acme Corporation"
+        slug:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          example: "acme-corp"
+        status:
+          type: string
+          enum: [active, suspended, trial]
+        plan:
+          type: string
+          enum: [free, professional, enterprise]
+        settings:
+          type: object
+          properties:
+            max_agents:
+              type: integer
+            retention_days:
+              type: integer
+            features:
+              type: array
+              items:
+                type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateOrganizationRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+        plan:
+          type: string
+          enum: [free, professional, enterprise]
+          default: free
+
+    # ============================================
+    # HEALTH SCHEMAS
+    # ============================================
+
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+          example: "1.0.0"
+        uptime_seconds:
+          type: integer
+        components:
+          type: object
+          additionalProperties:
+            type: object
+            required:
+              - status
+            properties:
+              status:
+                type: string
+                enum: [healthy, degraded, unhealthy]
+              message:
+                type: string
+              response_time_ms:
+                type: number
+                format: float
+          example:
+            database:
+              status: "healthy"
+              response_time_ms: 2.5
+            redis:
+              status: "healthy"
+              response_time_ms: 0.8
+            oauth_provider:
+              status: "healthy"
+              message: "Connected to Okta"
+            agents:
+              status: "healthy"
+              message: "42 agents connected"
+            websocket:
+              status: "healthy"
+              message: "15 active connections"
+
+    # ============================================
+    # COMMON SCHEMAS
+    # ============================================
+
+    Pagination:
+      type: object
+      required:
+        - page
+        - page_size
+        - total_items
+        - total_pages
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        total_items:
+          type: integer
+        total_pages:
+          type: integer
+        has_next:
+          type: boolean
+        has_previous:
+          type: boolean
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          example: "validation_error"
+        message:
+          type: string
+          example: "Invalid request parameters"
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+        request_id:
+          type: string
+          format: uuid
+        documentation_url:
+          type: string
+          format: uri
+          description: Link to relevant documentation
+
+  # ============================================
+  # COMMON RESPONSES
+  # ============================================
+
+  responses:
+    BadRequest:
+      description: Bad request - Invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "bad_request"
+            message: "Invalid request parameters"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    Unauthorized:
+      description: Unauthorized - Invalid or missing authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "unauthorized"
+            message: "Invalid or missing authentication token"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "forbidden"
+            message: "Insufficient permissions to access this resource"
+            details:
+              - field: "scope"
+                issue: "Required scope 'admin' not present in token"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "not_found"
+            message: "The requested resource was not found"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per time window
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Requests remaining in current window
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when the rate limit resets
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "rate_limit_exceeded"
+            message: "Too many requests. Please try again later."
+            request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "internal_server_error"
+            message: "An unexpected error occurred"
+            request_id: "550e8400-e29b-41d4-a716-446655440000"

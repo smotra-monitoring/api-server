@@ -4,7 +4,8 @@
 BINARY_NAME=smotra-server
 BINARY_PATH=bin/$(BINARY_NAME)
 MAIN_PATH=cmd/server/main.go
-VERSION?=1.0.0
+CONFIG_FILE?=configs/dev.yaml
+VERSION?=0.0.1
 
 help: ## Display this help message
 	@echo "Available targets:"
@@ -17,8 +18,8 @@ build: ## Build the server binary
 	@echo "Binary built: $(BINARY_PATH)"
 
 run: ## Run the server (development mode)
-	@echo "Running server..."
-	@go run $(MAIN_PATH)
+	@echo "Running server with $(CONFIG_FILE)..."
+	@go run $(MAIN_PATH) -c $(CONFIG_FILE)
 
 test: ## Run tests
 	@echo "Running tests..."
@@ -39,7 +40,7 @@ clean: ## Clean build artifacts
 
 generate-oapi: ## Generate code from OpenAPI spec
 	@echo "Generating API code from OpenAPI spec..."
-	@oapi-codegen -config oapi-codegen/config.yaml oapi-codegen/spec.yaml
+	@oapi-codegen -config api/config.yaml api/spec.yaml
 	@echo "Code generation complete"
 
 fmt: ## Format Go code
@@ -80,4 +81,4 @@ docker-run: ## Run Docker container
 	@echo "Running Docker container..."
 	@docker run -p 8080:8080 --env-file .env smotra-server:$(VERSION)
 
-all: clean generate fmt lint test build ## Run all build steps
+all: clean generate-oapi fmt lint test build ## Run all build steps
