@@ -39,11 +39,15 @@ func main() {
 
 	// Initialize database
 	var db database.Database
-	if cfg.DatabaseType == "postgres" {
-		db, err = database.New(cfg.PostgresConfig)
-	} else {
-		db, err = database.New(cfg.SQLiteConfig)
+	switch cfg.DatabaseType {
+	case "postgres":
+		db = database.NewPostgresDB(*cfg.PostgresConfig)
+	case "sqlite":
+		db = database.NewSQLiteDB(*cfg.SQLiteConfig)
+	default:
+		err = fmt.Errorf("unsupported database type: %s", cfg.DatabaseType)
 	}
+
 	if err != nil {
 		log.Error("failed to create database", "error", err)
 		os.Exit(1)

@@ -15,8 +15,8 @@ type PostgresDB struct {
 	config PostgresConfig
 }
 
-// newPostgresDB creates a new PostgreSQL database instance
-func newPostgresDB(config PostgresConfig) *PostgresDB {
+// NewPostgresDB creates a new PostgreSQL database instance
+func NewPostgresDB(config PostgresConfig) *PostgresDB {
 	return &PostgresDB{
 		config: config,
 	}
