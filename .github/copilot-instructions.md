@@ -102,3 +102,4 @@ oapi-codegen is used to generate server stubs and models from OpenAPI specificat
 
 The server must implement robust error handling and logging using a structured logging library slog. Configuration management should be handled via environment variables and configuration files, with support for different environments (development, staging, production).
 
+(QUICKSTART.md)[/QUICKSTART.md] describing server setup and development process
