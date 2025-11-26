@@ -62,9 +62,9 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 	// Check components
 	components := make(map[string]struct {
-		Message        *string                              `json:"message,omitempty"`
-		ResponseTimeMs *float32                             `json:"response_time_ms,omitempty"`
-		Status         api.HealthStatusComponentsStatus    `json:"status"`
+		Message        *string                          `json:"message,omitempty"`
+		ResponseTimeMs *float32                         `json:"response_time_ms,omitempty"`
+		Status         api.HealthStatusComponentsStatus `json:"status"`
 	})
 	overallHealthy := true
 
@@ -72,9 +72,9 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	if h.db != nil {
 		dbHealth, err := h.db.Health(ctx)
 		componentStatus := struct {
-			Message        *string                              `json:"message,omitempty"`
-			ResponseTimeMs *float32                             `json:"response_time_ms,omitempty"`
-			Status         api.HealthStatusComponentsStatus    `json:"status"`
+			Message        *string                          `json:"message,omitempty"`
+			ResponseTimeMs *float32                         `json:"response_time_ms,omitempty"`
+			Status         api.HealthStatusComponentsStatus `json:"status"`
 		}{
 			Status: api.HealthStatusComponentsStatusHealthy,
 		}
@@ -111,7 +111,7 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	if err := json.NewEncoder(w).Encode(status); err != nil {
 		h.logger.Error("failed to encode health status", "error", err)
 	}

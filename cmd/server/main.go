@@ -76,9 +76,9 @@ func main() {
 	r := chi.NewRouter()
 
 	// Global middleware
+	r.Use(middleware.Logger(log))
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recovery(log))
-	r.Use(middleware.Logger(log))
 	r.Use(middleware.CORS)
 
 	// Initialize handlers
