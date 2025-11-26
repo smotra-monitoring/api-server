@@ -10,12 +10,12 @@ import (
 	"syscall"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/smotra-monitoring/server/internal/api"
 	"github.com/smotra-monitoring/server/internal/config"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/handlers/health"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/middleware"
-	"github.com/smotra-monitoring/server/pkg/api"
 )
 
 const version = "0.0.1"

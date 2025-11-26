@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/smotra-monitoring/server/internal/api"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/logger"
-	"github.com/smotra-monitoring/server/pkg/api"
 )
 
 // Handler handles health check endpoints

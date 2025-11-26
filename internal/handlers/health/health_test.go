@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/smotra-monitoring/server/internal/api"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/testutil"
-	"github.com/smotra-monitoring/server/pkg/api"
 )
 
 func TestNewHandler(t *testing.T) {
