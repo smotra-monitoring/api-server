@@ -102,3 +102,6 @@ oapi-codegen is used to generate server stubs and models from OpenAPI specificat
 
 The server must implement robust error handling and logging using a structured logging library slog. Configuration management should be handled via environment variables and configuration files, with support for different environments (development, staging, production).
 
+Codebase must include unit tests and integration tests to ensure reliability and facilitate future development. CI/CD pipelines should be set up to automate testing, building, and deployment processes.
+
+(README.md)[/README.md] describing server setup and development process

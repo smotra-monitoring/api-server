@@ -1,0 +1,28 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "read_timeout": 15000000000,
+    "write_timeout": 15000000000,
+    "idle_timeout": 120000000000,
+    "shutdown_timeout": 30000000000,
+    "environment": "development"
+  },
+  "database_type": "sqlite",
+  "sqlite_config": {
+    "Type": "sqlite",
+    "MaxOpenConns": 25,
+    "MaxIdleConns": 5,
+    "ConnMaxLifetime": 900000000000,
+    "ConnMaxIdleTime": 300000000000,
+    "FilePath": "./data/smotra.db"
+  },
+  "logging": {
+    "level": "debug",
+    "format": "json"
+  },
+  "auth": {
+    "jwt_secret": "development-secret-change-in-production",
+    "jwt_expiration": 86400000000000
+  }
+}

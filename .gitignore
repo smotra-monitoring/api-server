@@ -1,5 +1,6 @@
 # ignore local openapi-spec
-/oapi-codegen/spec.yaml
+/api/spec.yaml
+/api/strict.yaml
 
 # Binaries for programs and plugins
 *.exe
@@ -24,6 +25,13 @@ go.work
 .env
 .env.local
 .env.*.local
+.env.production
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+data/
 
 # IDE specific files
 .idea/
@@ -37,9 +45,13 @@ go.work
 /bin/
 /dist/
 /build/
+/server
+cmd/server/server
+cmd/server/server.exe
 
 # Logs
 *.log
+logs/
 
 # Temporary files
 tmp/
@@ -47,3 +59,7 @@ temp/
 
 # Debug files
 __debug_bin
+
+# Test coverage
+coverage.out
+coverage.html
