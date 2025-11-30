@@ -42,7 +42,7 @@ func main() {
 		Format: cfg.Logging.Format,
 	})
 
-	log.Info("starting smotra monitoring server",
+	log.Info("starting the server",
 		"version", version,
 		"environment", cfg.Server.Environment,
 	)
