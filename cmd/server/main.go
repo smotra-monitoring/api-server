@@ -109,6 +109,12 @@ func main() {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"message":"Smotra Monitoring API v1","version":"` + version + `"}`))
 		})
+
+		// // Sub-router for agent endpoints with authentication middleware
+		// r.Route("/agents", func(r chi.Router) {
+		// 	r.Use(middleware.Authentication) // Assuming you have an authentication middleware
+		// 	// Define agent-related streict API handlers here
+		// 	r.Post("/", agentHandler.RegisterAgent)
 	})
 
 	// Create HTTP server
@@ -119,9 +125,6 @@ func main() {
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
-
-	// Server run context
-	serverCtx, serverStopCtx := context.WithCancel(context.Background())
 
 	// Listen for syscall signals for process to interrupt/quit
 	sig := make(chan os.Signal, 1)
@@ -147,28 +150,23 @@ func main() {
 	<-sig
 
 	// Shutdown signal received
-	log.Info("shutting down server gracefully")
+	log.Info("shutting down the server ...")
 
 	// Mark server as not ready
 	healthHandler.SetReady(false)
 
 	// Shutdown context with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(serverCtx, cfg.Server.ShutdownTimeout)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	defer shutdownCancel()
 
 	// Attempt graceful shutdown
-	go func() {
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			log.Error("server shutdown error", "error", err)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		if err == context.DeadlineExceeded {
+			log.Warn("graceful shutdown timed out, forcing exit")
+		} else {
+			log.Error("graceful shutdown error", "error", err)
 		}
-		serverStopCtx()
-	}()
-
-	// Wait for shutdown to complete or timeout
-	<-shutdownCtx.Done()
-	if shutdownCtx.Err() == context.DeadlineExceeded {
-		log.Warn("shutdown timeout exceeded, forcing shutdown")
+	} else {
+		log.Info("server stopped gracefully")
 	}
-
-	log.Info("server stopped")
 }
