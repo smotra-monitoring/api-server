@@ -58,6 +58,9 @@ type ServerInterface interface {
 	// Readiness check
 	// (GET /healthz/ready)
 	ReadinessCheck(w http.ResponseWriter, r *http.Request)
+	// Prometheus metrics endpoint
+	// (GET /metrics)
+	PrometheusMetrics(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -79,6 +82,12 @@ func (_ Unimplemented) LivenessCheck(w http.ResponseWriter, r *http.Request) {
 // Readiness check
 // (GET /healthz/ready)
 func (_ Unimplemented) ReadinessCheck(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Prometheus metrics endpoint
+// (GET /metrics)
+func (_ Unimplemented) PrometheusMetrics(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -124,6 +133,20 @@ func (siw *ServerInterfaceWrapper) ReadinessCheck(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ReadinessCheck(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PrometheusMetrics operation middleware
+func (siw *ServerInterfaceWrapper) PrometheusMetrics(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PrometheusMetrics(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -255,6 +278,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz/ready", wrapper.ReadinessCheck)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/metrics", wrapper.PrometheusMetrics)
+	})
 
 	return r
 }
@@ -322,6 +348,23 @@ func (response ReadinessCheck503Response) VisitReadinessCheckResponse(w http.Res
 	return nil
 }
 
+type PrometheusMetricsRequestObject struct {
+}
+
+type PrometheusMetricsResponseObject interface {
+	VisitPrometheusMetricsResponse(w http.ResponseWriter) error
+}
+
+type PrometheusMetrics200TextResponse string
+
+func (response PrometheusMetrics200TextResponse) VisitPrometheusMetricsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(200)
+
+	_, err := w.Write([]byte(response))
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Health check endpoint
@@ -333,6 +376,9 @@ type StrictServerInterface interface {
 	// Readiness check
 	// (GET /healthz/ready)
 	ReadinessCheck(ctx context.Context, request ReadinessCheckRequestObject) (ReadinessCheckResponseObject, error)
+	// Prometheus metrics endpoint
+	// (GET /metrics)
+	PrometheusMetrics(ctx context.Context, request PrometheusMetricsRequestObject) (PrometheusMetricsResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -429,6 +475,30 @@ func (sh *strictHandler) ReadinessCheck(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ReadinessCheckResponseObject); ok {
 		if err := validResponse.VisitReadinessCheckResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PrometheusMetrics operation middleware
+func (sh *strictHandler) PrometheusMetrics(w http.ResponseWriter, r *http.Request) {
+	var request PrometheusMetricsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PrometheusMetrics(ctx, request.(PrometheusMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PrometheusMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PrometheusMetricsResponseObject); ok {
+		if err := validResponse.VisitPrometheusMetricsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

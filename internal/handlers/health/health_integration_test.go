@@ -1,23 +1,35 @@
 //go:build integration
-// +build integration
 
 package health
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/smotra-monitoring/server/internal/api"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/testutil"
-	"github.com/smotra-monitoring/server/pkg/api"
 )
 
+// testServerImpl wraps Handler and implements the full StrictServerInterface
+type testServerImpl struct {
+	*Handler
+}
+
+// PrometheusMetrics provides a stub implementation for testing
+func (t *testServerImpl) PrometheusMetrics(ctx context.Context, request api.PrometheusMetricsRequestObject) (api.PrometheusMetricsResponseObject, error) {
+	// Stub implementation for testing - not used in health tests
+	return api.PrometheusMetrics200TextResponse(""), nil
+}
+
 func setupTestRouter(handler *Handler) *chi.Mux {
+	testImpl := &testServerImpl{Handler: handler}
 	r := chi.NewRouter()
-	strictHandler := api.NewStrictHandler(handler, nil)
+	strictHandler := api.NewStrictHandler(testImpl, nil)
 	api.HandlerFromMux(strictHandler, r)
 	return r
 }

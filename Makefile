@@ -71,7 +71,12 @@ clean: ## Clean build artifacts
 
 generate-oapi: ## Generate code from OpenAPI spec
 	@echo "Generating API code from OpenAPI spec..."
-	@oapi-codegen -config api/oapi-codegen.yaml api/spec.yaml
+	@oapi-codegen -config=api/oapi-codegen.yaml https://raw.githubusercontent.com/smotra-monitoring/openapi/refs/heads/master/api/spec.yaml
+	@echo "Code generation complete"
+
+generate-oapi-health: ## Generate code from OpenAPI spec
+	@echo "Generating API code from OpenAPI spec..."
+	@oapi-codegen -config=api/oapi-codegen.yaml --include-tags=health https://raw.githubusercontent.com/smotra-monitoring/openapi/refs/heads/master/api/spec.yaml
 	@echo "Code generation complete"
 
 fmt: ## Format Go code

@@ -104,4 +104,68 @@ The server must implement robust error handling and logging using a structured l
 
 Codebase must include unit tests and integration tests to ensure reliability and facilitate future development. CI/CD pipelines should be set up to automate testing, building, and deployment processes.
 
+## Metrics and Observability
+
+The server exposes a `/metrics` endpoint in Prometheus format for monitoring and observability. When implementing new features or modifying existing code, developers must consider and implement appropriate metrics:
+
+### Metrics Guidelines
+
+1. **Handler Metrics**: All new HTTP endpoints should track:
+   - Request counts (total, success, failure)
+   - Response times (histograms or gauges)
+   - Error rates by type
+
+2. **Database Metrics**: Database operations should expose:
+   - Query counts (by operation type)
+   - Query duration
+   - Connection pool statistics
+   - Health status
+
+3. **Business Metrics**: Feature-specific metrics should include:
+   - Agent registration/deregistration counts
+   - Check execution statistics
+   - Alert trigger counts
+   - Data ingestion rates
+
+4. **System Metrics**: Runtime metrics are automatically collected:
+   - Go runtime statistics (goroutines, memory, GC)
+   - CPU and memory usage
+   - Uptime
+
+### Metrics Implementation
+
+The metrics handler is located in `internal/handlers/metrics/` and follows these patterns:
+
+- Use atomic counters (`atomic.Uint64`) for concurrent-safe metric updates
+- Expose metrics in Prometheus exposition format with proper HELP and TYPE comments
+- Include relevant labels for dimensional metrics (e.g., status="success")
+- Metrics names should follow the pattern: `smotra_<component>_<metric>_<unit>`
+- Counter metrics should end with `_total` suffix
+- Use gauges for values that can go up or down
+- Use counters for monotonically increasing values
+
+### Adding New Metrics
+
+When adding features:
+
+1. Identify what should be measured (requests, operations, resources)
+2. Add metric fields to the relevant handler struct using `atomic.Uint64` for counters
+3. Add increment methods that are thread-safe
+4. Update the `buildPrometheusMetrics` method to expose the new metrics
+5. Write tests to verify metrics are correctly incremented and formatted
+6. Document the metrics in the OpenAPI spec example for `/metrics`
+
+Example:
+```go
+// In handler struct
+myFeatureOperationsTotal   atomic.Uint64
+myFeatureOperationsSuccess atomic.Uint64
+myFeatureOperationsFailure atomic.Uint64
+
+// In buildPrometheusMetrics
+output += "# HELP smotra_myfeature_operations_total Total operations\n"
+output += "# TYPE smotra_myfeature_operations_total counter\n"
+output += fmt.Sprintf("smotra_myfeature_operations_total %d\n", h.myFeatureOperationsTotal.Load())
+```
+
 (README.md)[/README.md] describing server setup and development process

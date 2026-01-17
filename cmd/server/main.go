@@ -13,7 +13,7 @@ import (
 	"github.com/smotra-monitoring/server/internal/api"
 	"github.com/smotra-monitoring/server/internal/config"
 	"github.com/smotra-monitoring/server/internal/database"
-	"github.com/smotra-monitoring/server/internal/handlers/health"
+	"github.com/smotra-monitoring/server/internal/handlers"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/middleware"
 )
@@ -83,7 +83,7 @@ func main() {
 	r.Use(middleware.CORS)
 
 	// Initialize handlers
-	healthHandler := health.NewHandler(log, db, version)
+	handler := handlers.NewCombinedHandler(log, db, version)
 
 	// Health check routes (no authentication required)
 	// r.Get("/healthz", healthHandler.HealthCheck)
@@ -99,7 +99,7 @@ func main() {
 	// 	resp.WriteResponse(w)
 	// })
 
-	strictHandler := api.NewStrictHandler(healthHandler, nil)
+	strictHandler := api.NewStrictHandler(handler, nil)
 	api.HandlerFromMux(strictHandler, r)
 
 	// API v1 routes
@@ -138,7 +138,7 @@ func main() {
 		)
 
 		// Mark server as ready
-		healthHandler.SetReady(true)
+		handler.SetReady(true)
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Error("server error", "error", err)
@@ -153,7 +153,7 @@ func main() {
 	log.Info("shutting down the server ...")
 
 	// Mark server as not ready
-	healthHandler.SetReady(false)
+	handler.SetReady(false)
 
 	// Shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
