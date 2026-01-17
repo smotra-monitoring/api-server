@@ -51,7 +51,7 @@ jobs:
       - name: Generate API code
         run: |
           go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-          ~/go/bin/oapi-codegen --config api/oapi-codegen.yaml https://raw.githubusercontent.com/smotra-monitoring/openapi/refs/heads/master/api/spec.yaml
+          ~/go/bin/oapi-codegen --config api/oapi-codegen.yaml https://raw.githubusercontent.com/${{ github.repository_owner }}/openapi/refs/heads/master/api/spec.yaml
           
       - name: Build server
         run: |
@@ -130,9 +130,9 @@ jobs:
           target: app
           push: true
           tags: |
-            ghcr.io/smotra/${{ steps.vars.outputs.BUILD_REPO }}:${{ steps.vars.outputs.BUILD_RELEASE }}
-            ghcr.io/smotra/${{ steps.vars.outputs.BUILD_REPO }}:${{ steps.vars.outputs.BUILD_RELEASE_MAJOR }}
-            ghcr.io/smotra/${{ steps.vars.outputs.BUILD_REPO }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ steps.vars.outputs.BUILD_REPO }}:${{ steps.vars.outputs.BUILD_RELEASE }}
+            ghcr.io/${{ github.repository_owner }}/${{ steps.vars.outputs.BUILD_REPO }}:${{ steps.vars.outputs.BUILD_RELEASE_MAJOR }}
+            ghcr.io/${{ github.repository_owner }}/${{ steps.vars.outputs.BUILD_REPO }}:latest
 
       - name: finish deployment
         uses: bobheadxi/deployments@v1
