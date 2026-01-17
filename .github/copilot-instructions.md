@@ -170,3 +170,4 @@ output += fmt.Sprintf("smotra_myfeature_operations_total %d\n", h.myFeatureOpera
 ```
 
 [README.md](/README.md) describing server setup and development process
+
