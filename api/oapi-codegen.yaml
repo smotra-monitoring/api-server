@@ -1,6 +1,5 @@
 package: api
-output: api1/api.gen.go
-# output: internal/api/api.gen.go
+output: internal/api/api.gen.go
 # template: go-chi-server
 # options:
 #   generate:
