@@ -1,4 +1,5 @@
 # ignore local openapi-spec
+api/openapi/
 api/spec.yaml
 api/strict.yaml
 
