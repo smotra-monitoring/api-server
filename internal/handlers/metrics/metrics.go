@@ -13,6 +13,11 @@ import (
 	"github.com/smotra-monitoring/server/internal/logger"
 )
 
+// MetricsProvider defines an interface for handlers that provide metrics
+type MetricsProvider interface {
+	GetMetrics() map[string]uint64
+}
+
 // Handler handles metrics endpoint
 type Handler struct {
 	logger    *logger.Logger
@@ -32,16 +37,25 @@ type Handler struct {
 
 	// Agent metrics (will be populated from database)
 	agentMetrics sync.Map
+
+	// External metrics providers
+	metricsProviders []MetricsProvider
 }
 
 // NewHandler creates a new metrics handler
 func NewHandler(logger *logger.Logger, db database.Database, version string) *Handler {
 	return &Handler{
-		logger:    logger.WithComponent("metrics"),
-		db:        db,
-		startTime: time.Now(),
-		version:   version,
+		logger:           logger.WithComponent("metrics"),
+		db:               db,
+		startTime:        time.Now(),
+		version:          version,
+		metricsProviders: []MetricsProvider{},
 	}
+}
+
+// RegisterMetricsProvider registers a metrics provider
+func (h *Handler) RegisterMetricsProvider(provider MetricsProvider) {
+	h.metricsProviders = append(h.metricsProviders, provider)
 }
 
 // IncrementHTTPRequests increments HTTP request counters
@@ -187,6 +201,33 @@ func (h *Handler) buildPrometheusMetrics(ctx context.Context) string {
 	output += "smotra_checks_total{status=\"success\"} 0\n"
 	output += "smotra_checks_total{status=\"failure\"} 0\n"
 	output += "\n"
+
+	// Configuration handler metrics
+	for _, provider := range h.metricsProviders {
+		// TODO: add GetTitle() to MetricsProvider interface and use it in output labels
+		metrics := provider.GetMetrics()
+
+		if getConfigTotal, ok := metrics["get_configuration_total"]; ok {
+			output += "# HELP smotra_configuration_get_total Total number of GET configuration requests\n"
+			output += "# TYPE smotra_configuration_get_total counter\n"
+			output += fmt.Sprintf("smotra_configuration_get_total %d\n", getConfigTotal)
+			output += "\n"
+		}
+
+		if getConfigSuccess, ok := metrics["get_configuration_success"]; ok {
+			output += "# HELP smotra_configuration_get_success_total Total number of successful GET configuration requests\n"
+			output += "# TYPE smotra_configuration_get_success_total counter\n"
+			output += fmt.Sprintf("smotra_configuration_get_success_total %d\n", getConfigSuccess)
+			output += "\n"
+		}
+
+		if getConfigFailure, ok := metrics["get_configuration_failure"]; ok {
+			output += "# HELP smotra_configuration_get_failure_total Total number of failed GET configuration requests\n"
+			output += "# TYPE smotra_configuration_get_failure_total counter\n"
+			output += fmt.Sprintf("smotra_configuration_get_failure_total %d\n", getConfigFailure)
+			output += "\n"
+		}
+	}
 
 	return output
 }

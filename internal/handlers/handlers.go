@@ -5,6 +5,7 @@ import (
 
 	"github.com/smotra-monitoring/server/internal/api"
 	"github.com/smotra-monitoring/server/internal/database"
+	"github.com/smotra-monitoring/server/internal/handlers/agent_configuration"
 	"github.com/smotra-monitoring/server/internal/handlers/health"
 	"github.com/smotra-monitoring/server/internal/handlers/metrics"
 	"github.com/smotra-monitoring/server/internal/logger"
@@ -12,15 +13,23 @@ import (
 
 // CombinedHandler combines all handler implementations
 type CombinedHandler struct {
-	health  *health.Handler
-	metrics *metrics.Handler
+	health              *health.Handler
+	metrics             *metrics.Handler
+	agent_configuration *agent_configuration.Handler
 }
 
 // NewCombinedHandler creates a new combined handler
 func NewCombinedHandler(logger *logger.Logger, db database.Database, version string) *CombinedHandler {
+	metricsHandler := metrics.NewHandler(logger, db, version)
+	configHandler := agent_configuration.NewHandler(logger, db, version)
+
+	// Register configuration handler as a metrics provider
+	metricsHandler.RegisterMetricsProvider(configHandler)
+
 	return &CombinedHandler{
-		health:  health.NewHandler(logger, db, version),
-		metrics: metrics.NewHandler(logger, db, version),
+		health:              health.NewHandler(logger, db, version),
+		metrics:             metricsHandler,
+		agent_configuration: configHandler,
 	}
 }
 
@@ -42,6 +51,11 @@ func (h *CombinedHandler) ReadinessCheck(ctx context.Context, request api.Readin
 // PrometheusMetrics delegates to metrics handler
 func (h *CombinedHandler) PrometheusMetrics(ctx context.Context, request api.PrometheusMetricsRequestObject) (api.PrometheusMetricsResponseObject, error) {
 	return h.metrics.PrometheusMetrics(ctx, request)
+}
+
+// GetAgentConfiguration delegates to configuration handler
+func (h *CombinedHandler) GetAgentConfiguration(ctx context.Context, request api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
+	return h.agent_configuration.GetAgentConfiguration(ctx, request)
 }
 
 // SetReady sets the readiness status
