@@ -37,36 +37,6 @@ func (q *Queries) CreateAgent(ctx context.Context, arg CreateAgentParams) (strin
 	return id, err
 }
 
-const deleteAgent = `-- name: DeleteAgent :exec
-DELETE FROM agents WHERE id = ?
-`
-
-func (q *Queries) DeleteAgent(ctx context.Context, id string) error {
-	_, err := q.db.ExecContext(ctx, deleteAgent, id)
-	return err
-}
-
-const getAgent = `-- name: GetAgent :one
-SELECT id, version, section_id, name, api_key_hash, base_config, last_seen_at, created_at FROM agents WHERE id = ?
-LIMIT 1
-`
-
-func (q *Queries) GetAgent(ctx context.Context, id string) (Agent, error) {
-	row := q.db.QueryRowContext(ctx, getAgent, id)
-	var i Agent
-	err := row.Scan(
-		&i.ID,
-		&i.Version,
-		&i.SectionID,
-		&i.Name,
-		&i.ApiKeyHash,
-		&i.BaseConfig,
-		&i.LastSeenAt,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const getAgentConfigurationBase = `-- name: GetAgentConfigurationBase :one
 SELECT id, version, name, base_config FROM agents WHERE id = ?
 LIMIT 1
@@ -127,7 +97,7 @@ func (q *Queries) GetAgentEndpoints(ctx context.Context, agentID string) ([]GetA
 const getAgentTags = `-- name: GetAgentTags :many
 SELECT t.name FROM agent_tags at
 JOIN tags t ON at.tag_id = t.id
-WHERE at.agent_id = ?
+WHERE at.agent_id = ? AND t.scope IN ('agent', 'global')
 `
 
 func (q *Queries) GetAgentTags(ctx context.Context, agentID string) ([]string, error) {
@@ -156,7 +126,7 @@ func (q *Queries) GetAgentTags(ctx context.Context, agentID string) ([]string, e
 const getEndpointTags = `-- name: GetEndpointTags :many
 SELECT t.name FROM endpoint_tags et
 JOIN tags t ON et.tag_id = t.id
-WHERE et.endpoint_id = ?
+WHERE et.endpoint_id = ? AND t.scope IN ('endpoint', 'global')
 `
 
 func (q *Queries) GetEndpointTags(ctx context.Context, endpointID string) ([]string, error) {
@@ -180,131 +150,6 @@ func (q *Queries) GetEndpointTags(ctx context.Context, endpointID string) ([]str
 		return nil, err
 	}
 	return items, nil
-}
-
-const listAgents = `-- name: ListAgents :many
-SELECT id, version, section_id, name, api_key_hash, base_config, last_seen_at, created_at FROM agents
-ORDER BY id
-LIMIT ? OFFSET ?
-`
-
-type ListAgentsParams struct {
-	Limit  int64
-	Offset int64
-}
-
-func (q *Queries) ListAgents(ctx context.Context, arg ListAgentsParams) ([]Agent, error) {
-	rows, err := q.db.QueryContext(ctx, listAgents, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Agent
-	for rows.Next() {
-		var i Agent
-		if err := rows.Scan(
-			&i.ID,
-			&i.Version,
-			&i.SectionID,
-			&i.Name,
-			&i.ApiKeyHash,
-			&i.BaseConfig,
-			&i.LastSeenAt,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listAgentsBySection = `-- name: ListAgentsBySection :many
-SELECT id, version, section_id, name, api_key_hash, base_config, last_seen_at, created_at FROM agents
-WHERE section_id = ?
-ORDER BY id
-LIMIT ? OFFSET ?
-`
-
-type ListAgentsBySectionParams struct {
-	SectionID string
-	Limit     int64
-	Offset    int64
-}
-
-func (q *Queries) ListAgentsBySection(ctx context.Context, arg ListAgentsBySectionParams) ([]Agent, error) {
-	rows, err := q.db.QueryContext(ctx, listAgentsBySection, arg.SectionID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Agent
-	for rows.Next() {
-		var i Agent
-		if err := rows.Scan(
-			&i.ID,
-			&i.Version,
-			&i.SectionID,
-			&i.Name,
-			&i.ApiKeyHash,
-			&i.BaseConfig,
-			&i.LastSeenAt,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const updateAgent = `-- name: UpdateAgent :one
-UPDATE agents
-SET section_id = ?, name = ?, api_key_hash = ?, base_config = ?
-WHERE id = ?
-RETURNING id, version, section_id, name, api_key_hash, base_config, last_seen_at, created_at
-`
-
-type UpdateAgentParams struct {
-	SectionID  string
-	Name       string
-	ApiKeyHash string
-	BaseConfig string
-	ID         string
-}
-
-func (q *Queries) UpdateAgent(ctx context.Context, arg UpdateAgentParams) (Agent, error) {
-	row := q.db.QueryRowContext(ctx, updateAgent,
-		arg.SectionID,
-		arg.Name,
-		arg.ApiKeyHash,
-		arg.BaseConfig,
-		arg.ID,
-	)
-	var i Agent
-	err := row.Scan(
-		&i.ID,
-		&i.Version,
-		&i.SectionID,
-		&i.Name,
-		&i.ApiKeyHash,
-		&i.BaseConfig,
-		&i.LastSeenAt,
-		&i.CreatedAt,
-	)
-	return i, err
 }
 
 const updateAgentConfiguration = `-- name: UpdateAgentConfiguration :exec

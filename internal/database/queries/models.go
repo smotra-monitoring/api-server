@@ -10,12 +10,13 @@ import (
 
 type Agent struct {
 	ID         string
-	Version    int64
 	SectionID  string
 	Name       string
 	ApiKeyHash string
 	BaseConfig string
+	Version    int64
 	LastSeenAt sql.NullString
+	UpdatedAt  sql.NullString
 	CreatedAt  sql.NullString
 }
 
@@ -29,6 +30,7 @@ type Endpoint struct {
 	AgentID   string
 	Address   string
 	Enabled   sql.NullInt64
+	UpdatedAt sql.NullString
 	CreatedAt sql.NullString
 }
 

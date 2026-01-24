@@ -1,39 +1,11 @@
--- name: GetAgent :one
-SELECT * FROM agents WHERE id = ?
+-- name: GetAgentConfigurationBase :one
+SELECT id, version, name, base_config FROM agents WHERE id = ?
 LIMIT 1;
-
--- name: ListAgents :many
-SELECT * FROM agents
-ORDER BY id
-LIMIT ? OFFSET ?;
 
 -- name: CreateAgent :one
 INSERT INTO agents (id, section_id, name, api_key_hash, base_config) VALUES 
 (?, ?, ?, ?, ?)
 RETURNING id;
-
--- name: UpdateAgent :one
-UPDATE agents
-SET section_id = ?, name = ?, api_key_hash = ?, base_config = ?
-WHERE id = ?
-RETURNING *;
-
--- name: DeleteAgent :exec
-DELETE FROM agents WHERE id = ?;
-
--- name: ListAgentsBySection :many
-SELECT * FROM agents
-WHERE section_id = ?
-ORDER BY id
-LIMIT ? OFFSET ?;
-
-
---  remove above lines , those might be deleted
-
-
--- name: GetAgentConfigurationBase :one
-SELECT id, version, name, base_config FROM agents WHERE id = ?
-LIMIT 1;
 
 -- name: GetAgentTags :many
 SELECT t.name FROM agent_tags at
