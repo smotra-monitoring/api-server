@@ -76,7 +76,7 @@ generate-oapi: ## Generate code from OpenAPI spec
 
 generate-sqlc: ## Generate database code from SQL queries using sqlc
 	@echo "Generating database code from SQL queries..."
-	@cd data/dev/sqlc && sqlc generate
+	@sqlc generate -f data/dev/sqlc/sqlc.yaml
 	@echo "sqlc code generation complete"
 
 fmt: ## Format Go code
