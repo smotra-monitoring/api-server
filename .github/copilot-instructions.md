@@ -103,7 +103,7 @@ All database interactions must use sqlc-generated code. Direct SQL queries in ap
 - **Code Generator**: sqlc is used to generate type-safe Go code from SQL queries.
 - **Configuration File**: Located at `./data/db/dev/sqlc/sqlc.yaml`
 - **Generated Package**: `internal/database/queries`
-- **Generation Command**: Use the Makefile action `make generate-sqlc` to run code generation.
+- **Generation Command**: Use the justfile action `just generate-sqlc` to run code generation.
 
 ### Database Migration Files
 
@@ -114,7 +114,7 @@ All database interactions must use sqlc-generated code. Direct SQL queries in ap
 
 ### Query File Organization
 
-- **Location**: `data/db/dev/migrations/` (alongside migration files) or separate query directory
+- **Location**: `internal/database/queries/` directory
 - **Organization**: Query files must be organized by database entity:
   - `agents.sql` - All queries related to agents table
   - `users.sql` - All queries related to users table
@@ -124,8 +124,8 @@ All database interactions must use sqlc-generated code. Direct SQL queries in ap
 
 ### Development Workflow
 
-1. Create or modify SQL queries in the appropriate entity file (e.g., `agents.sql`)
-2. Run `make generate-sqlc` to regenerate Go code
+1. Create or modify SQL queries in the appropriate entity file (e.g., `internal/database/queries/agents.sql`)
+2. Run `just generate-sqlc` to regenerate Go code
 3. Import and use the generated code from `internal/database/queries`
 4. Never write raw SQL queries directly in Go code
 
@@ -139,6 +139,21 @@ oapi-codegen is used to generate server stubs and models from OpenAPI specificat
 The server must implement robust error handling and logging using a structured logging library slog. Configuration management should be handled via environment variables and configuration files, with support for different environments (development, staging, production).
 
 Codebase must include unit tests and integration tests to ensure reliability and facilitate future development. CI/CD pipelines should be set up to automate testing, building, and deployment processes.
+
+### Implemented Handlers
+
+Current handler implementations are located in `internal/handlers/`:
+
+- **health/**: Health check endpoints (`/healthz`, `/healthz/ready`, `/healthz/live`)
+- **metrics/**: Prometheus metrics endpoint (`/metrics`)
+- **agent_configuration/**: Agent configuration retrieval endpoint (`/agent/{agentId}/configuration`)
+- **handlers.go**: Combined handler that aggregates all individual handlers and implements the OpenAPI strict handler interface
+
+Each handler package includes:
+- Implementation file (e.g., `configuration.go`)
+- Unit tests (e.g., `configuration_test.go`)
+- Integration tests (e.g., `configuration_integration_test.go`)
+- Metrics tracking using atomic counters for concurrent-safe operations
 
 ## Metrics and Observability
 
@@ -204,5 +219,5 @@ output += "# TYPE smotra_myfeature_operations_total counter\n"
 output += fmt.Sprintf("smotra_myfeature_operations_total %d\n", h.myFeatureOperationsTotal.Load())
 ```
 
-[README.md](/README.md) describing server setup and development process
+README.md in the project root describes server setup and development process
 

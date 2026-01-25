@@ -29,7 +29,7 @@ The project includes a ready-to-use development configuration that uses SQLite:
 # Run with the provided dev config
 go run cmd/server/main.go -c configs/dev.yaml
 
-# Or use the Makefile
+# Or use justfile
 just run
 ```
 
@@ -220,7 +220,7 @@ go build -ldflags "-X main.version=1.0.0" -o bin/smotra-server cmd/server/main.g
 
 ## Available just Targets
 
-The project includes a comprehensive Makefile for common development tasks:
+The project includes a comprehensive justfile for common development tasks:
 
 ```bash
 just help              # Display all available targets
@@ -261,9 +261,16 @@ server/
 │   │   ├── factory.go      # Database factory pattern
 │   │   ├── postgres.go     # PostgreSQL implementation
 │   │   ├── sqlite.go       # SQLite implementation
-│   │   └── types.go        # Database interfaces and types
+│   │   ├── types.go        # Database interfaces and types
+│   │   └── queries/        # sqlc-generated database queries
+│   │       ├── agents.sql      # Agent-related SQL queries
+│   │       ├── agents.sql.go   # Generated Go code for agent queries
+│   │       ├── db.go           # Database interface
+│   │       └── models.go       # Generated database models
 │   ├── handlers/           # HTTP handlers
 │   │   ├── handlers.go     # Combined handler implementation
+│   │   ├── agent_configuration/ # Agent configuration handlers
+│   │   │   └── configuration.go # GET /agent/{agentId}/configuration
 │   │   ├── health/         # Health check handlers
 │   │   │   └── health.go   # Health, readiness, liveness checks
 │   │   └── metrics/        # Prometheus metrics handlers
@@ -286,7 +293,7 @@ server/
 ├── script/                 # Build and deployment scripts
 ├── go.mod                  # Go module definition
 ├── go.sum                  # Go module checksums
-├── Makefile               # Build automation
+├── justfile               # Build automation (just command runner)
 ├── LICENSE                # License file
 ├── README.md              # This file
 └── TESTING.md             # Testing documentation
@@ -320,16 +327,31 @@ server/
 - **Strict Handlers**: Uses OpenAPI strict handler pattern for type safety
 - **Versioned APIs**: API v1 routes under `/api/v1/`
 
+### Agent Configuration
+- **Configuration Endpoint**: GET `/agent/{agentId}/configuration` to retrieve agent-specific configuration
+- **Database-Backed**: Configuration stored in database with version tracking
+- **sqlc Integration**: Type-safe database queries generated from SQL
+- **Tags Support**: Agent-level and endpoint-level tags with scoping (agent, endpoint, global)
+- **JSON Configuration**: Base configuration stored as JSON blob for flexibility
+
 ## Development
 
 ### Prerequisites for Development
 
 ```bash
-# Install oapi-codegen for API code generation
+# Install required development tools (oapi-codegen and sqlc)
 just install-tools
 
 # Or manually
-go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@latest
+go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+# Install just (if not already installed)
+# On macOS:
+brew install just
+# On Linux:
+cargo install just
+# Or download from: https://github.com/casey/just/releases
 ```
 
 ### Adding New Features
@@ -467,8 +489,10 @@ go mod download
 - **Database Drivers**: 
   - SQLite: mattn/go-sqlite3
   - PostgreSQL: lib/pq
+- **Database Query Generation**: sqlc (type-safe SQL to Go code generator)
 - **API Code Generation**: oapi-codegen
 - **Configuration**: YAML/JSON support via gopkg.in/yaml.v3
+- **Build Tool**: just (command runner, similar to make)
 
 ## Roadmap
 
@@ -482,13 +506,18 @@ go mod download
 - [x] OpenAPI-based code generation
 - [x] Unit and integration testing infrastructure
 - [x] Update copilot-instructions.md about sqlc generations and file-structure
-- [X] Add GetTitle() to MetricsProvider interface and use it in metrics.buildPrometheusMetrics in output labels
-- [X] Correct OpenAPI spec. Endpoint enabled is required
-- [X] Double check OpenAPI spec. AgentConfgi.tags is required AgentConfig.Endpoints.tags is optional
-- [X] Correct DB schema. Add optional port to the Endpoint
+- [x] Add GetTitle() to MetricsProvider interface and use it in metrics.buildPrometheusMetrics in output labels
+- [x] Correct OpenAPI spec. Endpoint enabled is required
+- [x] Double check OpenAPI spec. AgentConfig.tags is required AgentConfig.Endpoints.tags is optional
+- [x] Correct DB schema. Add optional port to the Endpoint
+- [x] Database schema with support for tenants, sections, agents, endpoints, and tags
+- [x] sqlc integration for type-safe database queries
+- [x] Agent configuration endpoint implementation (GET /agent/{agentId}/configuration)
+- [x] Database versioning triggers for automatic configuration version bumping
+- [x] justfile for build automation (replacing Makefile)
 
 ### Short Term
-- [ ] Database migrations with go-migrate
+- [ ] Database migrations management with go-migrate or similar tool
 - [ ] JWT authentication implementation
 - [ ] User management endpoints
 - [ ] Agent registration and management
@@ -521,9 +550,13 @@ go mod download
 ### API v1
 - `GET /api/v1` - API version information
 
+### Agent Configuration
+- `GET /agent/{agentId}/configuration` - Retrieve agent-specific configuration including monitoring settings, endpoints, and tags
+
 ### Future Endpoints
 (To be implemented based on OpenAPI specification)
-- Agent registration and management
+- Agent registration (`POST /agent/register`)
+- Agent status reporting (`POST /agent/report`)
 - Metrics submission and retrieval
 - Alert configuration
 - User authentication and management
