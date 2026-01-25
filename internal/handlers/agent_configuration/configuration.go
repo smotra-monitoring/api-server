@@ -120,12 +120,20 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 			endpointTagsPtr = &endpointTags
 		}
 
-		// Convert enabled from sql.NullInt64 to *bool
+		// Convert enabled from sql.NullInt64 to bool
 		enabled := endpointRow.Enabled != 0
+
+		// Convert port from sql.NullInt64 to *int
+		var portPtr *int
+		if endpointRow.Port.Valid {
+			port := int(endpointRow.Port.Int64)
+			portPtr = &port
+		}
 
 		endpoint := api.Endpoint{
 			Id:      endpointUUID,
 			Address: endpointRow.Address,
+			Port:    portPtr,
 			Enabled: enabled,
 			Tags:    endpointTagsPtr,
 		}

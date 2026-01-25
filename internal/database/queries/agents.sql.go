@@ -7,6 +7,7 @@ package queries
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createAgent = `-- name: CreateAgent :one
@@ -61,12 +62,13 @@ func (q *Queries) GetAgentConfigurationBase(ctx context.Context, id string) (Get
 }
 
 const getAgentEndpoints = `-- name: GetAgentEndpoints :many
-SELECT id, address, enabled FROM endpoints WHERE agent_id = ?
+SELECT id, address, port, enabled FROM endpoints WHERE agent_id = ?
 `
 
 type GetAgentEndpointsRow struct {
 	ID      string
 	Address string
+	Port    sql.NullInt64
 	Enabled int64
 }
 
@@ -79,7 +81,12 @@ func (q *Queries) GetAgentEndpoints(ctx context.Context, agentID string) ([]GetA
 	var items []GetAgentEndpointsRow
 	for rows.Next() {
 		var i GetAgentEndpointsRow
-		if err := rows.Scan(&i.ID, &i.Address, &i.Enabled); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Address,
+			&i.Port,
+			&i.Enabled,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

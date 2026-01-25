@@ -29,6 +29,7 @@ type Endpoint struct {
 	ID        string
 	AgentID   string
 	Address   string
+	Port      sql.NullInt64
 	Enabled   int64
 	UpdatedAt string
 	CreatedAt string

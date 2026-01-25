@@ -101,20 +101,20 @@ All database interactions must use sqlc-generated code. Direct SQL queries in ap
 ### sqlc Configuration and Usage
 
 - **Code Generator**: sqlc is used to generate type-safe Go code from SQL queries.
-- **Configuration File**: Located at `./data/dev/sqlc/sqlc.yaml`
+- **Configuration File**: Located at `./data/db/dev/sqlc/sqlc.yaml`
 - **Generated Package**: `internal/database/queries`
 - **Generation Command**: Use the Makefile action `make generate-sqlc` to run code generation.
 
 ### Database Migration Files
 
 - **Location**: `data/` folder with environment-specific subfolders
-  - Development: `data/dev/migrations/`
+  - Development: `data/db/dev/migrations/`
   - Production: `data/prod/` (when applicable)
 - **Format**: SQL migration files (e.g., `0001_schema.up.sql`)
 
 ### Query File Organization
 
-- **Location**: `data/dev/migrations/` (alongside migration files) or separate query directory
+- **Location**: `data/db/dev/migrations/` (alongside migration files) or separate query directory
 - **Organization**: Query files must be organized by database entity:
   - `agents.sql` - All queries related to agents table
   - `users.sql` - All queries related to users table

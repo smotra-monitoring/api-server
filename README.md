@@ -485,10 +485,9 @@ go mod download
 - [X] Add GetTitle() to MetricsProvider interface and use it in metrics.buildPrometheusMetrics in output labels
 - [X] Correct OpenAPI spec. Endpoint enabled is required
 - [X] Double check OpenAPI spec. AgentConfgi.tags is required AgentConfig.Endpoints.tags is optional
+- [X] Correct DB schema. Add optional port to the Endpoint
 
 ### Short Term
-- [ ] Correct DB schema. Add optional port to the Endpoint
-- [ ] Correct sqlc-generator according to the previous item.
 - [ ] Database migrations with go-migrate
 - [ ] JWT authentication implementation
 - [ ] User management endpoints

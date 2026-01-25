@@ -18,7 +18,7 @@ SET version = ?, base_config = ?
 WHERE id = ?;
 
 -- name: GetAgentEndpoints :many
-SELECT id, address, enabled FROM endpoints WHERE agent_id = ?;
+SELECT id, address, port, enabled FROM endpoints WHERE agent_id = ?;
 
 -- name: GetEndpointTags :many
 SELECT t.name FROM endpoint_tags et
