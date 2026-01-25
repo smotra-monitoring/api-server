@@ -51,7 +51,7 @@ type AgentConfig struct {
 	Storage    StorageConfig    `json:"storage"`
 
 	// Tags Tags for this agent (used for mesh organization)
-	Tags []string `json:"tags"`
+	Tags *[]string `json:"tags,omitempty"`
 
 	// Version Configuration version (used for syncing with server)
 	Version int32 `json:"version"`
