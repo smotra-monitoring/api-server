@@ -90,7 +90,7 @@ generate-oapi:
 # Generate database code from SQL queries using sqlc
 generate-sqlc:
     @echo "Generating database code from SQL queries..."
-    sqlc generate -f data/dev/sqlc/sqlc.yaml
+    sqlc generate -f data/db/dev/sqlc/sqlc.yaml
     @echo "sqlc code generation complete"
 
 # Format Go code
