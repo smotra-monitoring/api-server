@@ -8,6 +8,7 @@ cosmtrek
 coverprofile
 createdb
 deregistration
+Erorr
 gotestsum
 Grafana
 healthz
@@ -40,6 +41,7 @@ testutil
 Tful
 tokio
 traceroute
+UUIDv
 Versioned
 versioning
 wontfix
