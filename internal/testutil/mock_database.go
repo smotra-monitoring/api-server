@@ -19,6 +19,8 @@ type MockDatabase struct {
 	DBFunc       func() *sql.DB
 	ShouldFail   bool
 	HealthStatus string
+	QueryResults map[string]func(ctx context.Context, args ...interface{}) (interface{}, error)
+	db           *sql.DB
 }
 
 // NewMockDatabase creates a new mock database
@@ -26,7 +28,13 @@ func NewMockDatabase() *MockDatabase {
 	return &MockDatabase{
 		HealthStatus: "healthy",
 		ShouldFail:   false,
+		QueryResults: make(map[string]func(ctx context.Context, args ...interface{}) (interface{}, error)),
 	}
+}
+
+// SetQueryResult sets a mock result for a specific query
+func (m *MockDatabase) SetQueryResult(queryName string, fn func(ctx context.Context, args ...interface{}) (interface{}, error)) {
+	m.QueryResults[queryName] = fn
 }
 
 // Open mocks the Open method
@@ -100,5 +108,14 @@ func (m *MockDatabase) DB() *sql.DB {
 	if m.DBFunc != nil {
 		return m.DBFunc()
 	}
+	// Return a mock DB if one is set
+	if m.db != nil {
+		return m.db
+	}
 	return nil
+}
+
+// SetDB sets the mock database connection
+func (m *MockDatabase) SetDB(db *sql.DB) {
+	m.db = db
 }

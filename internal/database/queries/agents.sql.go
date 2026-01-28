@@ -174,3 +174,20 @@ func (q *Queries) UpdateAgentConfiguration(ctx context.Context, arg UpdateAgentC
 	_, err := q.db.ExecContext(ctx, updateAgentConfiguration, arg.Version, arg.BaseConfig, arg.ID)
 	return err
 }
+
+const verifyAgentAPIKey = `-- name: VerifyAgentAPIKey :one
+SELECT id, api_key_hash FROM agents WHERE id = ?
+LIMIT 1
+`
+
+type VerifyAgentAPIKeyRow struct {
+	ID         string
+	ApiKeyHash string
+}
+
+func (q *Queries) VerifyAgentAPIKey(ctx context.Context, id string) (VerifyAgentAPIKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, verifyAgentAPIKey, id)
+	var i VerifyAgentAPIKeyRow
+	err := row.Scan(&i.ID, &i.ApiKeyHash)
+	return i, err
+}

@@ -1,5 +1,3 @@
-//go:build integration
-
 package agent_configuration
 
 import (
@@ -111,6 +109,7 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 		id          TEXT PRIMARY KEY,
 		agent_id    TEXT NOT NULL,
 		address     TEXT NOT NULL,
+		port		INTEGER,
 		enabled     INT DEFAULT 1, -- 1 for true, 0 for false
 		created_at  TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
 		FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
@@ -253,10 +252,10 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 		}
 
 		// Verify tags
-		if len(config.Tags) != 1 {
-			t.Errorf("Expected 1 tag, got %d", len(config.Tags))
-		} else if config.Tags[0] != "production" {
-			t.Errorf("Expected tag 'production', got %s", config.Tags[0])
+		if len(*config.Tags) != 1 {
+			t.Errorf("Expected 1 tag, got %d", len(*config.Tags))
+		} else if (*config.Tags)[0] != "production" {
+			t.Errorf("Expected tag 'production', got %s", (*config.Tags)[0])
 		}
 
 		// Verify endpoints

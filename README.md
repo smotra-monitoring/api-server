@@ -517,6 +517,20 @@ go mod download
 - [x] justfile for build automation (replacing Makefile)
 
 ### Short Term
+- [ ] Is it possible to replace in handlers.authenticated_handler.GetAgentConfiguration function body to call of the middleware.RequiredAuth ?
+
+- [ ] middleware/auth.go AgentAPIKeyAuth should NOT return HTTP Unauthorized (line 63) or HTTP InternalServerError (line 71). This change will fail some tests, but logic must be correct.
+
+- [ ] Return back to auth.RequireAuth and review api.Error return blocks
+- [ ] Try to refactor auth.RequireAuth to use api.gen.go strict types. (I've added error handlers manually, without using strict handlers)
+
+- [ ] Update copilot-instruct to use api.Error struct if HTTP error should be returned. Do not use inline JSON without api.Erorr
+- [ ] Check that existing code follows api.Error struct approach
+
+- [ ] Update copilot-instruct to use UUIDv7 for all entities.id in DB
+
+- [ ] Implement rate-limiting for endpoints that are using security schema AgentApiKey
+
 - [ ] Database migrations management with go-migrate or similar tool
 - [ ] JWT authentication implementation
 - [ ] User management endpoints

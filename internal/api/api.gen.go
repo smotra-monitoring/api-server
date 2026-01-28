@@ -167,8 +167,14 @@ type UUIDv7 = uuid.UUID
 // AgentId UUID version 7 as per RFC 4122
 type AgentId = UUIDv7
 
+// InternalServerError defines model for InternalServerError.
+type InternalServerError = Error
+
 // NotFound defines model for NotFound.
 type NotFound = Error
+
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = Error
 
 // GetAgentConfigurationParams defines parameters for GetAgentConfiguration.
 type GetAgentConfigurationParams struct {
@@ -470,7 +476,11 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	return r
 }
 
+type InternalServerErrorJSONResponse Error
+
 type NotFoundJSONResponse Error
+
+type UnauthorizedJSONResponse Error
 
 type GetAgentConfigurationRequestObject struct {
 	AgentId AgentId `json:"agentId"`
@@ -490,11 +500,31 @@ func (response GetAgentConfiguration200JSONResponse) VisitGetAgentConfigurationR
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetAgentConfiguration401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAgentConfiguration401JSONResponse) VisitGetAgentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetAgentConfiguration404JSONResponse struct{ NotFoundJSONResponse }
 
 func (response GetAgentConfiguration404JSONResponse) VisitGetAgentConfigurationResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAgentConfiguration503JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetAgentConfiguration503JSONResponse) VisitGetAgentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
 
 	return json.NewEncoder(w).Encode(response)
 }

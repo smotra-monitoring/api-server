@@ -24,3 +24,7 @@ SELECT id, address, port, enabled FROM endpoints WHERE agent_id = ?;
 SELECT t.name FROM endpoint_tags et
 JOIN tags t ON et.tag_id = t.id
 WHERE et.endpoint_id = ? AND t.scope IN ('endpoint', 'global');
+
+-- name: VerifyAgentAPIKey :one
+SELECT id, api_key_hash FROM agents WHERE id = ?
+LIMIT 1;
