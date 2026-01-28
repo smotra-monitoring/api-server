@@ -7,13 +7,13 @@ CORS
 cosmtrek
 coverprofile
 createdb
-deepmap
 deregistration
 gotestsum
 Grafana
 healthz
 implementet
 isready
+justfile
 jwt
 ldflags
 linting
