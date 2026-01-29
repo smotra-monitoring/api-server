@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/smotra-monitoring/server/internal/api"
 	"github.com/smotra-monitoring/server/internal/database"
@@ -68,10 +67,4 @@ func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, reques
 
 	// Authentication successful, delegate to the actual handler
 	return h.CombinedHandler.GetAgentConfiguration(ctx, request)
-}
-
-// RequireAuthenticationMiddleware returns a middleware that checks for authentication
-// This can be used to wrap http.Handler chains
-func RequireAuthenticationMiddleware(log *logger.Logger) func(next http.Handler) http.Handler {
-	return middleware.RequireAuthForTests(log)
 }
