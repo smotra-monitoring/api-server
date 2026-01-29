@@ -179,17 +179,11 @@ type NotImplemented = Error
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
 
-// GetAgentConfigurationParams defines parameters for GetAgentConfiguration.
-type GetAgentConfigurationParams struct {
-	// Version Configuration version (returns latest if not specified)
-	Version *int `form:"version,omitempty" json:"version,omitempty"`
-}
-
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Get agent configuration
 	// (GET /agent/{agentId}/configuration)
-	GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId, params GetAgentConfigurationParams)
+	GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId)
 	// Health check endpoint
 	// (GET /healthz)
 	HealthCheck(w http.ResponseWriter, r *http.Request)
@@ -210,7 +204,7 @@ type Unimplemented struct{}
 
 // Get agent configuration
 // (GET /agent/{agentId}/configuration)
-func (_ Unimplemented) GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId, params GetAgentConfigurationParams) {
+func (_ Unimplemented) GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -269,19 +263,8 @@ func (siw *ServerInterfaceWrapper) GetAgentConfiguration(w http.ResponseWriter, 
 
 	r = r.WithContext(ctx)
 
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetAgentConfigurationParams
-
-	// ------------- Optional query parameter "version" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "version", r.URL.Query(), &params.Version)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
-		return
-	}
-
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetAgentConfiguration(w, r, agentId, params)
+		siw.Handler.GetAgentConfiguration(w, r, agentId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -489,7 +472,6 @@ type UnauthorizedJSONResponse Error
 
 type GetAgentConfigurationRequestObject struct {
 	AgentId AgentId `json:"agentId"`
-	Params  GetAgentConfigurationParams
 }
 
 type GetAgentConfigurationResponseObject interface {
@@ -672,11 +654,10 @@ type strictHandler struct {
 }
 
 // GetAgentConfiguration operation middleware
-func (sh *strictHandler) GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId, params GetAgentConfigurationParams) {
+func (sh *strictHandler) GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId) {
 	var request GetAgentConfigurationRequestObject
 
 	request.AgentId = agentId
-	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetAgentConfiguration(ctx, request.(GetAgentConfigurationRequestObject))
