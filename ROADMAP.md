@@ -25,13 +25,6 @@
 ### Bugfixes that are part of a current PR
 - [ ] Implement rate-limiting for endpoints that are using security schema AgentApiKey
 
-- [ ] Seems that there is some mess with "version" in handlers/agent_configuration/configuration.go 
-      - version-parameter sent to constructor is an app version
-      - version in the GetAgentConfiguration handler is version that coming from DB and tracking agent version. 
-- [ ] Related to the previous mess. 
-      - OpenAPI spec saying that version parameter should be send in query
-      - Check the agent. I think that it sends version in HTTP-header
-
 ### Short Term
 - [ ] Database migrations management with go-migrate or similar tool
 - [ ] JWT authentication implementation
