@@ -12,22 +12,22 @@ import (
 
 // Handler handles health check endpoints
 type Handler struct {
-	logger    *logger.Logger
-	db        database.Database
-	startTime time.Time
-	version   string
-	mu        sync.RWMutex
-	ready     bool
+	logger     *logger.Logger
+	db         database.Database
+	startTime  time.Time
+	appVersion string
+	mu         sync.RWMutex
+	ready      bool
 }
 
 // NewHandler creates a new health check handler
-func NewHandler(logger *logger.Logger, db database.Database, version string) *Handler {
+func NewHandler(logger *logger.Logger, db database.Database, appVersion string) *Handler {
 	return &Handler{
-		logger:    logger.WithComponent("health"),
-		db:        db,
-		startTime: time.Now(),
-		version:   version,
-		ready:     false,
+		logger:     logger.WithComponent("health"),
+		db:         db,
+		startTime:  time.Now(),
+		appVersion: appVersion,
+		ready:      false,
 	}
 }
 
@@ -52,7 +52,7 @@ func (h *Handler) HealthCheck(ctx context.Context, request api.HealthCheckReques
 
 	status := api.HealthStatus{
 		Timestamp: time.Now(),
-		Version:   &h.version,
+		Version:   &h.appVersion,
 	}
 
 	uptime := int(time.Since(h.startTime).Seconds())

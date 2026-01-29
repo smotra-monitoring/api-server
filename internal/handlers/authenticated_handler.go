@@ -17,9 +17,9 @@ type AuthenticatedHandler struct {
 }
 
 // NewAuthenticatedHandler creates a new authenticated handler wrapper
-func NewAuthenticatedHandler(logger *logger.Logger, db database.Database, version string) *AuthenticatedHandler {
+func NewAuthenticatedHandler(logger *logger.Logger, db database.Database, apiVersion string) *AuthenticatedHandler {
 	return &AuthenticatedHandler{
-		CombinedHandler: NewCombinedHandler(logger, db, version),
+		CombinedHandler: NewCombinedHandler(logger, db, apiVersion),
 		logger:          logger,
 		db:              db,
 	}

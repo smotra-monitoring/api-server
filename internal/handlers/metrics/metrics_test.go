@@ -13,16 +13,16 @@ import (
 func TestNewHandler(t *testing.T) {
 	logger, _ := testutil.NewTestLogger()
 	db := testutil.NewMockDatabase()
-	version := "1.0.0-test"
+	appVersion := "1.0.0-test"
 
-	handler := NewHandler(logger, db, version)
+	handler := NewHandler(logger, db, appVersion)
 
 	if handler == nil {
 		t.Fatal("handler is nil")
 	}
 
-	if handler.version != version {
-		t.Errorf("expected fake version %s, got %s", version, handler.version)
+	if handler.appVersion != appVersion {
+		t.Errorf("expected fake version %s, got %s", appVersion, handler.appVersion)
 	}
 
 	if handler.logger == nil {

@@ -16,9 +16,8 @@ import (
 
 // Handler handles agent configuration endpoints
 type Handler struct {
-	logger  *logger.Logger
-	db      database.Database
-	version string
+	logger *logger.Logger
+	db     database.Database
 
 	// Metrics
 	getConfigurationTotal   atomic.Uint64
@@ -27,11 +26,10 @@ type Handler struct {
 }
 
 // NewHandler creates a new configuration handler
-func NewHandler(logger *logger.Logger, db database.Database, version string) *Handler {
+func NewHandler(logger *logger.Logger, db database.Database, appVersion string) *Handler {
 	return &Handler{
-		logger:  logger.WithComponent("agent_configuration"),
-		db:      db,
-		version: version,
+		logger: logger.WithComponent("agent_configuration"),
+		db:     db,
 	}
 }
 

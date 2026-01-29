@@ -19,15 +19,15 @@ type CombinedHandler struct {
 }
 
 // NewCombinedHandler creates a new combined handler
-func NewCombinedHandler(logger *logger.Logger, db database.Database, version string) *CombinedHandler {
-	metricsHandler := metrics.NewHandler(logger, db, version)
-	configHandler := agent_configuration.NewHandler(logger, db, version)
+func NewCombinedHandler(logger *logger.Logger, db database.Database, appVersion string) *CombinedHandler {
+	metricsHandler := metrics.NewHandler(logger, db, appVersion)
+	configHandler := agent_configuration.NewHandler(logger, db, appVersion)
 
 	// Register configuration handler as a metrics provider
 	metricsHandler.RegisterMetricsProvider(configHandler)
 
 	return &CombinedHandler{
-		health:              health.NewHandler(logger, db, version),
+		health:              health.NewHandler(logger, db, appVersion),
 		metrics:             metricsHandler,
 		agent_configuration: configHandler,
 	}

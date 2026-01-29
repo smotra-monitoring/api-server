@@ -14,16 +14,16 @@ import (
 func TestNewHandler(t *testing.T) {
 	log := logger.Default()
 	db := testutil.NewMockDatabase()
-	version := "1.0.0"
+	appVersion := "1.0.0"
 
-	handler := NewHandler(log, db, version)
+	handler := NewHandler(log, db, appVersion)
 
 	if handler == nil {
 		t.Fatal("NewHandler returned nil")
 	}
 
-	if handler.version != version {
-		t.Errorf("Expected version %s, got %s", version, handler.version)
+	if handler.appVersion != appVersion {
+		t.Errorf("Expected version %s, got %s", appVersion, handler.appVersion)
 	}
 
 	if handler.IsReady() {

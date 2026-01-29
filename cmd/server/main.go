@@ -18,7 +18,7 @@ import (
 	"github.com/smotra-monitoring/server/internal/middleware"
 )
 
-const version = "0.0.1"
+const appVersion = "0.0.1"
 
 func main() {
 	// Parse command line flags
@@ -43,7 +43,7 @@ func main() {
 	})
 
 	log.Info("starting the server",
-		"version", version,
+		"version", appVersion,
 		"environment", cfg.Server.Environment,
 	)
 
@@ -88,7 +88,7 @@ func main() {
 	r.Use(middleware.OAuth2Auth(log))
 
 	// Initialize handlers with authentication wrapper
-	handler := handlers.NewAuthenticatedHandler(log, db, version)
+	handler := handlers.NewAuthenticatedHandler(log, db, appVersion)
 
 	// Register API handler
 	strictHandler := api.NewStrictHandler(handler, nil)
@@ -99,7 +99,7 @@ func main() {
 		// Future API endpoints will be added here
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"message":"Smotra Monitoring API v1","version":"` + version + `"}`))
+			w.Write([]byte(`{"message":"Monitoring API v1","version":"` + appVersion + `"}`))
 		})
 	})
 

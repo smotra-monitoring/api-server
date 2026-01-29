@@ -17,10 +17,6 @@ func TestNewHandler(t *testing.T) {
 	if handler == nil {
 		t.Fatal("NewHandler returned nil")
 	}
-
-	if handler.version != version {
-		t.Errorf("Expected version %s, got %s", version, handler.version)
-	}
 }
 
 func TestHandler_GetMetrics(t *testing.T) {

@@ -21,10 +21,10 @@ type MetricsProvider interface {
 
 // Handler handles metrics endpoint
 type Handler struct {
-	logger    *logger.Logger
-	db        database.Database
-	startTime time.Time
-	version   string
+	logger     *logger.Logger
+	db         database.Database
+	startTime  time.Time
+	appVersion string
 
 	// Metrics counters
 	httpRequestsTotal   atomic.Uint64
@@ -44,12 +44,12 @@ type Handler struct {
 }
 
 // NewHandler creates a new metrics handler
-func NewHandler(logger *logger.Logger, db database.Database, version string) *Handler {
+func NewHandler(logger *logger.Logger, db database.Database, appVersion string) *Handler {
 	return &Handler{
 		logger:           logger.WithComponent("metrics"),
 		db:               db,
 		startTime:        time.Now(),
-		version:          version,
+		appVersion:       appVersion,
 		metricsProviders: []MetricsProvider{},
 	}
 }
@@ -91,7 +91,7 @@ func (h *Handler) buildPrometheusMetrics(ctx context.Context) string {
 	// Server info
 	output += "# HELP smotra_info Server information\n"
 	output += "# TYPE smotra_info gauge\n"
-	output += fmt.Sprintf("smotra_info{version=\"%s\"} 1\n", h.version)
+	output += fmt.Sprintf("smotra_info{version=\"%s\"} 1\n", h.appVersion)
 	output += "\n"
 
 	// Uptime
