@@ -19,18 +19,10 @@
 - [x] Agent configuration endpoint implementation (GET /agent/{agentId}/configuration)
 - [x] Database versioning triggers for automatic configuration version bumping
 - [x] justfile for build automation (replacing Makefile)
+- [x] Update copilot-instruct to use Strict types from api package if HTTP error should be returned. Do not use inline JSON without api.Error
+- [x] Check that existing code follows api.Error struct approach
 
 ### Bugfixes that are part of a current PR
-- [ ] middleware/auth.go AgentAPIKeyAuth should NOT return HTTP Unauthorized (line 63) or HTTP InternalServerError (line 71). This change will fail some tests, but logic must be correct.
-
-- [ ] Return back to auth.RequireAuth and review api.Error return blocks
-- [ ] Try to refactor auth.RequireAuth to use api.gen.go strict types. (I've added error handlers manually, without using strict handlers)
-
-- [ ] Update copilot-instruct to use api.Error struct if HTTP error should be returned. Do not use inline JSON without api.Erorr
-- [ ] Check that existing code follows api.Error struct approach
-
-- [ ] Update copilot-instruct to use UUIDv7 for all entities.id in DB
-
 - [ ] Implement rate-limiting for endpoints that are using security schema AgentApiKey
 
 - [ ] Seems that there is some mess with "version" in handlers/agent_configuration/configuration.go 

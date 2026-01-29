@@ -94,6 +94,15 @@ Database access must be implemented via interface abstractions to allow easy swa
 - Development and testing can use SQLite for simplicity.
 - Database schema is managed using a migration tool go-migrate.
 
+### Database Schema Design
+
+- **Primary Keys**: All entity ID fields (e.g., `id` columns in tables) must use **UUIDv7** format.
+  - UUIDv7 is a time-ordered UUID that provides better performance for database indexes compared to random UUIDs (v4).
+  - The ordered nature of UUIDv7 improves B-tree index efficiency and reduces index fragmentation.
+  - This applies to all entities including tenants, agents, sections, endpoints, users, checks, etc.
+  - In SQL migrations, use appropriate UUID types (`UUID` for PostgreSQL, `TEXT` for SQLite with validation).
+  - When generating UUIDs in application code or tests, use UUIDv7 libraries/functions.
+
 ## Database Access and Code Generation
 
 All database interactions must use sqlc-generated code. Direct SQL queries in application code are prohibited.
@@ -139,6 +148,37 @@ oapi-codegen is used to generate server stubs and models from OpenAPI specificat
 The server must implement robust error handling and logging using a structured logging library slog. Configuration management should be handled via environment variables and configuration files, with support for different environments (development, staging, production).
 
 Codebase must include unit tests and integration tests to ensure reliability and facilitate future development. CI/CD pipelines should be set up to automate testing, building, and deployment processes.
+
+## Error Handling
+
+All HTTP error responses must use the Strict types generated from the OpenAPI specification in the `internal/api` package. 
+
+### Error Response Guidelines
+
+- **Use api.Error**: All error responses must use the `api.Error` struct from the generated API package.
+- **No Inline JSON**: Never return inline JSON for error responses. Always use the typed `api.Error` structure.
+- **Consistent Format**: Error responses must follow the schema defined in the OpenAPI specification to ensure consistency across all endpoints.
+- **Status Codes**: Use appropriate HTTP status codes along with the `api.Error` struct.
+
+Example of correct error handling:
+```go
+import "github.com/yourusername/smotra/internal/api"
+
+// Correct - using api.Error
+errorResponse := api.Error{
+    Message: "Agent not found",
+    Code:    "AGENT_NOT_FOUND",
+}
+w.WriteHeader(http.StatusNotFound)
+json.NewEncoder(w).Encode(errorResponse)
+```
+
+Example of incorrect error handling:
+```go
+// INCORRECT - inline JSON without api.Error
+w.WriteHeader(http.StatusNotFound)
+w.Write([]byte(`{"error": "Agent not found"}`))
+```
 
 ### Implemented Handlers
 
