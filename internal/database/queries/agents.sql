@@ -26,5 +26,4 @@ JOIN tags t ON et.tag_id = t.id
 WHERE et.endpoint_id = ? AND t.scope IN ('endpoint', 'global');
 
 -- name: VerifyAgentAPIKey :one
-SELECT id, api_key_hash FROM agents WHERE id = ?
-LIMIT 1;
+SELECT id, api_key_hash FROM agents WHERE id = ?;

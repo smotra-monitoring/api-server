@@ -177,7 +177,6 @@ func (q *Queries) UpdateAgentConfiguration(ctx context.Context, arg UpdateAgentC
 
 const verifyAgentAPIKey = `-- name: VerifyAgentAPIKey :one
 SELECT id, api_key_hash FROM agents WHERE id = ?
-LIMIT 1
 `
 
 type VerifyAgentAPIKeyRow struct {
