@@ -7,6 +7,19 @@ INSERT INTO agents (id, section_id, name, api_key_hash, base_config) VALUES
 (?, ?, ?, ?, ?)
 RETURNING id;
 
+-- name: CreateAgentFromClaim :one
+-- Creates an agent after successful claim
+-- name param should be initialized from agent_claims.hostname
+INSERT INTO agents (
+    id,
+    section_id,
+    name,
+    api_key_hash,
+    base_config,
+    agent_version
+) VALUES (?, ?, ?, ?, ?, ?)
+RETURNING id;
+
 -- name: GetAgentTags :many
 SELECT t.name FROM agent_tags at
 JOIN tags t ON at.tag_id = t.id

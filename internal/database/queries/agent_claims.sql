@@ -1,0 +1,84 @@
+-- name: CreateAgentClaim :one
+INSERT INTO agent_claims (
+    id,
+    claim_token_hash,
+    hostname,
+    agent_version,
+    claim_token_expires_at
+) VALUES (?, ?, ?, ?, ?)
+RETURNING id;
+
+-- name: UpsertAgentClaim :one
+INSERT INTO agent_claims (
+    id,
+    claim_token_hash,
+    hostname,
+    agent_version,
+    claim_token_expires_at,
+    last_seen_at
+) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%S', 'now'))
+ON CONFLICT(id) DO UPDATE SET
+    last_seen_at = strftime('%Y-%m-%d %H:%M:%S', 'now'),
+    hostname = COALESCE(excluded.hostname, hostname),
+    agent_version = COALESCE(excluded.agent_version, agent_version)
+WHERE claimed_at IS NULL  -- Only update if not yet claimed
+RETURNING id;
+
+-- name: GetAgentClaim :one
+SELECT * FROM agent_claims
+WHERE id = ? LIMIT 1;
+
+-- name: GetAgentClaimForClaiming :one
+-- Used when user attempts to claim an agent
+SELECT * FROM agent_claims
+WHERE id = ?
+  AND claim_token_hash = ?
+  AND claim_token_expires_at > strftime('%Y-%m-%d %H:%M:%S', 'now')
+  AND claimed_at IS NULL
+LIMIT 1;
+
+-- name: MarkAgentClaimClaimed :exec
+UPDATE agent_claims
+SET claimed_at = strftime('%Y-%m-%d %H:%M:%S', 'now'),
+    claimed_by_user_id = ?
+WHERE id = ?;
+
+-- name: MarkAgentClaimAPIKeyDelivered :exec
+UPDATE agent_claims
+SET api_key_delivered = 1
+WHERE id = ?;
+
+-- name: GetPendingAPIKeyDelivery :one
+-- Agent polls this to get API key after being claimed
+SELECT 
+    ac.id,
+    ac.claimed_at,
+    a.api_key_hash
+FROM agent_claims ac
+JOIN agents a ON a.id = ac.id
+WHERE ac.id = ?
+  AND ac.claimed_at IS NOT NULL
+  AND ac.api_key_delivered = 0
+LIMIT 1;
+
+-- name: CleanupExpiredClaims :exec
+DELETE FROM agent_claims 
+WHERE claim_token_expires_at < strftime('%Y-%m-%d %H:%M:%S', 'now');
+
+-- name: CleanupDeliveredClaims :exec
+DELETE FROM agent_claims 
+WHERE claimed_at IS NOT NULL 
+  AND api_key_delivered = 1
+  AND claimed_at < datetime('now', '-1 hour'); -- Keep for 1 hour after delivery
+
+-- name: ListUnclaimedAgents :many
+SELECT * FROM agent_claims
+WHERE claimed_at IS NULL
+  AND claim_token_expires_at > strftime('%Y-%m-%d %H:%M:%S', 'now')
+ORDER BY created_at DESC;
+
+-- name: ListPendingDeliveries :many
+SELECT * FROM agent_claims
+WHERE claimed_at IS NOT NULL
+  AND api_key_delivered = 0
+ORDER BY claimed_at ASC;

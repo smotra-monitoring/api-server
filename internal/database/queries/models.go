@@ -9,15 +9,29 @@ import (
 )
 
 type Agent struct {
-	ID         string
-	SectionID  string
-	Name       string
-	ApiKeyHash string
-	BaseConfig string
-	Version    int64
-	LastSeenAt sql.NullString
-	UpdatedAt  string
-	CreatedAt  string
+	ID           string
+	SectionID    string
+	Name         string
+	ApiKeyHash   string
+	BaseConfig   string
+	Version      int64
+	AgentVersion sql.NullString
+	LastSeenAt   sql.NullString
+	UpdatedAt    string
+	CreatedAt    string
+}
+
+type AgentClaim struct {
+	ID                  string
+	ClaimTokenHash      string
+	Hostname            string
+	AgentVersion        string
+	ClaimTokenExpiresAt string
+	LastSeenAt          string
+	CreatedAt           string
+	ClaimedAt           sql.NullString
+	ClaimedByUserID     sql.NullString
+	ApiKeyDelivered     int64
 }
 
 type AgentTag struct {
@@ -57,4 +71,15 @@ type Tenant struct {
 	ID        string
 	Name      string
 	CreatedAt string
+}
+
+type User struct {
+	ID            string
+	TenantID      string
+	OauthProvider string
+	OauthSubject  string
+	DisplayName   string
+	LastLoginAt   sql.NullString
+	CreatedAt     string
+	UpdatedAt     string
 }
