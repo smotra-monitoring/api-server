@@ -1,5 +1,4 @@
 # ignore local openapi-spec
-api/openapi/
 api/spec.yaml
 api/strict.yaml
 
@@ -32,7 +31,6 @@ go.work
 *.db
 *.db-shm
 *.db-wal
-data/
 
 # IDE specific files
 .idea/

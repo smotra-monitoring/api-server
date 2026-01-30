@@ -1,0 +1,6 @@
+[submodule "data/db"]
+	path = data/db
+	url = git@github.com:smotra-monitoring/db.git
+[submodule "api/openapi"]
+	path = api/openapi
+	url = git@github.com:smotra-monitoring/openapi.git
