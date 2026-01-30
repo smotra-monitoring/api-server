@@ -49,10 +49,10 @@ func Logger(log *logger.Logger) func(next http.Handler) http.Handler {
 				"path", r.URL.Path,
 				"remote_addr", r.RemoteAddr,
 				"user_agent", r.UserAgent(),
+				"X-Request-ID", w.Header().Get("X-Request-ID"),
 				"status", wrapped.statusCode,
 				"bytes", wrapped.written,
 				"duration_ms", duration.Milliseconds(),
-				"X-Request-ID", w.Header().Get("X-Request-ID"),
 			)
 		})
 	}

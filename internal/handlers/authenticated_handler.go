@@ -30,7 +30,7 @@ func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, reques
 	// Check if authentication is present in context
 	authInfo := ctx.Value(middleware.AuthContextKey)
 	if authInfo == nil {
-		h.logger.Warn("No authentication provided for agent configuration endpoint")
+		h.logger.Warn("No authentication provided for agent configuration endpoint", "agent", request.AgentId.String())
 		return api.GetAgentConfiguration401JSONResponse{
 			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
 				Error:   "unauthorized",
@@ -41,7 +41,7 @@ func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, reques
 
 	info, ok := authInfo.(*middleware.AuthInfo)
 	if !ok || !info.Authenticated {
-		h.logger.Warn("Invalid authentication for agent configuration endpoint")
+		h.logger.Warn("Invalid authentication for agent configuration endpoint", "agent", request.AgentId.String())
 		return api.GetAgentConfiguration401JSONResponse{
 			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
 				Error:   "unauthorized",
