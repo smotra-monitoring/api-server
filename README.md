@@ -269,6 +269,7 @@ server/
 │   │       └── models.go       # Generated database models
 │   ├── handlers/           # HTTP handlers
 │   │   ├── handlers.go     # Combined handler implementation
+│   │   ├── authenticated_handler.go # Authenticated wrapper for protected endpoints
 │   │   ├── agent_configuration/ # Agent configuration handlers
 │   │   │   └── configuration.go # GET /agent/{agentId}/configuration
 │   │   ├── health/         # Health check handlers
@@ -278,7 +279,8 @@ server/
 │   ├── logger/             # Structured logging
 │   │   └── logger.go       # Logger implementation using slog
 │   ├── middleware/         # HTTP middleware
-│   │   └── middleware.go   # RequestID, Logger, Recovery, CORS
+│   │   ├── middleware.go   # RequestID, Logger, Recovery, CORS
+│   │   └── auth.go         # Agent API key authentication
 │   └── testutil/           # Testing utilities
 │       ├── config.go       # Test configuration helpers
 │       ├── database.go     # Test database helpers
@@ -308,24 +310,30 @@ server/
 - **Graceful Shutdown**: Proper handling of SIGTERM/SIGINT signals
 - **Health Checks**: `/healthz`, `/healthz/ready`, `/healthz/live` endpoints
 - **Metrics Endpoint**: `/metrics` endpoint exposing Prometheus-format metrics
+- **Authentication**: Agent API key authentication for protected endpoints
 
 ### Middleware
 - **Request ID**: Automatic request ID generation and propagation
 - **Logger**: Request/response logging with timing and status codes
 - **Recovery**: Panic recovery with proper error handling
 - **CORS**: Configurable CORS headers for API access
+- **Authentication**: Agent API key authentication middleware for securing endpoints
 
 ### Database Support
 - **SQLite**: For development and small deployments
 - **PostgreSQL**: For production deployments with connection pooling
 - **Interface-based**: Easy to swap database backends
 - **Connection Management**: Configurable connection pools and timeouts
+- **sqlc Code Generation**: Type-safe database queries generated from SQL
+- **Multi-Tenant Schema**: Hierarchical structure with tenants, sections, agents, and endpoints
+- **UUIDv7 Keys**: Time-ordered UUIDs for efficient indexing
 
 ### API
 - **OpenAPI 3.0**: API specification maintained in separate [smotra-monitoring/openapi](https://github.com/smotra-monitoring/openapi) repository
 - **Code Generation**: Server stubs generated with oapi-codegen from remote spec
 - **Strict Handlers**: Uses OpenAPI strict handler pattern for type safety
 - **Versioned APIs**: API v1 routes under `/api/v1/`
+- **Authentication**: Agent API key authentication via `X-Agent-API-Key` header
 
 ### Agent Configuration
 - **Configuration Endpoint**: GET `/agent/{agentId}/configuration` to retrieve agent-specific configuration
@@ -333,6 +341,8 @@ server/
 - **sqlc Integration**: Type-safe database queries generated from SQL
 - **Tags Support**: Agent-level and endpoint-level tags with scoping (agent, endpoint, global)
 - **JSON Configuration**: Base configuration stored as JSON blob for flexibility
+- **Authenticated Access**: Requires valid agent API key via `X-Agent-API-Key` header
+- **Multi-Tenant Support**: Hierarchical structure with tenants, sections, and agents
 
 ## Development
 
@@ -508,7 +518,7 @@ go mod download
 - `GET /api/v1` - API version information
 
 ### Agent Configuration
-- `GET /agent/{agentId}/configuration` - Retrieve agent-specific configuration including monitoring settings, endpoints, and tags
+- `GET /agent/{agentId}/configuration` - Retrieve agent-specific configuration including monitoring settings, endpoints, and tags (requires `X-Agent-API-Key` header)
 
 ### Future Endpoints
 (To be implemented based on OpenAPI specification)

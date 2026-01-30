@@ -94,6 +94,43 @@ Database access must be implemented via interface abstractions to allow easy swa
 - Development and testing can use SQLite for simplicity.
 - Database schema is managed using a migration tool go-migrate.
 
+### Database Schema Overview
+
+The database implements a multi-tenant hierarchical structure:
+
+1. **Tenants**: Top-level organizational units
+   - Each tenant can have multiple sections
+   - Identified by UUIDv7
+
+2. **Sections**: Logical groupings within a tenant
+   - Contains agents and tags
+   - Provides namespace separation
+
+3. **Agents**: Monitoring agents deployed on hosts
+   - Belongs to a section
+   - Contains base configuration as JSON blob
+   - Has version tracking for configuration changes
+   - Authenticated via API key (stored as SHA-256 hash)
+   - Can have multiple endpoints and tags
+
+4. **Endpoints**: Target addresses monitored by agents
+   - Each endpoint belongs to an agent
+   - Can be enabled/disabled
+   - Supports port specification
+   - Can have multiple tags
+
+5. **Tags**: Metadata labels for filtering and organization
+   - Belongs to a section
+   - Has scope: 'agent', 'endpoint', or 'global'
+   - Can be assigned to agents and/or endpoints
+   - Changes trigger version bumps and timestamp updates
+
+6. **Automatic Versioning**: Database triggers maintain consistency
+   - Agent version bumps on configuration changes
+   - Endpoint changes ripple up to agent version
+   - Tag changes propagate based on scope
+   - Timestamps automatically updated via triggers
+
 ### Database Schema Design
 
 - **Primary Keys**: All entity ID fields (e.g., `id` columns in tables) must use **UUIDv7** format.
@@ -140,6 +177,26 @@ All database interactions must use sqlc-generated code. Direct SQL queries in ap
 
 Server repository structure must follow standard Go project layout conventions, with clear separation of concerns between packages for handlers, services, models, and utilities.
 
+### Middleware Package
+
+The `internal/middleware` package provides HTTP middleware components:
+
+- **middleware.go**: Core middleware functions
+  - `RequestID`: Generates and propagates request IDs
+  - `Logger`: Request/response logging with timing
+  - `Recovery`: Panic recovery with error handling
+  - `CORS`: Cross-origin resource sharing configuration
+  - `responseWriter`: Custom response writer for capturing status codes
+
+- **auth.go**: Authentication middleware
+  - `AgentAPIKeyAuth`: Agent API key authentication
+  - Extracts API key from `X-Agent-API-Key` header
+  - Validates against hashed keys in database
+  - Injects auth info into request context
+  - Uses constant-time comparison for security
+
+All middleware includes comprehensive unit tests and integration tests.
+
 oapi-codegen is used to generate server stubs and models from OpenAPI specifications, ensuring consistency between API documentation and implementation. 
 - internal/api contains the generated code.
 - cmd/server contains the main application entry point.
@@ -180,6 +237,63 @@ w.WriteHeader(http.StatusNotFound)
 w.Write([]byte(`{"error": "Agent not found"}`))
 ```
 
+## Authentication
+
+The server implements agent API key authentication for protected endpoints. Authentication is handled through middleware and authenticated handler wrappers.
+
+### Authentication Implementation
+
+Authentication components are located in:
+- `internal/middleware/auth.go` - Agent API key authentication middleware
+- `internal/handlers/authenticated_handler.go` - Wrapper for protected endpoints
+
+### Authentication Flow
+
+1. **Agent API Key**: Agents authenticate using an API key passed via the `X-Agent-API-Key` header
+2. **Key Verification**: The middleware validates the API key against the hashed value stored in the database
+3. **Context Injection**: On successful authentication, auth info is injected into the request context
+4. **Handler Wrapper**: Protected endpoints use `AuthenticatedHandler` wrapper to verify authentication
+5. **Agent ID Verification**: The authenticated agent ID must match the requested agent ID in the URL
+
+### Authentication Context
+
+Authentication information is stored in the request context using the `AuthContextKey`:
+
+```go
+type AuthInfo struct {
+    AgentID       string
+    AuthType      string // "agent_api_key" or "oauth2"
+    Authenticated bool
+}
+```
+
+### Using Authentication
+
+**For Protected Endpoints:**
+1. Wrap the handler with `AuthenticatedHandler` instead of `CombinedHandler`
+2. The wrapper automatically checks for valid authentication in the context
+3. Verifies that the authenticated agent matches the requested agent
+4. Returns appropriate 401 (Unauthorized) or 403 (Forbidden) responses on failure
+
+**Example:**
+```go
+authHandler := handlers.NewAuthenticatedHandler(logger, db, apiVersion)
+strictHandler := api.NewStrictHandler(authHandler, nil)
+```
+
+### API Key Security
+
+- API keys are hashed using SHA-256 before storage
+- Comparison uses `crypto/subtle.ConstantTimeCompare` to prevent timing attacks
+- Keys are never logged or exposed in responses
+- Database stores only the hashed value in the `api_key_hash` column
+
+### Future Authentication Support
+
+- OAuth2 authentication is planned (infrastructure partially in place)
+- JWT token support for web interface authentication
+- Role-based access control (RBAC) for different user types
+
 ### Implemented Handlers
 
 Current handler implementations are located in `internal/handlers/`:
@@ -188,6 +302,7 @@ Current handler implementations are located in `internal/handlers/`:
 - **metrics/**: Prometheus metrics endpoint (`/metrics`)
 - **agent_configuration/**: Agent configuration retrieval endpoint (`/agent/{agentId}/configuration`)
 - **handlers.go**: Combined handler that aggregates all individual handlers and implements the OpenAPI strict handler interface
+- **authenticated_handler.go**: Wrapper handler that adds authentication checks for protected endpoints (e.g., agent configuration)
 
 Each handler package includes:
 - Implementation file (e.g., `configuration.go`)

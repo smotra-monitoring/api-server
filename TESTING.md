@@ -25,7 +25,9 @@ The project includes comprehensive unit tests and integration tests for all majo
    - Coverage: 52.4% (with integration tests)
 
 4. **internal/middleware** - HTTP middleware
-   - Tests for Logger, Recovery, RequestID, and CORS middleware
+   - Unit tests for Logger, Recovery, RequestID, and CORS middleware
+   - Unit tests for Agent API key authentication (`auth.go`)
+   - Integration tests for authentication flow with database
    - Tests for responseWriter wrapper
    - Tests for chained middleware execution
    - Coverage: 100%
@@ -36,7 +38,23 @@ The project includes comprehensive unit tests and integration tests for all majo
    - Tests for HealthCheck, ReadinessCheck, and LivenessCheck endpoints
    - Coverage: 98.1%
 
-6. **internal/testutil** - Test utilities and helpers
+6. **internal/handlers/authenticated_handler** - Authentication wrapper
+   - Unit tests for authentication verification
+   - Integration tests for protected endpoints
+   - Tests for agent ID matching and access control
+   - Tests for error responses (401, 403)
+
+7. **internal/handlers/metrics** - Prometheus metrics endpoint
+   - Unit tests for metrics tracking
+   - Integration tests for metrics endpoint
+   - Tests for concurrent metric updates
+
+8. **internal/handlers/agent_configuration** - Agent configuration endpoint
+   - Unit tests with mock database
+   - Integration tests with real HTTP server and authentication
+   - Tests for configuration retrieval with tags and endpoints
+
+9. **internal/testutil** - Test utilities and helpers
    - Mock database implementation
    - Test configuration helpers
    - Test database setup utilities

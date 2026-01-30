@@ -21,13 +21,16 @@
 - [x] justfile for build automation (replacing Makefile)
 - [x] Update copilot-instruct to use Strict types from api package if HTTP error should be returned. Do not use inline JSON without api.Error
 - [x] Check that existing code follows api.Error struct approach
+- [x] Agent API key authentication middleware implementation
+- [x] Authenticated handler wrapper for protected endpoints
+- [x] UUIDv7 implementation for request IDs and primary keys
 
 ### Bugfixes that are part of a current PR
 - [ ] Implement rate-limiting for endpoints that are using security schema AgentApiKey
 
 ### Short Term
 - [ ] Database migrations management with go-migrate or similar tool
-- [ ] JWT authentication implementation
+- [ ] JWT authentication for web interface
 - [ ] User management endpoints
 - [ ] Agent registration and management
 - [ ] Docker and docker-compose setup
