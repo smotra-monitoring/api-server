@@ -8,7 +8,6 @@ cosmtrek
 coverprofile
 createdb
 deregistration
-Erorr
 gotestsum
 Grafana
 healthz
@@ -29,7 +28,7 @@ oapi
 OAuth
 openapi
 postgre
-Roadmap
+roadmap
 Screenshots
 smotra
 sqlc
@@ -46,3 +45,4 @@ Versioned
 versioning
 wontfix
 workflows
+yourusername
