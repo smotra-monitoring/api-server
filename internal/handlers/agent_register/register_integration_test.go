@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -70,67 +71,13 @@ func setupTestRouter(handler *Handler) *chi.Mux {
 func applySchema(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
-	schema := `
-	PRAGMA foreign_keys = ON;
+	// Apply schema
+	schemaSQL, err := os.ReadFile("../../../data/db/dev/migrations/0001_schema.up.sql")
+	if err != nil {
+		t.Fatalf("Failed to read schema file: %v", err)
+	}
 
-	CREATE TABLE tenants (
-		id           TEXT PRIMARY KEY,
-		name         TEXT NOT NULL,
-		created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now'))
-	) STRICT, WITHOUT ROWID;
-
-	CREATE TABLE users (
-		id              TEXT PRIMARY KEY,
-		tenant_id       TEXT NOT NULL,
-		oauth_provider  TEXT NOT NULL,
-		oauth_subject   TEXT NOT NULL,
-		display_name    TEXT NOT NULL,
-		last_login_at   TEXT,
-		created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-		updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-		UNIQUE(oauth_provider, oauth_subject),
-		FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-	) STRICT, WITHOUT ROWID;
-
-	CREATE TABLE sections (
-		id           TEXT PRIMARY KEY,
-		tenant_id    TEXT NOT NULL,
-		name         TEXT NOT NULL,
-		UNIQUE(tenant_id, name),
-		FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-	) STRICT, WITHOUT ROWID;
-
-	CREATE TABLE agent_claims (
-		id                      TEXT PRIMARY KEY,
-		claim_token_hash        TEXT NOT NULL,
-		hostname                TEXT NOT NULL,
-		agent_version           TEXT NOT NULL,
-		claim_token_expires_at  TEXT NOT NULL,
-		last_seen_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-		created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-		claimed_at              TEXT,
-		claimed_by_user_id      TEXT,
-		api_key_plaintext       TEXT,
-		api_key_delivered       INT NOT NULL DEFAULT 0,
-		FOREIGN KEY (claimed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-	) STRICT, WITHOUT ROWID;
-
-	CREATE TABLE agents (
-		id             TEXT PRIMARY KEY,
-		section_id     TEXT NOT NULL,
-		name           TEXT NOT NULL,
-		api_key_hash   TEXT NOT NULL,
-		base_config    TEXT NOT NULL DEFAULT '{}',
-		version        INT NOT NULL DEFAULT 1,
-		agent_version  TEXT,
-		last_seen_at   TEXT,
-		updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-		created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-		FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
-	) STRICT, WITHOUT ROWID;
-	`
-
-	_, err := db.ExecContext(ctx, schema)
+	_, err = db.ExecContext(ctx, string(schemaSQL))
 	if err != nil {
 		t.Fatalf("Failed to apply schema: %v", err)
 	}
