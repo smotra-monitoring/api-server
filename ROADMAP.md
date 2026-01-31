@@ -28,7 +28,7 @@
 ### Bugfixes that are part of a current PR
 - [ ] Remove CreateAgent from agent.sql, it can be safely replaced by CreateAgentFromClaim. Then `just regenerate-sqlc` and fix tests. CreateAgent only used in tests. 
 
-- [ ] In clain.go Handle: add check on SectionID. SectionID must belong to the same tenant as user. 
+- [ ] In claim.go Handle: add check on SectionID. SectionID must belong to the same tenant as user. 
 
 - [ ] Add api_key_plaintext to agent_claims schema
 - [ ] Update GetPendingAPIKeyDelivery query to return plaintext key
