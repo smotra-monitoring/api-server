@@ -12,6 +12,7 @@ import (
 	"github.com/smotra-monitoring/server/internal/api"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/database/queries"
+	"github.com/smotra-monitoring/server/internal/logger"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 
 // Handler handles agent self-registration requests
 type Handler struct {
-	logger *slog.Logger
+	logger *logger.Logger
 	db     database.Database
 
 	// Metrics
@@ -32,9 +33,9 @@ type Handler struct {
 }
 
 // NewHandler creates a new agent registration handler
-func NewHandler(logger *slog.Logger, db database.Database) *Handler {
+func NewHandler(logger *logger.Logger, db database.Database) *Handler {
 	return &Handler{
-		logger: logger,
+		logger: logger.WithComponent("agent_register"),
 		db:     db,
 	}
 }

@@ -14,11 +14,12 @@ import (
 	"github.com/smotra-monitoring/server/internal/api"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/database/queries"
+	"github.com/smotra-monitoring/server/internal/logger"
 )
 
 // Handler handles agent claiming requests from web UI
 type Handler struct {
-	logger *slog.Logger
+	logger *logger.Logger
 	db     database.Database
 
 	// Metrics
@@ -31,9 +32,9 @@ type Handler struct {
 }
 
 // NewHandler creates a new agent claim handler
-func NewHandler(logger *slog.Logger, db database.Database) *Handler {
+func NewHandler(logger *logger.Logger, db database.Database) *Handler {
 	return &Handler{
-		logger: logger,
+		logger: logger.WithComponent("agent_claim"),
 		db:     db,
 	}
 }
@@ -149,9 +150,9 @@ func (h *Handler) Handle(ctx context.Context, req api.ClaimAgentRequestObject) (
 
 	// Mark claim as claimed and store API key for delivery
 	err = q.MarkAgentClaimClaimed(ctx, queries.MarkAgentClaimClaimedParams{
-		ClaimedByUserID:  userID,
-		ApiKeyPlaintext:  sql.NullString{String: apiKey, Valid: true},
-		ID:               agentIDStr,
+		ClaimedByUserID: userID,
+		ApiKeyPlaintext: sql.NullString{String: apiKey, Valid: true},
+		ID:              agentIDStr,
 	})
 
 	if err != nil {

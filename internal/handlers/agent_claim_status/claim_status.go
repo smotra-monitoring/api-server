@@ -12,11 +12,12 @@ import (
 	"github.com/smotra-monitoring/server/internal/api"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/database/queries"
+	"github.com/smotra-monitoring/server/internal/logger"
 )
 
 // Handler handles agent claim status polling requests
 type Handler struct {
-	logger *slog.Logger
+	logger *logger.Logger
 	db     database.Database
 
 	// Metrics
@@ -29,9 +30,9 @@ type Handler struct {
 }
 
 // NewHandler creates a new agent claim status handler
-func NewHandler(logger *slog.Logger, db database.Database) *Handler {
+func NewHandler(logger *logger.Logger, db database.Database) *Handler {
 	return &Handler{
-		logger: logger,
+		logger: logger.WithComponent("agent_claim_status"),
 		db:     db,
 	}
 }
@@ -107,7 +108,7 @@ func (h *Handler) Handle(ctx context.Context, req api.GetAgentClaimStatusRequest
 			}
 			return newClaimStatus200Response(pending)
 		}
-		
+
 		h.pollFailedTotal.Add(1)
 		h.logger.ErrorContext(ctx, "Failed to retrieve pending API key for delivery",
 			slog.String("agentId", agentIDStr),

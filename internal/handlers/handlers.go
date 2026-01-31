@@ -28,9 +28,9 @@ type CombinedHandler struct {
 func NewCombinedHandler(logger *logger.Logger, db database.Database, appVersion string) *CombinedHandler {
 	metricsHandler := metrics.NewHandler(logger, db, appVersion)
 	configHandler := agent_configuration.NewHandler(logger, db, appVersion)
-	registerHandler := agent_register.NewHandler(logger.Logger, db)
-	claimStatusHandler := agent_claim_status.NewHandler(logger.Logger, db)
-	claimHandler := agent_claim.NewHandler(logger.Logger, db)
+	registerHandler := agent_register.NewHandler(logger, db)
+	claimStatusHandler := agent_claim_status.NewHandler(logger, db)
+	claimHandler := agent_claim.NewHandler(logger, db)
 
 	// Register handlers as metrics providers
 	metricsHandler.RegisterMetricsProvider(configHandler)
