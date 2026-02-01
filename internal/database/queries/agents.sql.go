@@ -37,6 +37,43 @@ func (q *Queries) CreateAgent(ctx context.Context, arg CreateAgentParams) (strin
 	return id, err
 }
 
+const createAgentFromClaim = `-- name: CreateAgentFromClaim :one
+INSERT INTO agents (
+    id,
+    section_id,
+    name,
+    api_key_hash,
+    base_config,
+    agent_version
+) VALUES (?, ?, ?, ?, ?, ?)
+RETURNING id
+`
+
+type CreateAgentFromClaimParams struct {
+	ID           string
+	SectionID    string
+	Name         string
+	ApiKeyHash   string
+	BaseConfig   string
+	AgentVersion sql.NullString
+}
+
+// Creates an agent after successful claim
+// name param should be initialized from agent_claims.hostname
+func (q *Queries) CreateAgentFromClaim(ctx context.Context, arg CreateAgentFromClaimParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, createAgentFromClaim,
+		arg.ID,
+		arg.SectionID,
+		arg.Name,
+		arg.ApiKeyHash,
+		arg.BaseConfig,
+		arg.AgentVersion,
+	)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getAgentConfigurationBase = `-- name: GetAgentConfigurationBase :one
 SELECT id, version, name, base_config FROM agents WHERE id = ?
 LIMIT 1

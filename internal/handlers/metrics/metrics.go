@@ -15,8 +15,7 @@ import (
 
 // MetricsProvider defines an interface for handlers that provide metrics
 type MetricsProvider interface {
-	GetMetrics() map[string]uint64
-	GetTitle() string
+	GetMetrics() string
 }
 
 // Handler handles metrics endpoint
@@ -205,29 +204,7 @@ func (h *Handler) buildPrometheusMetrics(ctx context.Context) string {
 
 	// Configuration handler metrics
 	for _, provider := range h.metricsProviders {
-		title := provider.GetTitle()
-		metrics := provider.GetMetrics()
-
-		if getConfigTotal, ok := metrics["get_configuration_total"]; ok {
-			output += fmt.Sprintf("# HELP smotra_%s_get_total Total number of GET configuration requests\n", title)
-			output += fmt.Sprintf("# TYPE smotra_%s_get_total counter\n", title)
-			output += fmt.Sprintf("smotra_%s_get_total %d\n", title, getConfigTotal)
-			output += "\n"
-		}
-
-		if getConfigSuccess, ok := metrics["get_configuration_success"]; ok {
-			output += fmt.Sprintf("# HELP smotra_%s_get_success_total Total number of successful GET configuration requests\n", title)
-			output += fmt.Sprintf("# TYPE smotra_%s_get_success_total counter\n", title)
-			output += fmt.Sprintf("smotra_%s_get_success_total %d\n", title, getConfigSuccess)
-			output += "\n"
-		}
-
-		if getConfigFailure, ok := metrics["get_configuration_failure"]; ok {
-			output += fmt.Sprintf("# HELP smotra_%s_get_failure_total Total number of failed GET configuration requests\n", title)
-			output += fmt.Sprintf("# TYPE smotra_%s_get_failure_total counter\n", title)
-			output += fmt.Sprintf("smotra_%s_get_failure_total %d\n", title, getConfigFailure)
-			output += "\n"
-		}
+		output += provider.GetMetrics()
 	}
 
 	return output

@@ -288,6 +288,34 @@ strictHandler := api.NewStrictHandler(authHandler, nil)
 - Keys are never logged or exposed in responses
 - Database stores only the hashed value in the `api_key_hash` column
 
+### Agent Claiming Workflow
+
+The system implements a secure three-phase workflow for agent onboarding:
+
+1. **Agent Self-Registration** (`POST /agent/register`):
+   - Agent generates UUIDv7 ID and cryptographically secure claim token
+   - Sends registration with hostname, version, and SHA-256 hashed token
+   - Server stores claim in `agent_claims` table with expiration
+   - Returns poll URL and claim URL to agent
+
+2. **Administrator Claiming** (`POST /agents/claim`):
+   - Admin reviews pending agents in web UI
+   - Provides claim token, section ID, and optional agent name
+   - Server validates token, creates agent in `agents` table
+   - Generates API key, stores plaintext temporarily for delivery
+
+3. **API Key Delivery** (`GET /agents/{agentId}/claim-status`):
+   - Agent polls until claimed
+   - First poll after claiming returns API key (one-time)
+   - Plaintext key cleared, subsequent polls return pending status
+   - Agent saves key locally and begins authenticated operation
+
+**Security Considerations**:
+- Claim tokens: 64+ character random, SHA-256 hashed, time-limited
+- API keys: 32+ byte random, one-time plaintext delivery, SHA-256 stored
+- Constant-time comparison prevents timing attacks
+- Rate limiting recommended for registration and polling
+
 ### Future Authentication Support
 
 - OAuth2 authentication is planned (infrastructure partially in place)
@@ -301,6 +329,18 @@ Current handler implementations are located in `internal/handlers/`:
 - **health/**: Health check endpoints (`/healthz`, `/healthz/ready`, `/healthz/live`)
 - **metrics/**: Prometheus metrics endpoint (`/metrics`)
 - **agent_configuration/**: Agent configuration retrieval endpoint (`/agent/{agentId}/configuration`)
+- **agent_register/**: Agent self-registration endpoint (`POST /agent/register`)
+  - Agents register themselves on first startup with hostname and version
+  - Stores claim information with hashed claim token
+  - Returns poll URL and claim URL for administrator
+- **agent_claim_status/**: Agent claim status polling endpoint (`GET /agents/{agentId}/claim-status`)
+  - Agents poll this endpoint to check if they've been claimed
+  - Delivers API key one-time after claiming
+  - Clears plaintext API key after delivery
+- **agent_claim/**: Administrator claim endpoint (`POST /agents/claim`)
+  - Administrators claim pending agents via web UI
+  - Validates claim token and creates agent in production table
+  - Generates API key for one-time delivery to agent
 - **handlers.go**: Combined handler that aggregates all individual handlers and implements the OpenAPI strict handler interface
 - **authenticated_handler.go**: Wrapper handler that adds authentication checks for protected endpoints (e.g., agent configuration)
 

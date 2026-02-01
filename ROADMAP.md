@@ -24,16 +24,41 @@
 - [x] Agent API key authentication middleware implementation
 - [x] Authenticated handler wrapper for protected endpoints
 - [x] UUIDv7 implementation for request IDs and primary keys
+- [x] Agent self-registration workflow implementation
+  - [x] POST /agent/register endpoint for agent self-registration
+  - [x] GET /agents/{agentId}/claim-status endpoint for polling
+  - [x] POST /agents/claim endpoint for administrator claiming
+  - [x] Claim token generation and secure hashing
+  - [x] API key generation and one-time delivery mechanism
+  - [x] Database schema for agent_claims table with delivery tracking
+  - [x] Unit tests for all claiming handlers (23 tests)
+  - [x] Integration tests for complete workflow (13 tests)
+- [x] Agent registration and management (Server side)
+
+### Current Work
+- [ ] Web UI for agent claiming workflow
+- [ ] OAuth2 user context extraction for admin endpoints
+- [ ] Rate limiting for agent registration and claim status polling
 
 ### Bugfixes that are part of a current PR
+- [ ] Remove CreateAgent from agent.sql, it can be safely replaced by CreateAgentFromClaim. Then `just regenerate-sqlc` and fix tests. CreateAgent only used in tests. 
+
+- [ ] Implement OAuth2 user context extraction
+- [ ] After implementing OAuth2: In claim.go Handle: add check on SectionID. SectionID must belong to the same tenant as the user.
+- [ ] After implementing OAuth2: In claim_integration_test.go. Find "TODO:....." and uncomment code lines to enable "user checks".
+
+- [ ] Update copilot-instructions.md to add metrics to any new entities that might require it
+- [ ] Add metrics for agent_register, agent_claim_status, agent_claim. The way to go is to use RegisterMetricsProvider.
+
 - [ ] Implement rate-limiting for endpoints that are using security schema AgentApiKey
 
 ### Short Term
+- [ ] Web UI for claiming workflow (admin dashboard)
 - [ ] Database migrations management with go-migrate or similar tool
 - [ ] JWT authentication for web interface
 - [ ] User management endpoints
-- [ ] Agent registration and management
 - [ ] Docker and docker-compose setup
+- [ ] Documentation for agent deployment process
 
 ### Medium Term
 - [ ] OAuth2 integration

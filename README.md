@@ -51,6 +51,62 @@ curl http://localhost:8080/healthz/live
 curl http://localhost:8080/api/v1
 ```
 
+### 4. Agent Claiming Workflow
+
+The server implements a secure workflow for agent onboarding:
+
+#### Agent Self-Registration
+
+```bash
+# Agent registers itself on first startup
+curl -X POST http://localhost:8080/agent/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "019c1234-5678-7abc-def0-123456789abc",
+    "claimTokenHash": "a3f5b2c8d1e9f4a7b6c5d2e1f8a9b4c7...",
+    "hostname": "prod-web-01",
+    "agentVersion": "1.0.0"
+  }'
+
+# Response includes poll URL and claim URL
+# {
+#   "status": "pending_claim",
+#   "pollUrl": "/agents/019c1234-5678-7abc-def0-123456789abc/claim-status",
+#   "claimUrl": "https://yoursite.com/claim"
+# }
+```
+
+#### Agent Polls for Claim Status
+
+```bash
+# Agent polls this endpoint until claimed
+curl http://localhost:8080/agents/019c1234-5678-7abc-def0-123456789abc/claim-status
+
+# Returns pending while waiting:
+# { "status": "pending" }
+
+# Returns API key once (after admin claims):
+# { "status": "claimed", "apiKey": "sk_live_..." }
+
+# Subsequent polls return pending (key already delivered):
+# { "status": "pending" }
+```
+
+#### Administrator Claims Agent (requires OAuth2 - coming soon)
+
+```bash
+# Admin claims pending agent via web UI or API
+curl -X POST http://localhost:8080/agents/claim \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{
+    "agentId": "019c1234-5678-7abc-def0-123456789abc",
+    "claimToken": "original-token-from-agent",
+    "sectionId": "019c9876-5432-7fed-cba0-987654321fed",
+    "name": "Production Web Server 01"
+  }'
+```
+
 ### 5. Using PostgreSQL (Production)
 
 Edit your `config.yaml` file:
@@ -272,6 +328,18 @@ server/
 │   │   ├── authenticated_handler.go # Authenticated wrapper for protected endpoints
 │   │   ├── agent_configuration/ # Agent configuration handlers
 │   │   │   └── configuration.go # GET /agent/{agentId}/configuration
+│   │   ├── agent_register/ # Agent self-registration handlers
+│   │   │   ├── register.go      # POST /agent/register
+│   │   │   ├── register_test.go # Unit tests
+│   │   │   └── register_integration_test.go # Integration tests
+│   │   ├── agent_claim_status/ # Agent claim status handlers
+│   │   │   ├── claim_status.go  # GET /agents/{agentId}/claim-status
+│   │   │   ├── claim_status_test.go # Unit tests
+│   │   │   └── claim_status_integration_test.go # Integration tests
+│   │   ├── agent_claim/    # Administrator claim handlers
+│   │   │   ├── claim.go         # POST /agents/claim
+│   │   │   ├── claim_test.go    # Unit tests
+│   │   │   └── claim_integration_test.go # Integration tests
 │   │   ├── health/         # Health check handlers
 │   │   │   └── health.go   # Health, readiness, liveness checks
 │   │   └── metrics/        # Prometheus metrics handlers

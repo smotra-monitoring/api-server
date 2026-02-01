@@ -1,6 +1,7 @@
 package agent_configuration
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/smotra-monitoring/server/internal/logger"
@@ -27,8 +28,8 @@ func TestHandler_GetMetrics(t *testing.T) {
 
 	metrics := handler.GetMetrics()
 
-	if metrics == nil {
-		t.Fatal("GetMetrics returned nil")
+	if metrics == "" {
+		t.Fatal("GetMetrics returned empty string")
 	}
 
 	expectedKeys := []string{
@@ -38,7 +39,7 @@ func TestHandler_GetMetrics(t *testing.T) {
 	}
 
 	for _, key := range expectedKeys {
-		if _, ok := metrics[key]; !ok {
+		if !strings.Contains(metrics, key) {
 			t.Errorf("Expected metric %s to be present", key)
 		}
 	}

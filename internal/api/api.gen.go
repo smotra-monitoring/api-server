@@ -22,6 +22,26 @@ const (
 	OAuth2AuthorizationCodeScopes = "OAuth2AuthorizationCode.Scopes"
 )
 
+// Defines values for AgentRegistrationResponseStatus.
+const (
+	AgentRegistrationResponseStatusPendingClaim AgentRegistrationResponseStatus = "pending_claim"
+)
+
+// Defines values for ClaimAgentResponseStatus.
+const (
+	ClaimAgentResponseStatusClaimed ClaimAgentResponseStatus = "claimed"
+)
+
+// Defines values for ClaimStatusClaimedStatus.
+const (
+	ClaimStatusClaimedStatusClaimed ClaimStatusClaimedStatus = "claimed"
+)
+
+// Defines values for ClaimStatusPendingStatus.
+const (
+	ClaimStatusPendingStatusPendingClaim ClaimStatusPendingStatus = "pending_claim"
+)
+
 // Defines values for HealthStatusComponentsStatus.
 const (
 	HealthStatusComponentsStatusDegraded  HealthStatusComponentsStatus = "degraded"
@@ -56,6 +76,96 @@ type AgentConfig struct {
 	// Version Configuration version (used for syncing with server)
 	Version int32 `json:"version"`
 }
+
+// AgentRegistrationResponse defines model for AgentRegistrationResponse.
+type AgentRegistrationResponse struct {
+	// ClaimUrl URL for user to claim the agent (web UI)
+	ClaimUrl string `json:"claimUrl"`
+
+	// ExpiresAt When the claim token expires (RFC3339)
+	ExpiresAt time.Time `json:"expiresAt"`
+
+	// PollUrl URL for agent to poll for claim status
+	PollUrl string `json:"pollUrl"`
+
+	// Status Current status of the registration
+	Status AgentRegistrationResponseStatus `json:"status"`
+}
+
+// AgentRegistrationResponseStatus Current status of the registration
+type AgentRegistrationResponseStatus string
+
+// AgentSelfRegistration defines model for AgentSelfRegistration.
+type AgentSelfRegistration struct {
+	// AgentId UUID version 7 as per RFC 4122
+	AgentId UUIDv7 `json:"agentId"`
+
+	// AgentVersion Version of the agent software
+	AgentVersion string `json:"agentVersion"`
+
+	// ClaimTokenHash SHA-256 hash of the claim token (plain token shown in agent logs for user)
+	ClaimTokenHash string `json:"claimTokenHash"`
+
+	// Hostname System hostname of the machine running the agent
+	Hostname string `json:"hostname"`
+}
+
+// ClaimAgentRequest defines model for ClaimAgentRequest.
+type ClaimAgentRequest struct {
+	// AgentId UUID version 7 as per RFC 4122
+	AgentId UUIDv7 `json:"agentId"`
+
+	// ClaimToken Claim token from agent logs
+	ClaimToken string `json:"claimToken"`
+
+	// Name Human-readable name for the agent (defaults to hostname if not provided)
+	Name *string `json:"name,omitempty"`
+
+	// SectionId UUID version 7 as per RFC 4122
+	SectionId UUIDv7 `json:"sectionId"`
+}
+
+// ClaimAgentResponse defines model for ClaimAgentResponse.
+type ClaimAgentResponse struct {
+	// AgentId UUID version 7 as per RFC 4122
+	AgentId UUIDv7 `json:"agentId"`
+
+	// Message Human-readable message
+	Message string `json:"message"`
+
+	// Status Claim status
+	Status ClaimAgentResponseStatus `json:"status"`
+}
+
+// ClaimAgentResponseStatus Claim status
+type ClaimAgentResponseStatus string
+
+// ClaimStatusClaimed defines model for ClaimStatusClaimed.
+type ClaimStatusClaimed struct {
+	// ApiKey API key for authenticated requests (one-time delivery)
+	ApiKey string `json:"apiKey"`
+
+	// ConfigUrl URL to fetch agent configuration
+	ConfigUrl string `json:"configUrl"`
+
+	// Status Agent has been claimed and API key is ready
+	Status ClaimStatusClaimedStatus `json:"status"`
+}
+
+// ClaimStatusClaimedStatus Agent has been claimed and API key is ready
+type ClaimStatusClaimedStatus string
+
+// ClaimStatusPending defines model for ClaimStatusPending.
+type ClaimStatusPending struct {
+	// ExpiresAt When the claim token expires (RFC3339)
+	ExpiresAt time.Time `json:"expiresAt"`
+
+	// Status Agent is waiting to be claimed
+	Status ClaimStatusPendingStatus `json:"status"`
+}
+
+// ClaimStatusPendingStatus Agent is waiting to be claimed
+type ClaimStatusPendingStatus string
 
 // Endpoint defines model for Endpoint.
 type Endpoint struct {
@@ -167,6 +277,9 @@ type UUIDv7 = uuid.UUID
 // AgentId UUID version 7 as per RFC 4122
 type AgentId = UUIDv7
 
+// BadRequest defines model for BadRequest.
+type BadRequest = Error
+
 // InternalServerError defines model for InternalServerError.
 type InternalServerError = Error
 
@@ -179,8 +292,23 @@ type NotImplemented = Error
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
 
+// ClaimAgentJSONRequestBody defines body for ClaimAgent for application/json ContentType.
+type ClaimAgentJSONRequestBody = ClaimAgentRequest
+
+// RegisterAgentSelfJSONRequestBody defines body for RegisterAgentSelf for application/json ContentType.
+type RegisterAgentSelfJSONRequestBody = AgentSelfRegistration
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Claim an agent (Web UI)
+	// (POST /agent/claim)
+	ClaimAgent(w http.ResponseWriter, r *http.Request)
+	// Agent self-registration (unclaimed)
+	// (POST /agent/register)
+	RegisterAgentSelf(w http.ResponseWriter, r *http.Request)
+	// Check agent claim status (polling endpoint)
+	// (GET /agent/{agentId}/claim-status)
+	GetAgentClaimStatus(w http.ResponseWriter, r *http.Request, agentId AgentId)
 	// Get agent configuration
 	// (GET /agent/{agentId}/configuration)
 	GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId)
@@ -201,6 +329,24 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// Claim an agent (Web UI)
+// (POST /agent/claim)
+func (_ Unimplemented) ClaimAgent(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Agent self-registration (unclaimed)
+// (POST /agent/register)
+func (_ Unimplemented) RegisterAgentSelf(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Check agent claim status (polling endpoint)
+// (GET /agent/{agentId}/claim-status)
+func (_ Unimplemented) GetAgentClaimStatus(w http.ResponseWriter, r *http.Request, agentId AgentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // Get agent configuration
 // (GET /agent/{agentId}/configuration)
@@ -240,6 +386,65 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ClaimAgent operation middleware
+func (siw *ServerInterfaceWrapper) ClaimAgent(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, OAuth2AuthorizationCodeScopes, []string{"agent:write"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimAgent(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RegisterAgentSelf operation middleware
+func (siw *ServerInterfaceWrapper) RegisterAgentSelf(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RegisterAgentSelf(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAgentClaimStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetAgentClaimStatus(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentId" -------------
+	var agentId AgentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentId", chi.URLParam(r, "agentId"), &agentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAgentClaimStatus(w, r, agentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetAgentConfiguration operation middleware
 func (siw *ServerInterfaceWrapper) GetAgentConfiguration(w http.ResponseWriter, r *http.Request) {
@@ -444,6 +649,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/agent/claim", wrapper.ClaimAgent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/agent/register", wrapper.RegisterAgentSelf)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/agent/{agentId}/claim-status", wrapper.GetAgentClaimStatus)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/agent/{agentId}/configuration", wrapper.GetAgentConfiguration)
 	})
 	r.Group(func(r chi.Router) {
@@ -462,6 +676,8 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	return r
 }
 
+type BadRequestJSONResponse Error
+
 type InternalServerErrorJSONResponse Error
 
 type NotFoundJSONResponse Error
@@ -469,6 +685,164 @@ type NotFoundJSONResponse Error
 type NotImplementedJSONResponse Error
 
 type UnauthorizedJSONResponse Error
+
+type ClaimAgentRequestObject struct {
+	Body *ClaimAgentJSONRequestBody
+}
+
+type ClaimAgentResponseObject interface {
+	VisitClaimAgentResponse(w http.ResponseWriter) error
+}
+
+type ClaimAgent200JSONResponse ClaimAgentResponse
+
+func (response ClaimAgent200JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimAgent400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ClaimAgent400JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimAgent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ClaimAgent401JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimAgent403JSONResponse Error
+
+func (response ClaimAgent403JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimAgent404JSONResponse Error
+
+func (response ClaimAgent404JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimAgent409JSONResponse Error
+
+func (response ClaimAgent409JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClaimAgent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ClaimAgent500JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RegisterAgentSelfRequestObject struct {
+	Body *RegisterAgentSelfJSONRequestBody
+}
+
+type RegisterAgentSelfResponseObject interface {
+	VisitRegisterAgentSelfResponse(w http.ResponseWriter) error
+}
+
+type RegisterAgentSelf200JSONResponse AgentRegistrationResponse
+
+func (response RegisterAgentSelf200JSONResponse) VisitRegisterAgentSelfResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RegisterAgentSelf201JSONResponse AgentRegistrationResponse
+
+func (response RegisterAgentSelf201JSONResponse) VisitRegisterAgentSelfResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RegisterAgentSelf400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response RegisterAgentSelf400JSONResponse) VisitRegisterAgentSelfResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RegisterAgentSelf500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RegisterAgentSelf500JSONResponse) VisitRegisterAgentSelfResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAgentClaimStatusRequestObject struct {
+	AgentId AgentId `json:"agentId"`
+}
+
+type GetAgentClaimStatusResponseObject interface {
+	VisitGetAgentClaimStatusResponse(w http.ResponseWriter) error
+}
+
+type GetAgentClaimStatus200JSONResponse struct {
+	union json.RawMessage
+}
+
+func (response GetAgentClaimStatus200JSONResponse) VisitGetAgentClaimStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.union)
+}
+
+type GetAgentClaimStatus404JSONResponse Error
+
+func (response GetAgentClaimStatus404JSONResponse) VisitGetAgentClaimStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAgentClaimStatus500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetAgentClaimStatus500JSONResponse) VisitGetAgentClaimStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
 
 type GetAgentConfigurationRequestObject struct {
 	AgentId AgentId `json:"agentId"`
@@ -607,6 +981,15 @@ func (response PrometheusMetrics200TextResponse) VisitPrometheusMetricsResponse(
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// Claim an agent (Web UI)
+	// (POST /agent/claim)
+	ClaimAgent(ctx context.Context, request ClaimAgentRequestObject) (ClaimAgentResponseObject, error)
+	// Agent self-registration (unclaimed)
+	// (POST /agent/register)
+	RegisterAgentSelf(ctx context.Context, request RegisterAgentSelfRequestObject) (RegisterAgentSelfResponseObject, error)
+	// Check agent claim status (polling endpoint)
+	// (GET /agent/{agentId}/claim-status)
+	GetAgentClaimStatus(ctx context.Context, request GetAgentClaimStatusRequestObject) (GetAgentClaimStatusResponseObject, error)
 	// Get agent configuration
 	// (GET /agent/{agentId}/configuration)
 	GetAgentConfiguration(ctx context.Context, request GetAgentConfigurationRequestObject) (GetAgentConfigurationResponseObject, error)
@@ -651,6 +1034,94 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ClaimAgent operation middleware
+func (sh *strictHandler) ClaimAgent(w http.ResponseWriter, r *http.Request) {
+	var request ClaimAgentRequestObject
+
+	var body ClaimAgentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClaimAgent(ctx, request.(ClaimAgentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClaimAgent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClaimAgentResponseObject); ok {
+		if err := validResponse.VisitClaimAgentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RegisterAgentSelf operation middleware
+func (sh *strictHandler) RegisterAgentSelf(w http.ResponseWriter, r *http.Request) {
+	var request RegisterAgentSelfRequestObject
+
+	var body RegisterAgentSelfJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RegisterAgentSelf(ctx, request.(RegisterAgentSelfRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RegisterAgentSelf")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RegisterAgentSelfResponseObject); ok {
+		if err := validResponse.VisitRegisterAgentSelfResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAgentClaimStatus operation middleware
+func (sh *strictHandler) GetAgentClaimStatus(w http.ResponseWriter, r *http.Request, agentId AgentId) {
+	var request GetAgentClaimStatusRequestObject
+
+	request.AgentId = agentId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAgentClaimStatus(ctx, request.(GetAgentClaimStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAgentClaimStatus")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAgentClaimStatusResponseObject); ok {
+		if err := validResponse.VisitGetAgentClaimStatusResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetAgentConfiguration operation middleware
