@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -237,35 +236,39 @@ func TestRegisterAgentSelf_Integration_AlreadyClaimed(t *testing.T) {
 	claimToken := "test-claim-token-12345678"
 	claimTokenHash := sha256.Sum256([]byte(claimToken))
 	claimTokenHashStr := hex.EncodeToString(claimTokenHash[:])
-	expiresAt := time.Now().Add(24 * time.Hour).Format("2006-01-02 15:04:05")
+	// expiresAt := time.Now().Add(24 * time.Hour).Format("2006-01-02 15:04:05")
 
-	_, err = q.UpsertAgentClaim(ctx, queries.UpsertAgentClaimParams{
-		ID:                  agentID.String(),
-		ClaimTokenHash:      claimTokenHashStr,
-		Hostname:            "test-host",
-		AgentVersion:        "1.0.0",
-		ClaimTokenExpiresAt: expiresAt,
-	})
-	if err != nil {
-		t.Fatalf("Failed to create agent claim: %v", err)
-	}
-
-	// Mark it as claimed using raw SQL
-	claimedAt := time.Now().Format("2006-01-02 15:04:05")
-	_, err = db.DB().ExecContext(ctx, `UPDATE agent_claims SET claimed_at = ?, claimed_by_user_id = ? WHERE id = ?`,
-		claimedAt, userID, agentID.String())
-	if err != nil {
-		t.Fatalf("Failed to mark agent as claimed: %v", err)
-	}
-
-	// Try to register the claimed agent
+	// Register the agent
 	reqBody := api.AgentSelfRegistration{
 		AgentId:        agentID,
 		ClaimTokenHash: claimTokenHashStr,
 		Hostname:       "test-agent-host",
 		AgentVersion:   "1.0.0",
 	}
+	{
+		reqJSON, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest(http.MethodPost, "/agent/register", bytes.NewReader(reqJSON))
+		req.Header.Set("Content-Type", "application/json")
 
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusCreated {
+			t.Errorf("Expected status 201 for successful registration, got %d. Body: %s", w.Code, w.Body.String())
+		}
+	}
+
+	// Mark it as claimed using raw SQL
+	err = q.MarkAgentClaimClaimed(ctx, queries.MarkAgentClaimClaimedParams{
+		ClaimedByUserID: sql.NullString{String: userID, Valid: true},
+		ApiKeyPlaintext: sql.NullString{String: "dummy-api-key", Valid: true},
+		ID:              agentID.String(),
+	})
+	if err != nil {
+		t.Fatalf("Failed to mark agent as claimed: %v", err)
+	}
+
+	// Try to register the claimed agent
 	reqJSON, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest(http.MethodPost, "/agent/register", bytes.NewReader(reqJSON))
 	req.Header.Set("Content-Type", "application/json")
