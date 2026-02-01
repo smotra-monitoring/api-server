@@ -97,16 +97,22 @@ func (h *Handler) Handle(ctx context.Context, req api.GetAgentClaimStatusRequest
 		return newClaimStatus200Response(pending)
 	}
 
+	//
+	// Agent claimed, but API key not yet delivered
+	//
+
 	// Get the agent record to retrieve API key
 	pendingDelivery, err := q.GetPendingAPIKeyDelivery(ctx, agentIDStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// API key already delivered or not yet ready
-			h.pollPendingTotal.Add(1)
-			pending := api.ClaimStatusPending{
-				Status: "pending_claim",
-			}
-			return newClaimStatus200Response(pending)
+			h.pollFailedTotal.Add(1)
+			return api.GetAgentClaimStatus500JSONResponse{
+				InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
+					Error:   "internal_error",
+					Message: "Failed to retrieve API key",
+				},
+			}, nil
 		}
 
 		h.pollFailedTotal.Add(1)

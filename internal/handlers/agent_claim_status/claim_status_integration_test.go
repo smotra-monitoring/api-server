@@ -151,7 +151,7 @@ func TestGetAgentClaimStatus_Integration_PendingClaim(t *testing.T) {
 	}
 
 	// Should not have api_key or config_url
-	if _, hasKey := response["api_key"]; hasKey {
+	if _, ok := response["api_key"]; ok {
 		t.Error("Expected no api_key in pending response")
 	}
 }
@@ -313,29 +313,51 @@ func TestGetAgentClaimStatus_Integration_AlreadyDelivered(t *testing.T) {
 		t.Fatalf("Failed to create agent claim: %v", err)
 	}
 
-	// Mark as claimed and delivered
-	claimedAt := time.Now().Format("2006-01-02 15:04:05")
-	_, err = db.DB().ExecContext(ctx, `UPDATE agent_claims SET claimed_at = ?, claimed_by_user_id = ?, api_key_delivered = 1 WHERE id = ?`,
-		claimedAt, userID, agentID.String())
+	// Mark as claimed, but not yet delivered
+	err = q.MarkAgentClaimClaimed(ctx, queries.MarkAgentClaimClaimedParams{
+		ClaimedByUserID: sql.NullString{String: userID, Valid: true},
+		ApiKeyPlaintext: sql.NullString{String: "sk_live_test123456789abcdef", Valid: true},
+		ID:              agentID.String(),
+	})
 	if err != nil {
-		t.Fatalf("Failed to mark agent as delivered: %v", err)
+		t.Fatalf("Failed to mark agent as claimed: %v", err)
 	}
 
-	// Poll should return pending (agent should stop polling)
-	req := httptest.NewRequest(http.MethodGet, "/agent/"+agentID.String()+"/claim-status", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	// 1-st query: Trigger API key delivery
+	req1 := httptest.NewRequest(http.MethodGet, "/agent/"+agentID.String()+"/claim-status", nil)
+	w1 := httptest.NewRecorder()
+	router.ServeHTTP(w1, req1)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d. Body: %s", w.Code, w.Body.String())
+	if w1.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d. Body: %s", w1.Code, w1.Body.String())
 	}
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+	var response1 api.ClaimStatusClaimed
+	if err := json.Unmarshal(w1.Body.Bytes(), &response1); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	if status, ok := response["status"].(string); !ok || status != "pending_claim" {
-		t.Errorf("Expected status 'pending_claim' for already delivered, got '%v'", response["status"])
+	if response1.Status != "claimed" {
+		t.Errorf("Expected status 'claimed' for claimed agent claim, got '%v'", response1.Status)
 	}
+
+	// 2-nd query: Repeat API key delivery, should return pending_claim, due to securty reasons
+	//             to avoid attacks that try to repeatedly fetch API keys
+	req2 := httptest.NewRequest(http.MethodGet, "/agent/"+agentID.String()+"/claim-status", nil)
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d. Body: %s", w2.Code, w2.Body.String())
+	}
+
+	var response2 api.ClaimStatusPending
+	if err := json.Unmarshal(w2.Body.Bytes(), &response2); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response2.Status != "pending_claim" {
+		t.Errorf("Expected status 'pending_claim' for already delivered, got '%v'", response2.Status)
+	}
+
 }
