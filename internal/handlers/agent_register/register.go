@@ -48,8 +48,8 @@ func (h *Handler) Handle(ctx context.Context, req api.RegisterAgentSelfRequestOb
 		h.registrationFailureTotal.Add(1)
 		return api.RegisterAgentSelf400JSONResponse{
 			BadRequestJSONResponse: api.BadRequestJSONResponse{
-				Error:   "bad_request",
-				Message: "Request body is required",
+				Error:   "request_body_required",
+				Message: "This is unexpected error, pay attention to logs. If \"body\" is null, then validation in generated API layer should have caught it earlier.",
 			},
 		}, nil
 	}
