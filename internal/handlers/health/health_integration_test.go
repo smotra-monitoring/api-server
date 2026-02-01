@@ -1,5 +1,3 @@
-//go:build integration
-
 package health
 
 import (
@@ -34,6 +32,18 @@ func (t *testServerImpl) GetAgentConfiguration(ctx context.Context, request api.
 			Message: "Stub - not implemented",
 		},
 	}, nil
+}
+
+func (t *testServerImpl) RegisterAgentSelf(ctx context.Context, request api.RegisterAgentSelfRequestObject) (api.RegisterAgentSelfResponseObject, error) {
+	return nil, nil
+}
+
+func (t *testServerImpl) GetAgentClaimStatus(ctx context.Context, request api.GetAgentClaimStatusRequestObject) (api.GetAgentClaimStatusResponseObject, error) {
+	return nil, nil
+}
+
+func (t *testServerImpl) ClaimAgent(ctx context.Context, request api.ClaimAgentRequestObject) (api.ClaimAgentResponseObject, error) {
+	return nil, nil
 }
 
 func setupTestRouter(handler *Handler) *chi.Mux {
