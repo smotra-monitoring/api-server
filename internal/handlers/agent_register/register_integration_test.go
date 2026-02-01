@@ -329,10 +329,21 @@ func TestRegisterAgentSelf_Integration_InvalidData(t *testing.T) {
 			expectedError:  "validation_error",
 		},
 		{
-			name: "invalid token hash",
+			name: "invalid token length",
 			body: api.AgentSelfRegistration{
 				AgentId:        uuid.Must(uuid.NewV7()),
 				ClaimTokenHash: "invalid-hash",
+				Hostname:       "test-host",
+				AgentVersion:   "1.0.0",
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "validation_error",
+		},
+		{
+			name: "invalid token decode to hex",
+			body: api.AgentSelfRegistration{
+				AgentId:        uuid.Must(uuid.NewV7()),
+				ClaimTokenHash: "11111111111111111111g1111111111111111111111111111111111111111111",
 				Hostname:       "test-host",
 				AgentVersion:   "1.0.0",
 			},
