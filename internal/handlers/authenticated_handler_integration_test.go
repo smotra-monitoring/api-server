@@ -67,7 +67,8 @@ func TestAuthenticatedHandler_Integration(t *testing.T) {
 		t.Fatalf("Failed to create agent: %v", err)
 	}
 
-	handler := NewAuthenticatedHandler(log, db, "test")
+	cfg := testutil.DefaultTestConfig()
+	handler := NewAuthenticatedHandler(log, db, cfg, "test")
 
 	// Test 1: Health check works WITHOUT authentication
 	t.Run("HealthCheckNoAuth", func(t *testing.T) {

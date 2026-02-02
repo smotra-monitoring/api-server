@@ -24,5 +24,9 @@
   "auth": {
     "jwt_secret": "development-secret-change-in-production",
     "jwt_expiration": 86400000000000
+  },
+  "agent": {
+    "claim_token_expiration_hours": 24,
+    "server_url": "https://smotra.net"
   }
 }

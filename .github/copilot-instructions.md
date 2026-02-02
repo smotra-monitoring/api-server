@@ -206,6 +206,94 @@ The server must implement robust error handling and logging using a structured l
 
 Codebase must include unit tests and integration tests to ensure reliability and facilitate future development. CI/CD pipelines should be set up to automate testing, building, and deployment processes.
 
+## Configuration Management
+
+All configurable values must be defined in the configuration system rather than as constants in source code.
+
+### Configuration Guidelines
+
+- **Avoid Hardcoded Constants**: Do not define configuration values as constants in handler or service code
+- **Use Config Structs**: All configurable values should be part of the `internal/config` package
+- **Environment-Specific Values**: Configuration files should support different values per environment (dev, staging, prod)
+- **Validation**: All config values must be validated in the `Validate()` method
+- **Defaults**: Provide sensible defaults in the `Default()` function
+- **Documentation**: Document each config field with comments explaining purpose and valid values
+
+### What Belongs in Configuration
+
+Values that should be in config files rather than constants:
+
+- **Timeouts and Intervals**: HTTP timeouts, polling intervals, expiration times, retry delays
+- **URLs and Endpoints**: Server URLs, external service endpoints, callback URLs
+- **Limits and Thresholds**: Rate limits, buffer sizes, maximum counts, threshold values
+- **Security Settings**: Token expiration, password requirements, API key lengths
+- **Feature Flags**: Enable/disable features per environment
+- **Resource Limits**: Connection pool sizes, worker counts, memory limits
+
+### What Can Remain as Constants
+
+Values that are acceptable as constants:
+
+- **Protocol Constants**: HTTP status codes, header names (when not user-configurable)
+- **Format Specifiers**: Date/time formats, regex patterns (when immutable)
+- **Error Codes**: Application-specific error code strings
+- **Validation Rules**: Fixed validation patterns (e.g., UUID format, hash lengths)
+
+### Configuration Structure
+
+The configuration is organized into logical sections:
+
+```go
+type Config struct {
+    Server   ServerConfig   // HTTP server settings
+    Database DatabaseConfig // Database connection settings
+    Logging  LoggingConfig  // Logging configuration
+    Auth     AuthConfig     // Authentication settings
+    Agent    AgentConfig    // Agent-specific settings
+    // Add new sections as needed
+}
+```
+
+### Example: Moving Constants to Config
+
+❌ **Incorrect** - Hardcoded in handler:
+```go
+const (
+    claimTokenExpirationHours = 24
+    defaultServerURL = "https://yoursite.com"
+)
+```
+
+✅ **Correct** - In configuration:
+```go
+// internal/config/types.go
+type AgentConfig struct {
+    ClaimTokenExpirationHours int    `json:"claim_token_expiration_hours" yaml:"claim_token_expiration_hours"`
+    ServerURL                 string `json:"server_url" yaml:"server_url"`
+}
+
+// configs/dev.yaml
+agent:
+    claim_token_expiration_hours: 24
+    server_url: https://dev.example.com
+
+// Handler usage
+expiresAt := time.Now().Add(time.Duration(h.config.Agent.ClaimTokenExpirationHours) * time.Hour)
+claimURL := fmt.Sprintf("%s/claim", h.config.Agent.ServerURL)
+```
+
+### Adding New Configuration Values
+
+When adding new configurable values:
+
+1. Add the field to the appropriate config struct in `internal/config/types.go`
+2. Add validation in the `Validate()` method if needed
+3. Add default value in the corresponding `Default*Config()` function
+4. Update all config files (`configs/dev.yaml`, `configs/prod.yaml`, etc.)
+5. Update test config in `internal/testutil/config.go`
+6. Update any existing test fixtures to include the new field
+7. Document the new field in comments
+
 ## Error Handling
 
 All HTTP error responses must use the Strict types generated from the OpenAPI specification in the `internal/api` package. 

@@ -32,6 +32,9 @@ logging:
 auth:
     jwt_secret: test-secret
     jwt_expiration: 1h
+agent:
+    claim_token_expiration_hours: 24
+    server_url: https://test.example.com
 `
 
 	if err := os.WriteFile(configFile, []byte(yamlContent), 0644); err != nil {
@@ -98,6 +101,10 @@ func TestLoadAndValidate_ValidJSON(t *testing.T) {
   "auth": {
     "jwt_secret": "super-secret",
     "jwt_expiration": 86400000000000
+  },
+  "agent": {
+    "claim_token_expiration_hours": 24,
+    "server_url": "https://test.example.com"
   }
 }`
 

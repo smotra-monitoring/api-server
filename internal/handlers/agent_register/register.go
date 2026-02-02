@@ -10,20 +10,17 @@ import (
 	"time"
 
 	"github.com/smotra-monitoring/server/internal/api"
+	"github.com/smotra-monitoring/server/internal/config"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/database/queries"
 	"github.com/smotra-monitoring/server/internal/logger"
-)
-
-const (
-	claimTokenExpirationHours = 24
-	defaultServerURL          = "https://yoursite.com"
 )
 
 // Handler handles agent self-registration requests
 type Handler struct {
 	logger *logger.Logger
 	db     database.Database
+	config *config.Config
 
 	// Metrics
 	registrationAttemptsTotal   atomic.Uint64
@@ -33,10 +30,11 @@ type Handler struct {
 }
 
 // NewHandler creates a new agent registration handler
-func NewHandler(logger *logger.Logger, db database.Database) *Handler {
+func NewHandler(logger *logger.Logger, db database.Database, cfg *config.Config) *Handler {
 	return &Handler{
 		logger: logger.WithComponent("agent_register"),
 		db:     db,
+		config: cfg,
 	}
 }
 
@@ -84,7 +82,7 @@ func (h *Handler) Handle(ctx context.Context, req api.RegisterAgentSelfRequestOb
 	}
 
 	// Calculate expiration time
-	expiresAt := time.Now().UTC().Add(claimTokenExpirationHours * time.Hour)
+	expiresAt := time.Now().UTC().Add(time.Duration(h.config.Agent.ClaimTokenExpirationHours) * time.Hour)
 	expiresAtStr := expiresAt.Format("2006-01-02 15:04:05")
 
 	// Upsert agent claim (idempotent)
@@ -122,7 +120,7 @@ func (h *Handler) Handle(ctx context.Context, req api.RegisterAgentSelfRequestOb
 	response := api.AgentRegistrationResponse{
 		Status:    "pending_claim",
 		PollUrl:   fmt.Sprintf("/agents/%s/claim-status", agentIDStr),
-		ClaimUrl:  fmt.Sprintf("%s/claim", defaultServerURL),
+		ClaimUrl:  fmt.Sprintf("%s/claim", h.config.Agent.ServerURL),
 		ExpiresAt: expiresAt,
 	}
 

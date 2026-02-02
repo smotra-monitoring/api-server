@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/smotra-monitoring/server/internal/api"
+	"github.com/smotra-monitoring/server/internal/config"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/handlers/agent_claim"
 	"github.com/smotra-monitoring/server/internal/handlers/agent_claim_status"
@@ -25,10 +26,10 @@ type CombinedHandler struct {
 }
 
 // NewCombinedHandler creates a new combined handler
-func NewCombinedHandler(logger *logger.Logger, db database.Database, appVersion string) *CombinedHandler {
+func NewCombinedHandler(logger *logger.Logger, db database.Database, cfg *config.Config, appVersion string) *CombinedHandler {
 	metricsHandler := metrics.NewHandler(logger, db, appVersion)
 	configHandler := agent_configuration.NewHandler(logger, db, appVersion)
-	registerHandler := agent_register.NewHandler(logger, db)
+	registerHandler := agent_register.NewHandler(logger, db, cfg)
 	claimStatusHandler := agent_claim_status.NewHandler(logger, db)
 	claimHandler := agent_claim.NewHandler(logger, db)
 

@@ -15,6 +15,7 @@ type Config struct {
 	SQLiteConfig   *database.SQLiteConfig   `json:"sqlite_config,omitempty" yaml:"sqlite_config,omitempty"`
 	Logging        LoggingConfig            `json:"logging" yaml:"logging"`
 	Auth           AuthConfig               `json:"auth" yaml:"auth"`
+	Agent          AgentConfig              `json:"agent" yaml:"agent"`
 }
 
 // ServerConfig holds server-specific configuration
@@ -39,6 +40,12 @@ type AuthConfig struct {
 	JWTSecret     string        `json:"jwt_secret" yaml:"jwt_secret"`
 	JWTExpiration time.Duration `json:"jwt_expiration" yaml:"jwt_expiration"`
 	// OAuth2 settings can be added here
+}
+
+// AgentConfig holds agent-related configuration
+type AgentConfig struct {
+	ClaimTokenExpirationHours int    `json:"claim_token_expiration_hours" yaml:"claim_token_expiration_hours"`
+	ServerURL                 string `json:"server_url" yaml:"server_url"`
 }
 
 // Validate validates the configuration
@@ -93,6 +100,14 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("JWT secret is required in production")
 	}
 
+	// Agent config validation
+	if c.Agent.ClaimTokenExpirationHours < 1 {
+		return fmt.Errorf("claim token expiration hours must be at least 1, got %d", c.Agent.ClaimTokenExpirationHours)
+	}
+	if c.Agent.ServerURL == "" {
+		return fmt.Errorf("agent server URL is required")
+	}
+
 	return nil
 }
 
@@ -106,6 +121,7 @@ func Default() *Config {
 		SQLiteConfig: &sqlLiteCfg,
 		Logging:      DefaultLoggingConfig(),
 		Auth:         DefaultAuthConfig(),
+		Agent:        DefaultAgentConfig(),
 	}
 
 	return &cfg
@@ -134,5 +150,12 @@ func DefaultAuthConfig() AuthConfig {
 	return AuthConfig{
 		JWTSecret:     "",
 		JWTExpiration: 24 * time.Hour,
+	}
+}
+
+func DefaultAgentConfig() AgentConfig {
+	return AgentConfig{
+		ClaimTokenExpirationHours: 24,
+		ServerURL:                 "https://smotra.net",
 	}
 }

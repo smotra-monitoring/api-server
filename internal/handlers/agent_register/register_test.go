@@ -13,8 +13,9 @@ import (
 func TestNewHandler(t *testing.T) {
 	log := logger.Default()
 	db := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
 
-	handler := NewHandler(log, db)
+	handler := NewHandler(log, db, cfg)
 
 	if handler == nil {
 		t.Fatal("NewHandler returned nil")
@@ -27,13 +28,18 @@ func TestNewHandler(t *testing.T) {
 	if handler.db == nil {
 		t.Error("Handler db is nil")
 	}
+
+	if handler.config == nil {
+		t.Error("Handler config is nil")
+	}
 }
 
 func TestHandler_GetMetrics(t *testing.T) {
 	log := logger.Default()
 	db := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
 
-	handler := NewHandler(log, db)
+	handler := NewHandler(log, db, cfg)
 	metrics := handler.GetMetrics()
 
 	if metrics == "" {
@@ -57,7 +63,8 @@ func TestHandler_GetMetrics(t *testing.T) {
 func TestHandler_ValidateRequest_ValidData(t *testing.T) {
 	log := logger.Default()
 	db := testutil.NewMockDatabase()
-	handler := NewHandler(log, db)
+	cfg := testutil.DefaultTestConfig()
+	handler := NewHandler(log, db, cfg)
 
 	agentID := uuid.Must(uuid.NewV7())
 	req := &api.AgentSelfRegistration{
@@ -76,7 +83,8 @@ func TestHandler_ValidateRequest_ValidData(t *testing.T) {
 func TestHandler_ValidateRequest_EmptyAgentID(t *testing.T) {
 	log := logger.Default()
 	db := testutil.NewMockDatabase()
-	handler := NewHandler(log, db)
+	cfg := testutil.DefaultTestConfig()
+	handler := NewHandler(log, db, cfg)
 
 	req := &api.AgentSelfRegistration{
 		AgentId:        uuid.Nil,
@@ -94,7 +102,8 @@ func TestHandler_ValidateRequest_EmptyAgentID(t *testing.T) {
 func TestHandler_ValidateRequest_InvalidClaimTokenHash(t *testing.T) {
 	log := logger.Default()
 	db := testutil.NewMockDatabase()
-	handler := NewHandler(log, db)
+	cfg := testutil.DefaultTestConfig()
+	handler := NewHandler(log, db, cfg)
 
 	agentID := uuid.Must(uuid.NewV7())
 
@@ -127,7 +136,8 @@ func TestHandler_ValidateRequest_InvalidClaimTokenHash(t *testing.T) {
 func TestHandler_ValidateRequest_MissingHostname(t *testing.T) {
 	log := logger.Default()
 	db := testutil.NewMockDatabase()
-	handler := NewHandler(log, db)
+	cfg := testutil.DefaultTestConfig()
+	handler := NewHandler(log, db, cfg)
 
 	agentID := uuid.Must(uuid.NewV7())
 	req := &api.AgentSelfRegistration{
@@ -146,7 +156,8 @@ func TestHandler_ValidateRequest_MissingHostname(t *testing.T) {
 func TestHandler_ValidateRequest_MissingVersion(t *testing.T) {
 	log := logger.Default()
 	db := testutil.NewMockDatabase()
-	handler := NewHandler(log, db)
+	cfg := testutil.DefaultTestConfig()
+	handler := NewHandler(log, db, cfg)
 
 	agentID := uuid.Must(uuid.NewV7())
 	req := &api.AgentSelfRegistration{

@@ -26,3 +26,6 @@ logging:
 auth:
     jwt_secret: ""
     jwt_expiration: 24h0m0s
+agent:
+    claim_token_expiration_hours: 24
+    server_url: https://smotra.net

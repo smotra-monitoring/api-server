@@ -21,3 +21,6 @@ logging:
 auth:
     jwt_secret: development-secret-change-in-production
     jwt_expiration: 24h0m0s
+agent:
+    claim_token_expiration_hours: 24
+    server_url: https://smotra.net

@@ -88,7 +88,7 @@ func main() {
 	r.Use(middleware.OAuth2Auth(log))
 
 	// Initialize handlers with authentication wrapper
-	handler := handlers.NewAuthenticatedHandler(log, db, appVersion)
+	handler := handlers.NewAuthenticatedHandler(log, db, cfg, appVersion)
 
 	// Register API handler
 	strictHandler := api.NewStrictHandler(handler, nil)

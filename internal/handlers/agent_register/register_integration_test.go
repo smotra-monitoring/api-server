@@ -85,12 +85,13 @@ func applySchema(t *testing.T, ctx context.Context, db *sql.DB) {
 func TestRegisterAgentSelf_Integration_Success(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
+	cfg := testutil.DefaultTestConfig()
 	ctx := context.Background()
 
 	q := queries.New(db.DB())
 	applySchema(t, ctx, db.DB())
 
-	handler := NewHandler(log, db)
+	handler := NewHandler(log, db, cfg)
 	router := setupTestRouter(handler)
 
 	// Generate test data
@@ -149,12 +150,13 @@ func TestRegisterAgentSelf_Integration_Success(t *testing.T) {
 func TestRegisterAgentSelf_Integration_Idempotent(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
+	cfg := testutil.DefaultTestConfig()
 	ctx := context.Background()
 
 	q := queries.New(db.DB())
 	applySchema(t, ctx, db.DB())
 
-	handler := NewHandler(log, db)
+	handler := NewHandler(log, db, cfg)
 	router := setupTestRouter(handler)
 
 	agentID := uuid.Must(uuid.NewV7())
@@ -207,12 +209,13 @@ func TestRegisterAgentSelf_Integration_Idempotent(t *testing.T) {
 func TestRegisterAgentSelf_Integration_AlreadyClaimed(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
+	cfg := testutil.DefaultTestConfig()
 	ctx := context.Background()
 
 	q := queries.New(db.DB())
 	applySchema(t, ctx, db.DB())
 
-	handler := NewHandler(log, db)
+	handler := NewHandler(log, db, cfg)
 	router := setupTestRouter(handler)
 
 	// Create a tenant and user for claiming using raw SQL
@@ -293,11 +296,12 @@ func TestRegisterAgentSelf_Integration_AlreadyClaimed(t *testing.T) {
 func TestRegisterAgentSelf_Integration_InvalidData(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
+	cfg := testutil.DefaultTestConfig()
 	ctx := context.Background()
 
 	applySchema(t, ctx, db.DB())
 
-	handler := NewHandler(log, db)
+	handler := NewHandler(log, db, cfg)
 	router := setupTestRouter(handler)
 
 	tests := []struct {

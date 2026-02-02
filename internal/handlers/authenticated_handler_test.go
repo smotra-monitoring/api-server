@@ -14,7 +14,8 @@ import (
 func TestAuthenticatedHandler_GetAgentConfiguration_NoAuth(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
-	handler := NewAuthenticatedHandler(log, mockDB, "test")
+	cfg := testutil.DefaultTestConfig()
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test")
 
 	agentID, _ := uuid.Parse("019bdeb2-50dc-794e-808b-cf47526b867f")
 	request := api.GetAgentConfigurationRequestObject{
@@ -46,7 +47,8 @@ func TestAuthenticatedHandler_GetAgentConfiguration_WithAuth(t *testing.T) {
 func TestAuthenticatedHandler_GetAgentConfiguration_WrongAgent(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
-	handler := NewAuthenticatedHandler(log, mockDB, "test")
+	cfg := testutil.DefaultTestConfig()
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test")
 
 	authenticatedAgentID := "019bdeb2-50dc-794e-808b-cf47526b867f"
 	requestedAgentID := "019bdeb2-0000-0000-0000-000000000000"
@@ -82,7 +84,8 @@ func TestAuthenticatedHandler_GetAgentConfiguration_WrongAgent(t *testing.T) {
 func TestCombinedHandler_HealthCheck_NoAuthRequired(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
-	handler := NewCombinedHandler(log, mockDB, "test")
+	cfg := testutil.DefaultTestConfig()
+	handler := NewCombinedHandler(log, mockDB, cfg, "test")
 
 	ctx := context.Background() // No authentication in context
 	request := api.HealthCheckRequestObject{}
@@ -103,7 +106,8 @@ func TestCombinedHandler_HealthCheck_NoAuthRequired(t *testing.T) {
 func TestCombinedHandler_PrometheusMetrics_NoAuthRequired(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
-	handler := NewCombinedHandler(log, mockDB, "test")
+	cfg := testutil.DefaultTestConfig()
+	handler := NewCombinedHandler(log, mockDB, cfg, "test")
 
 	ctx := context.Background() // No authentication in context
 	request := api.PrometheusMetricsRequestObject{}
