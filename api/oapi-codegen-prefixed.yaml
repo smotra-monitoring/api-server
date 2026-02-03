@@ -1,3 +1,25 @@
+# oapi-codegen configuration for VERSIONED API endpoints (/api/v1/*)
+#
+# This generates handlers for the core business logic API that is versioned
+# and prefixed with /api/v1. These endpoints are registered under the
+# /api/v1 route group in the router.
+#
+# Target endpoints:
+# - /api/v1/agent/register        - Agent self-registration
+# - /api/v1/agent/claim           - Admin claims agent
+# - /api/v1/agent/{id}/claim-status - Agent polls claim status
+# - /api/v1/agent/{id}/configuration - Agent configuration
+# - Future: user management, alert configuration, etc.
+#
+# Tag strategy:
+# - include-tags: [current] - Endpoints tagged 'current' (in development/active)
+# - exclude-tags: [health]  - Exclude health endpoints (they go to root)
+#
+# The 'current' tag marks endpoints that are actively being developed/refined.
+# Once stable, endpoints may receive permanent domain tags (agent, user, alert).
+#
+# Generated package: api_v1 (internal/api/v1/)
+
 package: api_v1
 output: internal/api/v1/api.gen.go
 # template: go-chi-server

@@ -1,5 +1,24 @@
 package handlers
 
+// api_handlers.go contains handlers for versioned API endpoints (/api/v1/*)
+// that represent the core business logic of the monitoring system.
+//
+// These endpoints include:
+// - Agent registration and claiming
+// - Agent configuration management
+// - Monitoring data submission
+// - User management (future)
+// - Alert management (future)
+//
+// The handlers are generated from OpenAPI spec using tag filtering
+// (include-tags: current, exclude-tags: health) and registered under
+// the /api/v1 route group.
+//
+// This separation allows:
+// - Clean API versioning (future /api/v2 won't conflict with health endpoints)
+// - Different authentication requirements per endpoint group
+// - Independent evolution of monitoring vs business endpoints
+
 import (
 	"context"
 

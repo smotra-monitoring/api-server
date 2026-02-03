@@ -1,5 +1,17 @@
 package handlers
 
+// health_handlers.go contains handlers for root-level endpoints (/healthz, /metrics)
+// that should NOT be prefixed with API version.
+//
+// These endpoints are typically used by:
+// - Kubernetes liveness/readiness probes
+// - Prometheus metrics scraping
+// - Load balancer health checks
+// - Monitoring systems
+//
+// The handlers are generated from OpenAPI spec using tag filtering (include-tags: health)
+// and registered at the root level of the router, not under /api/v1.
+
 import (
 	"context"
 

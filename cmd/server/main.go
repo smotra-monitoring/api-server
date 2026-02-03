@@ -96,11 +96,12 @@ func main() {
 	healthStrictHandler := healthAPI.NewStrictHandler(healthHandler, nil)
 	healthAPI.HandlerFromMux(healthStrictHandler, r)
 
+	// Initialize handlers with authentication wrapper
+	apiHandler := handlers.NewAuthenticatedHandler(log, db, cfg, appVersion, metricsHandler)
+	apiStrictHandler := api.NewStrictHandler(apiHandler, nil)
 	r.Route("/api/v1", func(r chi.Router) {
-		// Initialize handlers with authentication wrapper
-		apiHandler := handlers.NewAuthenticatedHandler(log, db, cfg, appVersion, metricsHandler)
-		apiStrictHandler := api.NewStrictHandler(apiHandler, nil)
 		api.HandlerFromMux(apiStrictHandler, r)
+
 		// Future API endpoints will be added here
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
