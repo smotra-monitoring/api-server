@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/smotra-monitoring/server/internal/api"
+	apiHealth "github.com/smotra-monitoring/server/internal/api/health"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
@@ -66,7 +66,7 @@ func TestHandler_HealthCheck_Healthy(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
 
-	request := api.HealthCheckRequestObject{}
+	request := apiHealth.HealthCheckRequestObject{}
 	response, err := handler.HealthCheck(req.Context(), request)
 	if err != nil {
 		t.Fatalf("HealthCheck failed: %v", err)
@@ -80,12 +80,12 @@ func TestHandler_HealthCheck_Healthy(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", rec.Code)
 	}
 
-	var status api.HealthStatus
+	var status apiHealth.HealthStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	if status.Status != api.HealthStatusStatusHealthy {
+	if status.Status != apiHealth.HealthStatusStatusHealthy {
 		t.Errorf("Expected status healthy, got %s", status.Status)
 	}
 
@@ -108,7 +108,7 @@ func TestHandler_HealthCheck_Unhealthy(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
 
-	request := api.HealthCheckRequestObject{}
+	request := apiHealth.HealthCheckRequestObject{}
 	response, err := handler.HealthCheck(req.Context(), request)
 	if err != nil {
 		t.Fatalf("HealthCheck failed: %v", err)
@@ -122,12 +122,12 @@ func TestHandler_HealthCheck_Unhealthy(t *testing.T) {
 		t.Errorf("Expected status 503, got %d", rec.Code)
 	}
 
-	var status api.HealthStatus
+	var status apiHealth.HealthStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	if status.Status != api.HealthStatusStatusUnhealthy {
+	if status.Status != apiHealth.HealthStatusStatusUnhealthy {
 		t.Errorf("Expected status unhealthy, got %s", status.Status)
 	}
 }
@@ -141,7 +141,7 @@ func TestHandler_HealthCheck_Components(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
 
-	request := api.HealthCheckRequestObject{}
+	request := apiHealth.HealthCheckRequestObject{}
 	response, err := handler.HealthCheck(req.Context(), request)
 	if err != nil {
 		t.Fatalf("HealthCheck failed: %v", err)
@@ -151,7 +151,7 @@ func TestHandler_HealthCheck_Components(t *testing.T) {
 		t.Fatalf("Failed to write response: %v", err)
 	}
 
-	var status api.HealthStatus
+	var status apiHealth.HealthStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestHandler_ReadinessCheck_Ready(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz/ready", nil)
 	rec := httptest.NewRecorder()
 
-	request := api.ReadinessCheckRequestObject{}
+	request := apiHealth.ReadinessCheckRequestObject{}
 	response, err := handler.ReadinessCheck(req.Context(), request)
 	if err != nil {
 		t.Fatalf("ReadinessCheck failed: %v", err)
@@ -201,7 +201,7 @@ func TestHandler_ReadinessCheck_NotReady(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz/ready", nil)
 	rec := httptest.NewRecorder()
 
-	request := api.ReadinessCheckRequestObject{}
+	request := apiHealth.ReadinessCheckRequestObject{}
 	response, err := handler.ReadinessCheck(req.Context(), request)
 	if err != nil {
 		t.Fatalf("ReadinessCheck failed: %v", err)
@@ -227,7 +227,7 @@ func TestHandler_ReadinessCheck_DatabaseDown(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz/ready", nil)
 	rec := httptest.NewRecorder()
 
-	request := api.ReadinessCheckRequestObject{}
+	request := apiHealth.ReadinessCheckRequestObject{}
 	response, err := handler.ReadinessCheck(req.Context(), request)
 	if err != nil {
 		t.Fatalf("ReadinessCheck failed: %v", err)
@@ -251,7 +251,7 @@ func TestHandler_LivenessCheck(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz/live", nil)
 	rec := httptest.NewRecorder()
 
-	request := api.LivenessCheckRequestObject{}
+	request := apiHealth.LivenessCheckRequestObject{}
 	response, err := handler.LivenessCheck(req.Context(), request)
 	if err != nil {
 		t.Fatalf("LivenessCheck failed: %v", err)
@@ -276,7 +276,7 @@ func TestHandler_LivenessCheck_AlwaysSucceeds(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz/live", nil)
 	rec := httptest.NewRecorder()
 
-	request := api.LivenessCheckRequestObject{}
+	request := apiHealth.LivenessCheckRequestObject{}
 	response, err := handler.LivenessCheck(req.Context(), request)
 	if err != nil {
 		t.Fatalf("LivenessCheck failed: %v", err)
@@ -300,7 +300,7 @@ func TestHandler_HealthCheck_ContentType(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
 
-	request := api.HealthCheckRequestObject{}
+	request := apiHealth.HealthCheckRequestObject{}
 	response, err := handler.HealthCheck(req.Context(), request)
 	if err != nil {
 		t.Fatalf("HealthCheck failed: %v", err)
@@ -325,7 +325,7 @@ func TestHandler_HealthCheck_Uptime(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
 
-	request := api.HealthCheckRequestObject{}
+	request := apiHealth.HealthCheckRequestObject{}
 	response, err := handler.HealthCheck(req.Context(), request)
 	if err != nil {
 		t.Fatalf("HealthCheck failed: %v", err)
@@ -335,7 +335,7 @@ func TestHandler_HealthCheck_Uptime(t *testing.T) {
 		t.Fatalf("Failed to write response: %v", err)
 	}
 
-	var status api.HealthStatus
+	var status apiHealth.HealthStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}

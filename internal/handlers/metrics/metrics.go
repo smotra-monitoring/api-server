@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/smotra-monitoring/server/internal/api"
+	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/logger"
 )
@@ -79,9 +79,9 @@ func (h *Handler) IncrementDBQueries(success bool) {
 }
 
 // PrometheusMetrics implements the /metrics endpoint
-func (h *Handler) PrometheusMetrics(ctx context.Context, request api.PrometheusMetricsRequestObject) (api.PrometheusMetricsResponseObject, error) {
+func (h *Handler) PrometheusMetrics(ctx context.Context, request healthAPI.PrometheusMetricsRequestObject) (healthAPI.PrometheusMetricsResponseObject, error) {
 	metrics := h.buildPrometheusMetrics(ctx)
-	return api.PrometheusMetrics200TextResponse(metrics), nil
+	return healthAPI.PrometheusMetrics200TextResponse(metrics), nil
 }
 
 func (h *Handler) buildPrometheusMetrics(ctx context.Context) string {

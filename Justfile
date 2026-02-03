@@ -84,7 +84,8 @@ clean:
 # Generate code from OpenAPI spec
 generate-oapi:
     @echo "Generating API code from OpenAPI spec..."
-    oapi-codegen -config=api/oapi-codegen.yaml api/openapi/api/spec.yaml
+    oapi-codegen -config=api/oapi-codegen-root.yaml api/openapi/api/spec.yaml
+    oapi-codegen -config=api/oapi-codegen-prefixed.yaml api/openapi/api/spec.yaml
     @echo "Code generation complete"
 
 # Generate database code from SQL queries using sqlc

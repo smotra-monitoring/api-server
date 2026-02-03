@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/smotra-monitoring/server/internal/api"
+	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )

@@ -6,7 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/smotra-monitoring/server/internal/api"
+	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
+	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/database/queries"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/middleware"
@@ -68,17 +69,19 @@ func TestAuthenticatedHandler_Integration(t *testing.T) {
 	}
 
 	cfg := testutil.DefaultTestConfig()
-	handler := NewAuthenticatedHandler(log, db, cfg, "test")
+	metricsHandler := NewMetricsHandler(log, db, "test")
+	healthHandler := NewHealthHandler(log, db, cfg, "test", metricsHandler)
+	handler := NewAuthenticatedHandler(log, db, cfg, "test", metricsHandler)
 
 	// Test 1: Health check works WITHOUT authentication
 	t.Run("HealthCheckNoAuth", func(t *testing.T) {
 		ctx := context.Background() // No auth
-		resp, err := handler.HealthCheck(ctx, api.HealthCheckRequestObject{})
+		resp, err := healthHandler.HealthCheck(ctx, healthAPI.HealthCheckRequestObject{})
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
 
-		_, ok := resp.(api.HealthCheck200JSONResponse)
+		_, ok := resp.(healthAPI.HealthCheck200JSONResponse)
 		if !ok {
 			t.Errorf("Expected HealthCheck200JSONResponse, got %T", resp)
 		}
@@ -87,12 +90,12 @@ func TestAuthenticatedHandler_Integration(t *testing.T) {
 	// Test 2: Metrics work WITHOUT authentication
 	t.Run("MetricsNoAuth", func(t *testing.T) {
 		ctx := context.Background() // No auth
-		resp, err := handler.PrometheusMetrics(ctx, api.PrometheusMetricsRequestObject{})
+		resp, err := healthHandler.PrometheusMetrics(ctx, healthAPI.PrometheusMetricsRequestObject{})
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
 
-		_, ok := resp.(api.PrometheusMetrics200TextResponse)
+		_, ok := resp.(healthAPI.PrometheusMetrics200TextResponse)
 		if !ok {
 			t.Errorf("Expected PrometheusMetrics200TextResponse, got %T", resp)
 		}

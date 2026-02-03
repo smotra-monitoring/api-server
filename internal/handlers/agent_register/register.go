@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/smotra-monitoring/server/internal/api"
+	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/config"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/database/queries"

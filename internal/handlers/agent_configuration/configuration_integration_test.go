@@ -2,16 +2,18 @@ package agent_configuration
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/smotra-monitoring/server/internal/api"
+	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/database/queries"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/testutil"
@@ -20,23 +22,6 @@ import (
 // testServerImpl wraps Handler and implements the full StrictServerInterface
 type testServerImpl struct {
 	*Handler
-}
-
-// Stub implementations for other endpoints (required by StrictServerInterface)
-func (t *testServerImpl) HealthCheck(ctx context.Context, request api.HealthCheckRequestObject) (api.HealthCheckResponseObject, error) {
-	return nil, nil
-}
-
-func (t *testServerImpl) LivenessCheck(ctx context.Context, request api.LivenessCheckRequestObject) (api.LivenessCheckResponseObject, error) {
-	return nil, nil
-}
-
-func (t *testServerImpl) ReadinessCheck(ctx context.Context, request api.ReadinessCheckRequestObject) (api.ReadinessCheckResponseObject, error) {
-	return nil, nil
-}
-
-func (t *testServerImpl) PrometheusMetrics(ctx context.Context, request api.PrometheusMetricsRequestObject) (api.PrometheusMetricsResponseObject, error) {
-	return api.PrometheusMetrics200TextResponse(""), nil
 }
 
 // RegisterAgentSelf delegates to agent register handler
@@ -62,6 +47,21 @@ func setupTestRouter(handler *Handler) *chi.Mux {
 	return r
 }
 
+func applySchema(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+
+	// Apply schema
+	schemaSQL, err := os.ReadFile("../../../data/db/dev/migrations/0001_schema.up.sql")
+	if err != nil {
+		t.Fatalf("Failed to read schema file: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, string(schemaSQL))
+	if err != nil {
+		t.Fatalf("Failed to apply schema: %v", err)
+	}
+}
+
 func TestGetAgentConfiguration_Integration(t *testing.T) {
 	log := logger.Default()
 
@@ -71,80 +71,7 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	// Apply schema manually (read from migration file)
-	schema := `
-	-- 1. Tenants: Top-level isolation
-	CREATE TABLE tenants (
-		id           TEXT PRIMARY KEY,
-		name         TEXT NOT NULL,
-		created_at   TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now'))
-	) STRICT, WITHOUT ROWID;
-
-	-- 2. Sections: Divisions within a tenant
-	CREATE TABLE sections (
-		id           TEXT PRIMARY KEY,
-		tenant_id    TEXT NOT NULL,
-		name         TEXT NOT NULL,
-		UNIQUE(tenant_id, name),
-		FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-	) STRICT, WITHOUT ROWID;
-
-	-- 3. Tags: Scoped definitions for agents or endpoints
-	CREATE TABLE tags (
-		id           TEXT PRIMARY KEY,
-		section_id   TEXT NOT NULL,
-		name         TEXT NOT NULL,
-		scope        TEXT CHECK(scope IN ('agent', 'endpoint', 'global')) DEFAULT 'global',
-		UNIQUE(section_id, name),
-		FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
-	) STRICT, WITHOUT ROWID;
-
-	-- 4. Agents: The remote monitoring units
-	CREATE TABLE agents (
-		id             TEXT PRIMARY KEY,
-		version        INTEGER NOT NULL DEFAULT 1,
-		section_id     TEXT NOT NULL,
-		name           TEXT NOT NULL,
-		api_key_hash   TEXT NOT NULL,
-		base_config    TEXT NOT NULL, -- JSON blob
-		last_seen_at   TEXT,
-		created_at     TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-		FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
-	) STRICT, WITHOUT ROWID;
-
-	-- 5. Agent Tags: Many-to-Many link
-	CREATE TABLE agent_tags (
-		agent_id    TEXT NOT NULL,
-		tag_id      TEXT NOT NULL,
-		PRIMARY KEY (agent_id, tag_id),
-		FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
-		FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-	) STRICT, WITHOUT ROWID;
-
-	-- 6. Endpoints: Specific targets per agent
-	CREATE TABLE endpoints (
-		id          TEXT PRIMARY KEY,
-		agent_id    TEXT NOT NULL,
-		address     TEXT NOT NULL,
-		port		INTEGER,
-		enabled     INT DEFAULT 1, -- 1 for true, 0 for false
-		created_at  TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-		FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
-	) STRICT, WITHOUT ROWID;
-
-	-- 7. Endpoint Tags: Many-to-Many link
-	CREATE TABLE endpoint_tags (
-		endpoint_id TEXT NOT NULL,
-		tag_id      TEXT NOT NULL,
-		PRIMARY KEY (endpoint_id, tag_id),
-		FOREIGN KEY (endpoint_id) REFERENCES endpoints(id) ON DELETE CASCADE,
-		FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-	) STRICT, WITHOUT ROWID;
-	`
-
-	_, err := db.DB().ExecContext(ctx, schema)
-	if err != nil {
-		t.Fatalf("Failed to apply schema: %v", err)
-	}
+	applySchema(t, ctx, db.DB())
 
 	handler := NewHandler(log, db, "1.0.0")
 
@@ -153,13 +80,13 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 
 	// Create a tenant
 	tenantID := uuid.NewString()
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO tenants (id, name) VALUES (?, ?)", tenantID, "Test Tenant"); err != nil {
+	if _, err := db.DB().ExecContext(ctx, "INSERT INTO tenants (id, name) VALUES (?, ?)", tenantID, "Test Tenant"); err != nil {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
 	// Create a section
 	sectionID := uuid.NewString()
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)", sectionID, tenantID, "Test Section"); err != nil {
+	if _, err := db.DB().ExecContext(ctx, "INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)", sectionID, tenantID, "Test Section"); err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
 
@@ -190,7 +117,7 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 		}
 	}`
 
-	_, err = q.CreateAgent(ctx, queries.CreateAgentParams{
+	_, err := q.CreateAgent(ctx, queries.CreateAgentParams{
 		ID:         agentID,
 		SectionID:  sectionID,
 		Name:       "Test Agent",
@@ -203,11 +130,11 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 
 	// Create tags for the agent
 	tag1ID := uuid.NewString()
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO tags (id, section_id, name, scope) VALUES (?, ?, ?, ?)", tag1ID, sectionID, "production", "agent"); err != nil {
+	if _, err := db.DB().ExecContext(ctx, "INSERT INTO tags (id, section_id, name, scope) VALUES (?, ?, ?, ?)", tag1ID, sectionID, "production", "agent"); err != nil {
 		t.Fatalf("Failed to create tag: %v", err)
 	}
 
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO agent_tags (agent_id, tag_id) VALUES (?, ?)", agentID, tag1ID); err != nil {
+	if _, err := db.DB().ExecContext(ctx, "INSERT INTO agent_tags (agent_id, tag_id) VALUES (?, ?)", agentID, tag1ID); err != nil {
 		t.Fatalf("Failed to link agent tag: %v", err)
 	}
 
@@ -263,8 +190,8 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 			t.Errorf("Expected agent name 'Test Agent', got %s", config.AgentName)
 		}
 
-		if config.Version != 1 {
-			t.Errorf("Expected version 1, got %d", config.Version)
+		if config.Version != 5 {
+			t.Errorf("Expected version 5, got %d", config.Version)
 		}
 
 		// Verify tags

@@ -197,10 +197,60 @@ The `internal/middleware` package provides HTTP middleware components:
 
 All middleware includes comprehensive unit tests and integration tests.
 
-oapi-codegen is used to generate server stubs and models from OpenAPI specifications, ensuring consistency between API documentation and implementation. 
-- internal/api contains the generated code.
-- cmd/server contains the main application entry point.
-- OpenAPI specification is maintained in a separate repository (smotra-monitoring/openapi) and fetched during code generation.
+### API Code Generation and Routing
+
+The server uses **dual code generation** from OpenAPI specifications to separate endpoint types:
+
+**Code Generation Strategy:**
+- Two oapi-codegen configurations generate separate handler packages
+- Tag-based filtering controls which endpoints go to which package
+- OpenAPI spec maintained in separate repository (smotra-monitoring/openapi)
+
+**Generated Packages:**
+
+1. **Root-Level Endpoints** (`internal/api/health/`)
+   - Config: `api/oapi-codegen-root.yaml`
+   - Package name: `api_health`
+   - Filter: `include-tags: [health]`
+   - Endpoints: `/healthz`, `/healthz/ready`, `/healthz/live`, `/metrics`
+   - Purpose: Monitoring/observability for infrastructure tools
+   - Authentication: None required
+   - Handler: `internal/handlers/health_handlers.go` → `HealthHandler`
+
+2. **Versioned API Endpoints** (`internal/api/v1/`)
+   - Config: `api/oapi-codegen-prefixed.yaml`
+   - Package name: `api_v1`
+   - Filter: `include-tags: [current], exclude-tags: [health]`
+   - Endpoints: `/api/v1/agent/*`, etc.
+   - Purpose: Core business logic with API versioning
+   - Authentication: Required (Agent API key or OAuth2)
+   - Handler: `internal/handlers/api_handlers.go` → `APIHandler`
+
+**Routing Structure in cmd/server/main.go:**
+```go
+// Root-level endpoints (no prefix)
+healthHandler := handlers.NewHealthHandler(...)
+healthStrictHandler := healthAPI.NewStrictHandler(healthHandler, nil)
+healthAPI.HandlerFromMux(healthStrictHandler, r)  // Register at /
+
+// Versioned API endpoints (/api/v1 prefix)
+apiHandler := handlers.NewAuthenticatedHandler(...)
+apiStrictHandler := api.NewStrictHandler(apiHandler, nil)
+r.Route("/api/v1", func(r chi.Router) {
+    api.HandlerFromMux(apiStrictHandler, r)
+})
+```
+
+**Benefits:**
+- Clean separation: No duplicate route registrations
+- Future-proof: `/api/v2` can be added without conflicts with root endpoints
+- Standards compliance: Follows Kubernetes and Prometheus conventions
+- Independent authentication: Different requirements per endpoint group
+
+**Code Generation Command:**
+```bash
+just generate-oapi  # Runs both configs
+```
 
 The server must implement robust error handling and logging using a structured logging library slog. Configuration management should be handled via environment variables and configuration files, with support for different environments (development, staging, production).
 
@@ -414,29 +464,45 @@ The system implements a secure three-phase workflow for agent onboarding:
 
 Current handler implementations are located in `internal/handlers/`:
 
+**Root-Level Handlers** (`health_handlers.go`):
 - **health/**: Health check endpoints (`/healthz`, `/healthz/ready`, `/healthz/live`)
 - **metrics/**: Prometheus metrics endpoint (`/metrics`)
-- **agent_configuration/**: Agent configuration retrieval endpoint (`/agent/{agentId}/configuration`)
-- **agent_register/**: Agent self-registration endpoint (`POST /agent/register`)
+- Package: `api_health` (generated from `api/oapi-codegen-root.yaml`)
+- No authentication required
+- Used by Kubernetes probes and Prometheus scraping
+
+**Versioned API Handlers** (`api_handlers.go`):
+- **agent_configuration/**: Agent configuration retrieval endpoint (`GET /api/v1/agent/{agentId}/configuration`)
+- **agent_register/**: Agent self-registration endpoint (`POST /api/v1/agent/register`)
   - Agents register themselves on first startup with hostname and version
   - Stores claim information with hashed claim token
   - Returns poll URL and claim URL for administrator
-- **agent_claim_status/**: Agent claim status polling endpoint (`GET /agents/{agentId}/claim-status`)
+- **agent_claim_status/**: Agent claim status polling endpoint (`GET /api/v1/agent/{agentId}/claim-status`)
   - Agents poll this endpoint to check if they've been claimed
   - Delivers API key one-time after claiming
   - Clears plaintext API key after delivery
-- **agent_claim/**: Administrator claim endpoint (`POST /agents/claim`)
+- **agent_claim/**: Administrator claim endpoint (`POST /api/v1/agent/claim`)
   - Administrators claim pending agents via web UI
   - Validates claim token and creates agent in production table
   - Generates API key for one-time delivery to agent
-- **handlers.go**: Combined handler that aggregates all individual handlers and implements the OpenAPI strict handler interface
-- **authenticated_handler.go**: Wrapper handler that adds authentication checks for protected endpoints (e.g., agent configuration)
+- Package: `api_v1` (generated from `api/oapi-codegen-prefixed.yaml`)
+- Most require authentication (Agent API key or OAuth2)
+
+**Handler Organization:**
+- **health_handlers.go**: Root-level handler implementing health/metrics endpoints
+- **api_handlers.go**: Base API handler combining all business logic handlers
+- **authenticated_handler.go**: Wrapper adding authentication checks for protected endpoints
 
 Each handler package includes:
 - Implementation file (e.g., `configuration.go`)
 - Unit tests (e.g., `configuration_test.go`)
 - Integration tests (e.g., `configuration_integration_test.go`)
 - Metrics tracking using atomic counters for concurrent-safe operations
+
+**Route Separation Tests** (`routes_separation_integration_test.go`):
+- Comprehensive integration tests verifying correct endpoint placement
+- Tests ensure health endpoints only at root, API endpoints only under `/api/v1`
+- Validates no duplicate route registrations or conflicts
 
 ## Metrics and Observability
 

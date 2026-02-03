@@ -1,0 +1,35 @@
+# oapi-codegen configuration for ROOT-LEVEL endpoints (/healthz, /metrics)
+# 
+# This generates handlers for monitoring/observability endpoints that should NOT
+# be versioned or prefixed with /api/v1. These endpoints are registered at the
+# root level of the router.
+#
+# Target endpoints:
+# - /healthz          - General health check
+# - /healthz/ready    - Kubernetes readiness probe
+# - /healthz/live     - Kubernetes liveness probe  
+# - /metrics          - Prometheus metrics scraping
+#
+# These are filtered from the OpenAPI spec using the 'health' tag.
+# Generated package: api_health (internal/api/health/)
+
+package: api_health
+output: internal/api/health/api.gen.go
+# template: go-chi-server
+# options:
+#   generate:
+#     - types
+#     - chi-server
+#     - skip-prune-unused-schemas
+#     - skip-prune-unused-components
+#     - skip-prune-unused-paths
+
+generate:
+  strict-server: true
+  chi-server: true
+  models: true
+  # skip-validation: false
+
+output-options:
+  include-tags:
+  - health

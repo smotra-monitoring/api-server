@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/smotra-monitoring/server/internal/api"
+	apiHealth "github.com/smotra-monitoring/server/internal/api/health"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/logger"
 )
@@ -46,11 +46,11 @@ func (h *Handler) IsReady() bool {
 }
 
 // HealthCheck implements the /healthz endpoint
-func (h *Handler) HealthCheck(ctx context.Context, request api.HealthCheckRequestObject) (api.HealthCheckResponseObject, error) {
+func (h *Handler) HealthCheck(ctx context.Context, request apiHealth.HealthCheckRequestObject) (apiHealth.HealthCheckResponseObject, error) {
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	status := api.HealthStatus{
+	status := apiHealth.HealthStatus{
 		Timestamp: time.Now(),
 		Version:   &h.appVersion,
 	}
@@ -60,9 +60,9 @@ func (h *Handler) HealthCheck(ctx context.Context, request api.HealthCheckReques
 
 	// Check components
 	components := make(map[string]struct {
-		Message        *string                          `json:"message,omitempty"`
-		ResponseTimeMs *float32                         `json:"response_time_ms,omitempty"`
-		Status         api.HealthStatusComponentsStatus `json:"status"`
+		Message        *string                                `json:"message,omitempty"`
+		ResponseTimeMs *float32                               `json:"response_time_ms,omitempty"`
+		Status         apiHealth.HealthStatusComponentsStatus `json:"status"`
 	})
 	overallHealthy := true
 
@@ -70,16 +70,16 @@ func (h *Handler) HealthCheck(ctx context.Context, request api.HealthCheckReques
 	if h.db != nil {
 		dbHealth, err := h.db.Health(checkCtx)
 		componentStatus := struct {
-			Message        *string                          `json:"message,omitempty"`
-			ResponseTimeMs *float32                         `json:"response_time_ms,omitempty"`
-			Status         api.HealthStatusComponentsStatus `json:"status"`
+			Message        *string                                `json:"message,omitempty"`
+			ResponseTimeMs *float32                               `json:"response_time_ms,omitempty"`
+			Status         apiHealth.HealthStatusComponentsStatus `json:"status"`
 		}{
-			Status: api.HealthStatusComponentsStatusHealthy,
+			Status: apiHealth.HealthStatusComponentsStatusHealthy,
 		}
 
 		if err != nil {
 			overallHealthy = false
-			componentStatus.Status = api.HealthStatusComponentsStatusUnhealthy
+			componentStatus.Status = apiHealth.HealthStatusComponentsStatusUnhealthy
 			msg := err.Error()
 			componentStatus.Message = &msg
 		} else {
@@ -96,19 +96,19 @@ func (h *Handler) HealthCheck(ctx context.Context, request api.HealthCheckReques
 
 	// Set overall status
 	if overallHealthy {
-		status.Status = api.HealthStatusStatusHealthy
-		return api.HealthCheck200JSONResponse(status), nil
+		status.Status = apiHealth.HealthStatusStatusHealthy
+		return apiHealth.HealthCheck200JSONResponse(status), nil
 	} else {
-		status.Status = api.HealthStatusStatusUnhealthy
-		return api.HealthCheck503JSONResponse(status), nil
+		status.Status = apiHealth.HealthStatusStatusUnhealthy
+		return apiHealth.HealthCheck503JSONResponse(status), nil
 	}
 }
 
 // ReadinessCheck implements the /healthz/ready endpoint
-func (h *Handler) ReadinessCheck(ctx context.Context, request api.ReadinessCheckRequestObject) (api.ReadinessCheckResponseObject, error) {
+func (h *Handler) ReadinessCheck(ctx context.Context, request apiHealth.ReadinessCheckRequestObject) (apiHealth.ReadinessCheckResponseObject, error) {
 	if !h.IsReady() {
 		h.logger.Debug("readiness check failed: not ready")
-		return api.ReadinessCheck503Response{}, nil
+		return apiHealth.ReadinessCheck503Response{}, nil
 	}
 
 	// Check if database is accessible
@@ -117,14 +117,14 @@ func (h *Handler) ReadinessCheck(ctx context.Context, request api.ReadinessCheck
 
 	if err := h.db.Ping(pingCtx); err != nil {
 		h.logger.Warn("readiness check failed: database ping failed", "error", err)
-		return api.ReadinessCheck503Response{}, nil
+		return apiHealth.ReadinessCheck503Response{}, nil
 	}
 
-	return api.ReadinessCheck200Response{}, nil
+	return apiHealth.ReadinessCheck200Response{}, nil
 }
 
 // LivenessCheck implements the /healthz/live endpoint
-func (h *Handler) LivenessCheck(ctx context.Context, request api.LivenessCheckRequestObject) (api.LivenessCheckResponseObject, error) {
+func (h *Handler) LivenessCheck(ctx context.Context, request apiHealth.LivenessCheckRequestObject) (apiHealth.LivenessCheckResponseObject, error) {
 	// Simple liveness check - if we can respond, we're alive
-	return api.LivenessCheck200Response{}, nil
+	return apiHealth.LivenessCheck200Response{}, nil
 }

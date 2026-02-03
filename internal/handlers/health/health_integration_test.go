@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/smotra-monitoring/server/internal/api"
+	apiHealth "github.com/smotra-monitoring/server/internal/api/health"
+	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
@@ -19,9 +20,9 @@ type testServerImpl struct {
 }
 
 // PrometheusMetrics provides a stub implementation for testing
-func (t *testServerImpl) PrometheusMetrics(ctx context.Context, request api.PrometheusMetricsRequestObject) (api.PrometheusMetricsResponseObject, error) {
+func (t *testServerImpl) PrometheusMetrics(ctx context.Context, request apiHealth.PrometheusMetricsRequestObject) (apiHealth.PrometheusMetricsResponseObject, error) {
 	// Stub implementation for testing - not used in health tests
-	return api.PrometheusMetrics200TextResponse(""), nil
+	return apiHealth.PrometheusMetrics200TextResponse(""), nil
 }
 
 func (t *testServerImpl) GetAgentConfiguration(ctx context.Context, request api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
@@ -34,23 +35,11 @@ func (t *testServerImpl) GetAgentConfiguration(ctx context.Context, request api.
 	}, nil
 }
 
-func (t *testServerImpl) RegisterAgentSelf(ctx context.Context, request api.RegisterAgentSelfRequestObject) (api.RegisterAgentSelfResponseObject, error) {
-	return nil, nil
-}
-
-func (t *testServerImpl) GetAgentClaimStatus(ctx context.Context, request api.GetAgentClaimStatusRequestObject) (api.GetAgentClaimStatusResponseObject, error) {
-	return nil, nil
-}
-
-func (t *testServerImpl) ClaimAgent(ctx context.Context, request api.ClaimAgentRequestObject) (api.ClaimAgentResponseObject, error) {
-	return nil, nil
-}
-
 func setupTestRouter(handler *Handler) *chi.Mux {
 	testImpl := &testServerImpl{Handler: handler}
 	r := chi.NewRouter()
-	strictHandler := api.NewStrictHandler(testImpl, nil)
-	api.HandlerFromMux(strictHandler, r)
+	strictHandler := apiHealth.NewStrictHandler(testImpl, nil)
+	apiHealth.HandlerFromMux(strictHandler, r)
 	return r
 }
 
@@ -77,12 +66,12 @@ func TestHealthEndpoints_Integration(t *testing.T) {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
 		}
 
-		var status api.HealthStatus
+		var status apiHealth.HealthStatus
 		if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
 
-		if status.Status != api.HealthStatusStatusHealthy {
+		if status.Status != apiHealth.HealthStatusStatusHealthy {
 			t.Errorf("Expected healthy status, got %s", status.Status)
 		}
 	})
@@ -136,12 +125,12 @@ func TestHealthEndpoints_Integration_DatabaseFailure(t *testing.T) {
 			t.Errorf("Expected status 503, got %d", resp.StatusCode)
 		}
 
-		var status api.HealthStatus
+		var status apiHealth.HealthStatus
 		if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
 
-		if status.Status != api.HealthStatusStatusUnhealthy {
+		if status.Status != apiHealth.HealthStatusStatusUnhealthy {
 			t.Errorf("Expected unhealthy status, got %s", status.Status)
 		}
 	})

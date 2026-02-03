@@ -5,7 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/smotra-monitoring/server/internal/api"
+	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
+	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/middleware"
 	"github.com/smotra-monitoring/server/internal/testutil"
@@ -15,7 +16,9 @@ func TestAuthenticatedHandler_GetAgentConfiguration_NoAuth(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
 	cfg := testutil.DefaultTestConfig()
-	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test")
+	metricsHandler := NewMetricsHandler(log, mockDB, "test")
+	_ = NewHealthHandler(log, mockDB, cfg, "test", metricsHandler)
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
 
 	agentID, _ := uuid.Parse("019bdeb2-50dc-794e-808b-cf47526b867f")
 	request := api.GetAgentConfigurationRequestObject{
@@ -48,7 +51,9 @@ func TestAuthenticatedHandler_GetAgentConfiguration_WrongAgent(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
 	cfg := testutil.DefaultTestConfig()
-	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test")
+	metricsHandler := NewMetricsHandler(log, mockDB, "test")
+	_ = NewHealthHandler(log, mockDB, cfg, "test", metricsHandler)
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
 
 	authenticatedAgentID := "019bdeb2-50dc-794e-808b-cf47526b867f"
 	requestedAgentID := "019bdeb2-0000-0000-0000-000000000000"
@@ -85,10 +90,11 @@ func TestCombinedHandler_HealthCheck_NoAuthRequired(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
 	cfg := testutil.DefaultTestConfig()
-	handler := NewCombinedHandler(log, mockDB, cfg, "test")
+	metricsHandler := NewMetricsHandler(log, mockDB, "test")
+	handler := NewHealthHandler(log, mockDB, cfg, "test", metricsHandler)
 
 	ctx := context.Background() // No authentication in context
-	request := api.HealthCheckRequestObject{}
+	request := healthAPI.HealthCheckRequestObject{}
 
 	resp, err := handler.HealthCheck(ctx, request)
 
@@ -97,7 +103,7 @@ func TestCombinedHandler_HealthCheck_NoAuthRequired(t *testing.T) {
 	}
 
 	// Health check should work without authentication
-	_, ok := resp.(api.HealthCheck200JSONResponse)
+	_, ok := resp.(healthAPI.HealthCheck200JSONResponse)
 	if !ok {
 		t.Errorf("Expected HealthCheck200JSONResponse, got %T", resp)
 	}
@@ -107,19 +113,20 @@ func TestCombinedHandler_PrometheusMetrics_NoAuthRequired(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
 	cfg := testutil.DefaultTestConfig()
-	handler := NewCombinedHandler(log, mockDB, cfg, "test")
+	metricsHandler := NewMetricsHandler(log, mockDB, "test")
+	healthHandler := NewHealthHandler(log, mockDB, cfg, "test", metricsHandler)
 
 	ctx := context.Background() // No authentication in context
-	request := api.PrometheusMetricsRequestObject{}
+	request := healthAPI.PrometheusMetricsRequestObject{}
 
-	resp, err := handler.PrometheusMetrics(ctx, request)
+	resp, err := healthHandler.PrometheusMetrics(ctx, request)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
 	// Metrics should work without authentication
-	_, ok := resp.(api.PrometheusMetrics200TextResponse)
+	_, ok := resp.(healthAPI.PrometheusMetrics200TextResponse)
 	if !ok {
 		t.Errorf("Expected PrometheusMetrics200TextResponse, got %T", resp)
 	}

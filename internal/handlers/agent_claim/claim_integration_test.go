@@ -15,7 +15,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/smotra-monitoring/server/internal/api"
+	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
+	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/database/queries"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/testutil"
@@ -32,20 +33,20 @@ func (t *testServerImpl) ClaimAgent(ctx context.Context, request api.ClaimAgentR
 }
 
 // Stub implementations for other endpoints (required by StrictServerInterface)
-func (t *testServerImpl) HealthCheck(ctx context.Context, request api.HealthCheckRequestObject) (api.HealthCheckResponseObject, error) {
+func (t *testServerImpl) HealthCheck(ctx context.Context, request healthAPI.HealthCheckRequestObject) (healthAPI.HealthCheckResponseObject, error) {
 	return nil, nil
 }
 
-func (t *testServerImpl) LivenessCheck(ctx context.Context, request api.LivenessCheckRequestObject) (api.LivenessCheckResponseObject, error) {
+func (t *testServerImpl) LivenessCheck(ctx context.Context, request healthAPI.LivenessCheckRequestObject) (healthAPI.LivenessCheckResponseObject, error) {
 	return nil, nil
 }
 
-func (t *testServerImpl) ReadinessCheck(ctx context.Context, request api.ReadinessCheckRequestObject) (api.ReadinessCheckResponseObject, error) {
+func (t *testServerImpl) ReadinessCheck(ctx context.Context, request healthAPI.ReadinessCheckRequestObject) (healthAPI.ReadinessCheckResponseObject, error) {
 	return nil, nil
 }
 
-func (t *testServerImpl) PrometheusMetrics(ctx context.Context, request api.PrometheusMetricsRequestObject) (api.PrometheusMetricsResponseObject, error) {
-	return api.PrometheusMetrics200TextResponse(""), nil
+func (t *testServerImpl) PrometheusMetrics(ctx context.Context, request healthAPI.PrometheusMetricsRequestObject) (healthAPI.PrometheusMetricsResponseObject, error) {
+	return healthAPI.PrometheusMetrics200TextResponse(""), nil
 }
 
 func (t *testServerImpl) GetAgentConfiguration(ctx context.Context, request api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {

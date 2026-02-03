@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/smotra-monitoring/server/internal/api"
+	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
 
@@ -28,7 +28,7 @@ func TestPrometheusMetrics_Integration(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := string(resp.(api.PrometheusMetrics200TextResponse))
+	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
 
 	// Verify metrics are present
 	if !strings.Contains(output, "smotra_http_requests_total 3") {
@@ -89,7 +89,7 @@ func TestPrometheusMetricsConcurrency_Integration(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := string(resp.(api.PrometheusMetrics200TextResponse))
+	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
 
 	// Verify counters are correct
 	if !strings.Contains(output, "smotra_http_requests_total 1000") {

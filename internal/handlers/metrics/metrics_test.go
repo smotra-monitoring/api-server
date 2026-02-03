@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/smotra-monitoring/server/internal/api"
+	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
 
@@ -132,7 +132,7 @@ func TestPrometheusMetrics(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := string(resp.(api.PrometheusMetrics200TextResponse))
+	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
 
 	// Verify required metrics are present
 	requiredMetrics := []string{
@@ -203,7 +203,7 @@ func TestPrometheusMetricsWithUnhealthyDB(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := string(resp.(api.PrometheusMetrics200TextResponse))
+	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
 
 	// Database should be marked as unhealthy
 	if !strings.Contains(output, "smotra_db_healthy 0") {
@@ -228,7 +228,7 @@ func TestPrometheusMetricsFormat(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := string(resp.(api.PrometheusMetrics200TextResponse))
+	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
 	lines := strings.Split(output, "\n")
 
 	// Verify format: each metric should have HELP and TYPE comments

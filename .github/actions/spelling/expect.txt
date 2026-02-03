@@ -41,7 +41,7 @@ Tful
 tokio
 traceroute
 UUIDv
-Versioned
+versioned
 versioning
 wontfix
 workflows
