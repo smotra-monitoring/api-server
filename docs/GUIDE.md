@@ -358,15 +358,18 @@ server/
 │   └── oapi-codegen.yaml   # oapi-codegen configuration
 ├── bin/                    # Compiled binaries (gitignored)
 ├── data/                   # Database files for SQLite (gitignored)
+├── docs/                   # Documentation
+│   ├── README.md          # Concise GitHub-friendly overview
+│   ├── GUIDE.md           # This file - comprehensive guide
+│   ├── TESTING.md         # Testing documentation
+│   └── ROADMAP.md         # Planned features and improvements
 ├── examples/               # Example code
 │   └── config/             # Configuration examples
 ├── script/                 # Build and deployment scripts
 ├── go.mod                  # Go module definition
 ├── go.sum                  # Go module checksums
 ├── justfile               # Build automation (just command runner)
-├── LICENSE                # License file
-├── README.md              # This file
-└── TESTING.md             # Testing documentation
+└── LICENSE                # License file
 ```
 
 ## Current Features

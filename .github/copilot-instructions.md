@@ -568,6 +568,37 @@ output += "# TYPE smotra_myfeature_operations_total counter\n"
 output += fmt.Sprintf("smotra_myfeature_operations_total %d\n", h.myFeatureOperationsTotal.Load())
 ```
 
-README.md in the project root describes server setup and development process
-TESTING.md describes the testing strategy and how to run tests.
-ROADMAP.md outlines planned features and improvements for future releases.
+Documentation is organized in the docs/ folder:
+- **docs/README.md** - This is the GitHub repository homepage (no README.md in root folder)
+- **docs/GUIDE.md** - Comprehensive server setup and development documentation
+- **docs/TESTING.md** - Testing strategy and how to run tests
+- **docs/ROADMAP.md** - Planned features and improvements for future releases
+
+## Documentation Guidelines
+
+When implementing significant new features or workflows, they must be documented in the docs/ folder:
+
+1. **New Features**: Update docs/GUIDE.md with:
+   - Feature description and purpose
+   - Configuration options
+   - API endpoints (if applicable)
+   - Usage examples
+   - Integration instructions
+
+2. **Complex Workflows**: Document multi-step processes with:
+   - Step-by-step instructions
+   - Example requests/responses
+   - Security considerations
+   - Error handling and troubleshooting
+
+3. **Testing**: Update docs/TESTING.md when adding:
+   - New testing patterns or utilities
+   - Integration test requirements
+   - Performance or load testing procedures
+
+4. **Future Plans**: Update docs/ROADMAP.md for:
+   - Planned features and improvements
+   - Breaking changes
+   - Deprecation notices
+
+**Important**: Keep docs/README.md concise as it serves as the GitHub repository homepage. There should be no README.md file in the project root. Detailed documentation belongs in docs/GUIDE.md.
