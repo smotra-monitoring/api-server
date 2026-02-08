@@ -1,7 +1,7 @@
 # oapi-codegen configuration for ROOT-LEVEL endpoints (/healthz, /metrics)
 # 
 # This generates handlers for monitoring/observability endpoints that should NOT
-# be versioned or prefixed with /api/v1. These endpoints are registered at the
+# be versioned or prefixed with /v1. These endpoints are registered at the
 # root level of the router.
 #
 # Target endpoints:
