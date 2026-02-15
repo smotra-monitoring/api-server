@@ -80,12 +80,12 @@ func TestHandler_HealthCheck_Healthy(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", rec.Code)
 	}
 
-	var status apiHealth.HealthStatus
+	var status apiHealth.SystemStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	if status.Status != apiHealth.HealthStatusStatusHealthy {
+	if status.Status != apiHealth.SystemHealthStatusHealthy {
 		t.Errorf("Expected status healthy, got %s", status.Status)
 	}
 
@@ -122,12 +122,12 @@ func TestHandler_HealthCheck_Unhealthy(t *testing.T) {
 		t.Errorf("Expected status 503, got %d", rec.Code)
 	}
 
-	var status apiHealth.HealthStatus
+	var status apiHealth.SystemStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	if status.Status != apiHealth.HealthStatusStatusUnhealthy {
+	if status.Status != apiHealth.SystemHealthStatusUnhealthy {
 		t.Errorf("Expected status unhealthy, got %s", status.Status)
 	}
 }
@@ -151,7 +151,7 @@ func TestHandler_HealthCheck_Components(t *testing.T) {
 		t.Fatalf("Failed to write response: %v", err)
 	}
 
-	var status apiHealth.HealthStatus
+	var status apiHealth.SystemStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestHandler_HealthCheck_Uptime(t *testing.T) {
 		t.Fatalf("Failed to write response: %v", err)
 	}
 
-	var status apiHealth.HealthStatus
+	var status apiHealth.SystemStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}

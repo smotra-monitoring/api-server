@@ -50,7 +50,7 @@ func (h *Handler) HealthCheck(ctx context.Context, request apiHealth.HealthCheck
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	status := apiHealth.HealthStatus{
+	status := apiHealth.SystemStatus{
 		Timestamp: time.Now(),
 		Version:   &h.appVersion,
 	}
@@ -59,27 +59,18 @@ func (h *Handler) HealthCheck(ctx context.Context, request apiHealth.HealthCheck
 	status.UptimeSeconds = &uptime
 
 	// Check components
-	components := make(map[string]struct {
-		Message        *string                                `json:"message,omitempty"`
-		ResponseTimeMs *float32                               `json:"response_time_ms,omitempty"`
-		Status         apiHealth.HealthStatusComponentsStatus `json:"status"`
-	})
+	components := apiHealth.ComponentsStatus(make(map[string]apiHealth.ComponentStatus))
 	overallHealthy := true
 
 	// Check database
 	if h.db != nil {
 		dbHealth, err := h.db.Health(checkCtx)
-		componentStatus := struct {
-			Message        *string                                `json:"message,omitempty"`
-			ResponseTimeMs *float32                               `json:"response_time_ms,omitempty"`
-			Status         apiHealth.HealthStatusComponentsStatus `json:"status"`
-		}{
-			Status: apiHealth.HealthStatusComponentsStatusHealthy,
-		}
+		var componentStatus apiHealth.ComponentStatus
+		componentStatus.Status = apiHealth.ComponentHealthStatusHealthy
 
 		if err != nil {
 			overallHealthy = false
-			componentStatus.Status = apiHealth.HealthStatusComponentsStatusUnhealthy
+			componentStatus.Status = apiHealth.ComponentHealthStatusUnhealthy
 			msg := err.Error()
 			componentStatus.Message = &msg
 		} else {
@@ -96,10 +87,10 @@ func (h *Handler) HealthCheck(ctx context.Context, request apiHealth.HealthCheck
 
 	// Set overall status
 	if overallHealthy {
-		status.Status = apiHealth.HealthStatusStatusHealthy
+		status.Status = apiHealth.SystemHealthStatusHealthy
 		return apiHealth.HealthCheck200JSONResponse(status), nil
 	} else {
-		status.Status = apiHealth.HealthStatusStatusUnhealthy
+		status.Status = apiHealth.SystemHealthStatusUnhealthy
 		return apiHealth.HealthCheck503JSONResponse(status), nil
 	}
 }

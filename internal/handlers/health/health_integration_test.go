@@ -66,12 +66,12 @@ func TestHealthEndpoints_Integration(t *testing.T) {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
 		}
 
-		var status apiHealth.HealthStatus
+		var status apiHealth.SystemStatus
 		if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
 
-		if status.Status != apiHealth.HealthStatusStatusHealthy {
+		if status.Status != apiHealth.SystemHealthStatusHealthy {
 			t.Errorf("Expected healthy status, got %s", status.Status)
 		}
 	})
@@ -125,12 +125,12 @@ func TestHealthEndpoints_Integration_DatabaseFailure(t *testing.T) {
 			t.Errorf("Expected status 503, got %d", resp.StatusCode)
 		}
 
-		var status apiHealth.HealthStatus
+		var status apiHealth.SystemStatus
 		if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
 
-		if status.Status != apiHealth.HealthStatusStatusUnhealthy {
+		if status.Status != apiHealth.SystemHealthStatusUnhealthy {
 			t.Errorf("Expected unhealthy status, got %s", status.Status)
 		}
 	})

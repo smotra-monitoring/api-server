@@ -14,38 +14,48 @@ import (
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
 
-// Defines values for HealthStatusComponentsStatus.
+// Defines values for ComponentHealthStatus.
 const (
-	HealthStatusComponentsStatusDegraded  HealthStatusComponentsStatus = "degraded"
-	HealthStatusComponentsStatusHealthy   HealthStatusComponentsStatus = "healthy"
-	HealthStatusComponentsStatusUnhealthy HealthStatusComponentsStatus = "unhealthy"
+	ComponentHealthStatusDegraded  ComponentHealthStatus = "degraded"
+	ComponentHealthStatusHealthy   ComponentHealthStatus = "healthy"
+	ComponentHealthStatusUnhealthy ComponentHealthStatus = "unhealthy"
 )
 
-// Defines values for HealthStatusStatus.
+// Defines values for SystemHealthStatus.
 const (
-	HealthStatusStatusDegraded  HealthStatusStatus = "degraded"
-	HealthStatusStatusHealthy   HealthStatusStatus = "healthy"
-	HealthStatusStatusUnhealthy HealthStatusStatus = "unhealthy"
+	SystemHealthStatusDegraded  SystemHealthStatus = "degraded"
+	SystemHealthStatusHealthy   SystemHealthStatus = "healthy"
+	SystemHealthStatusUnhealthy SystemHealthStatus = "unhealthy"
 )
 
-// HealthStatus defines model for HealthStatus.
-type HealthStatus struct {
-	Components *map[string]struct {
-		Message        *string                      `json:"message,omitempty"`
-		ResponseTimeMs *float32                     `json:"response_time_ms,omitempty"`
-		Status         HealthStatusComponentsStatus `json:"status"`
-	} `json:"components,omitempty"`
-	Status        HealthStatusStatus `json:"status"`
+// ComponentHealthStatus Component health status
+type ComponentHealthStatus string
+
+// ComponentStatus defines model for ComponentStatus.
+type ComponentStatus struct {
+	Message        *string  `json:"message,omitempty"`
+	ResponseTimeMs *float32 `json:"response_time_ms,omitempty"`
+
+	// Status Component health status
+	Status ComponentHealthStatus `json:"status"`
+}
+
+// ComponentsStatus defines model for ComponentsStatus.
+type ComponentsStatus map[string]ComponentStatus
+
+// SystemHealthStatus System health status
+type SystemHealthStatus string
+
+// SystemStatus defines model for SystemStatus.
+type SystemStatus struct {
+	Components *ComponentsStatus `json:"components,omitempty"`
+
+	// Status System health status
+	Status        SystemHealthStatus `json:"status"`
 	Timestamp     time.Time          `json:"timestamp"`
 	UptimeSeconds *int               `json:"uptime_seconds,omitempty"`
 	Version       *string            `json:"version,omitempty"`
 }
-
-// HealthStatusComponentsStatus defines model for HealthStatus.Components.Status.
-type HealthStatusComponentsStatus string
-
-// HealthStatusStatus defines model for HealthStatus.Status.
-type HealthStatusStatus string
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -292,7 +302,7 @@ type HealthCheckResponseObject interface {
 	VisitHealthCheckResponse(w http.ResponseWriter) error
 }
 
-type HealthCheck200JSONResponse HealthStatus
+type HealthCheck200JSONResponse SystemStatus
 
 func (response HealthCheck200JSONResponse) VisitHealthCheckResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -301,7 +311,7 @@ func (response HealthCheck200JSONResponse) VisitHealthCheckResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
-type HealthCheck503JSONResponse HealthStatus
+type HealthCheck503JSONResponse SystemStatus
 
 func (response HealthCheck503JSONResponse) VisitHealthCheckResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")

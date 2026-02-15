@@ -22,24 +22,24 @@ const (
 	OAuth2AuthorizationCodeScopes = "OAuth2AuthorizationCode.Scopes"
 )
 
-// Defines values for AgentRegistrationResponseStatus.
+// Defines values for ClaimResponseStatus.
 const (
-	AgentRegistrationResponseStatusPendingClaim AgentRegistrationResponseStatus = "pending_claim"
+	ClaimResponseStatusClaimed ClaimResponseStatus = "claimed"
 )
 
-// Defines values for ClaimAgentResponseStatus.
+// Defines values for ClaimStatusClaimedEnum.
 const (
-	ClaimAgentResponseStatusClaimed ClaimAgentResponseStatus = "claimed"
+	ClaimStatusClaimedEnumClaimed ClaimStatusClaimedEnum = "claimed"
 )
 
-// Defines values for ClaimStatusClaimedStatus.
+// Defines values for ClaimStatusPendingEnum.
 const (
-	ClaimStatusClaimedStatusClaimed ClaimStatusClaimedStatus = "claimed"
+	ClaimStatusPendingEnumPendingClaim ClaimStatusPendingEnum = "pending_claim"
 )
 
-// Defines values for ClaimStatusPendingStatus.
+// Defines values for RegistrationStatus.
 const (
-	ClaimStatusPendingStatusPendingClaim ClaimStatusPendingStatus = "pending_claim"
+	RegistrationStatusPendingClaim RegistrationStatus = "pending_claim"
 )
 
 // AgentConfig defines model for AgentConfig.
@@ -74,12 +74,9 @@ type AgentRegistrationResponse struct {
 	// PollUrl URL for agent to poll for claim status
 	PollUrl string `json:"pollUrl"`
 
-	// Status Current status of the registration
-	Status AgentRegistrationResponseStatus `json:"status"`
+	// Status Status of agent registration
+	Status RegistrationStatus `json:"status"`
 }
-
-// AgentRegistrationResponseStatus Current status of the registration
-type AgentRegistrationResponseStatus string
 
 // AgentSelfRegistration defines model for AgentSelfRegistration.
 type AgentSelfRegistration struct {
@@ -119,12 +116,12 @@ type ClaimAgentResponse struct {
 	// Message Human-readable message
 	Message string `json:"message"`
 
-	// Status Claim status
-	Status ClaimAgentResponseStatus `json:"status"`
+	// Status Status in claim response
+	Status ClaimResponseStatus `json:"status"`
 }
 
-// ClaimAgentResponseStatus Claim status
-type ClaimAgentResponseStatus string
+// ClaimResponseStatus Status in claim response
+type ClaimResponseStatus string
 
 // ClaimStatusClaimed defines model for ClaimStatusClaimed.
 type ClaimStatusClaimed struct {
@@ -134,24 +131,24 @@ type ClaimStatusClaimed struct {
 	// ConfigUrl URL to fetch agent configuration
 	ConfigUrl string `json:"configUrl"`
 
-	// Status Agent has been claimed and API key is ready
-	Status ClaimStatusClaimedStatus `json:"status"`
+	// Status Claimed status
+	Status ClaimStatusClaimedEnum `json:"status"`
 }
 
-// ClaimStatusClaimedStatus Agent has been claimed and API key is ready
-type ClaimStatusClaimedStatus string
+// ClaimStatusClaimedEnum Claimed status
+type ClaimStatusClaimedEnum string
 
 // ClaimStatusPending defines model for ClaimStatusPending.
 type ClaimStatusPending struct {
 	// ExpiresAt When the claim token expires (RFC3339)
 	ExpiresAt time.Time `json:"expiresAt"`
 
-	// Status Agent is waiting to be claimed
-	Status ClaimStatusPendingStatus `json:"status"`
+	// Status Pending claim status
+	Status ClaimStatusPendingEnum `json:"status"`
 }
 
-// ClaimStatusPendingStatus Agent is waiting to be claimed
-type ClaimStatusPendingStatus string
+// ClaimStatusPendingEnum Pending claim status
+type ClaimStatusPendingEnum string
 
 // Endpoint defines model for Endpoint.
 type Endpoint struct {
@@ -201,6 +198,9 @@ type MonitoringConfig struct {
 	// TracerouteOnFailure Enable traceroute on failed pings
 	TracerouteOnFailure bool `json:"traceroute_on_failure"`
 }
+
+// RegistrationStatus Status of agent registration
+type RegistrationStatus string
 
 // ServerConfig defines model for ServerConfig.
 type ServerConfig struct {
