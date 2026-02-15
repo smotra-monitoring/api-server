@@ -259,8 +259,8 @@ type NotImplemented = Error
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
 
-// ClaimAgentJSONRequestBody defines body for ClaimAgent for application/json ContentType.
-type ClaimAgentJSONRequestBody = ClaimAgentRequest
+// PostClaimAgentJSONRequestBody defines body for PostClaimAgent for application/json ContentType.
+type PostClaimAgentJSONRequestBody = ClaimAgentRequest
 
 // RegisterAgentSelfJSONRequestBody defines body for RegisterAgentSelf for application/json ContentType.
 type RegisterAgentSelfJSONRequestBody = AgentSelfRegistration
@@ -269,7 +269,7 @@ type RegisterAgentSelfJSONRequestBody = AgentSelfRegistration
 type ServerInterface interface {
 	// Claim an agent (Web UI)
 	// (POST /agent/claim)
-	ClaimAgent(w http.ResponseWriter, r *http.Request)
+	PostClaimAgent(w http.ResponseWriter, r *http.Request)
 	// Agent self-registration (unclaimed)
 	// (POST /agent/register)
 	RegisterAgentSelf(w http.ResponseWriter, r *http.Request)
@@ -287,7 +287,7 @@ type Unimplemented struct{}
 
 // Claim an agent (Web UI)
 // (POST /agent/claim)
-func (_ Unimplemented) ClaimAgent(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) PostClaimAgent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -318,8 +318,8 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
-// ClaimAgent operation middleware
-func (siw *ServerInterfaceWrapper) ClaimAgent(w http.ResponseWriter, r *http.Request) {
+// PostClaimAgent operation middleware
+func (siw *ServerInterfaceWrapper) PostClaimAgent(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
@@ -328,7 +328,7 @@ func (siw *ServerInterfaceWrapper) ClaimAgent(w http.ResponseWriter, r *http.Req
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ClaimAgent(w, r)
+		siw.Handler.PostClaimAgent(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -524,7 +524,7 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/agent/claim", wrapper.ClaimAgent)
+		r.Post(options.BaseURL+"/agent/claim", wrapper.PostClaimAgent)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/agent/register", wrapper.RegisterAgentSelf)
@@ -549,73 +549,73 @@ type NotImplementedJSONResponse Error
 
 type UnauthorizedJSONResponse Error
 
-type ClaimAgentRequestObject struct {
-	Body *ClaimAgentJSONRequestBody
+type PostClaimAgentRequestObject struct {
+	Body *PostClaimAgentJSONRequestBody
 }
 
-type ClaimAgentResponseObject interface {
-	VisitClaimAgentResponse(w http.ResponseWriter) error
+type PostClaimAgentResponseObject interface {
+	VisitPostClaimAgentResponse(w http.ResponseWriter) error
 }
 
-type ClaimAgent200JSONResponse ClaimAgentResponse
+type PostClaimAgent200JSONResponse ClaimAgentResponse
 
-func (response ClaimAgent200JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+func (response PostClaimAgent200JSONResponse) VisitPostClaimAgentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type ClaimAgent400JSONResponse struct{ BadRequestJSONResponse }
+type PostClaimAgent400JSONResponse struct{ BadRequestJSONResponse }
 
-func (response ClaimAgent400JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+func (response PostClaimAgent400JSONResponse) VisitPostClaimAgentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type ClaimAgent401JSONResponse struct{ UnauthorizedJSONResponse }
+type PostClaimAgent401JSONResponse struct{ UnauthorizedJSONResponse }
 
-func (response ClaimAgent401JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+func (response PostClaimAgent401JSONResponse) VisitPostClaimAgentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type ClaimAgent403JSONResponse Error
+type PostClaimAgent403JSONResponse Error
 
-func (response ClaimAgent403JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+func (response PostClaimAgent403JSONResponse) VisitPostClaimAgentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type ClaimAgent404JSONResponse Error
+type PostClaimAgent404JSONResponse Error
 
-func (response ClaimAgent404JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+func (response PostClaimAgent404JSONResponse) VisitPostClaimAgentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type ClaimAgent409JSONResponse Error
+type PostClaimAgent409JSONResponse Error
 
-func (response ClaimAgent409JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+func (response PostClaimAgent409JSONResponse) VisitPostClaimAgentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type ClaimAgent500JSONResponse struct {
+type PostClaimAgent500JSONResponse struct {
 	InternalServerErrorJSONResponse
 }
 
-func (response ClaimAgent500JSONResponse) VisitClaimAgentResponse(w http.ResponseWriter) error {
+func (response PostClaimAgent500JSONResponse) VisitPostClaimAgentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -766,7 +766,7 @@ func (response GetAgentConfiguration503JSONResponse) VisitGetAgentConfigurationR
 type StrictServerInterface interface {
 	// Claim an agent (Web UI)
 	// (POST /agent/claim)
-	ClaimAgent(ctx context.Context, request ClaimAgentRequestObject) (ClaimAgentResponseObject, error)
+	PostClaimAgent(ctx context.Context, request PostClaimAgentRequestObject) (PostClaimAgentResponseObject, error)
 	// Agent self-registration (unclaimed)
 	// (POST /agent/register)
 	RegisterAgentSelf(ctx context.Context, request RegisterAgentSelfRequestObject) (RegisterAgentSelfResponseObject, error)
@@ -807,11 +807,11 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
-// ClaimAgent operation middleware
-func (sh *strictHandler) ClaimAgent(w http.ResponseWriter, r *http.Request) {
-	var request ClaimAgentRequestObject
+// PostClaimAgent operation middleware
+func (sh *strictHandler) PostClaimAgent(w http.ResponseWriter, r *http.Request) {
+	var request PostClaimAgentRequestObject
 
-	var body ClaimAgentJSONRequestBody
+	var body PostClaimAgentJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
 		return
@@ -819,18 +819,18 @@ func (sh *strictHandler) ClaimAgent(w http.ResponseWriter, r *http.Request) {
 	request.Body = &body
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ClaimAgent(ctx, request.(ClaimAgentRequestObject))
+		return sh.ssi.PostClaimAgent(ctx, request.(PostClaimAgentRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ClaimAgent")
+		handler = middleware(handler, "PostClaimAgent")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ClaimAgentResponseObject); ok {
-		if err := validResponse.VisitClaimAgentResponse(w); err != nil {
+	} else if validResponse, ok := response.(PostClaimAgentResponseObject); ok {
+		if err := validResponse.VisitPostClaimAgentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

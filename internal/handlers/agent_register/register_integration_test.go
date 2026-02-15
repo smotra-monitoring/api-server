@@ -38,7 +38,7 @@ func (t *testServerImpl) GetAgentClaimStatus(ctx context.Context, request api.Ge
 	return nil, nil
 }
 
-func (t *testServerImpl) ClaimAgent(ctx context.Context, request api.ClaimAgentRequestObject) (api.ClaimAgentResponseObject, error) {
+func (t *testServerImpl) PostClaimAgent(ctx context.Context, request api.PostClaimAgentRequestObject) (api.PostClaimAgentResponseObject, error) {
 	return nil, nil
 }
 

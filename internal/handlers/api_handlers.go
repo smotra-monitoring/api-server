@@ -82,7 +82,7 @@ func (h *APIHandler) GetAgentClaimStatus(ctx context.Context, request api.GetAge
 	return h.agent_claim_status.Handle(ctx, request)
 }
 
-// ClaimAgent delegates to agent claim handler
-func (h *APIHandler) ClaimAgent(ctx context.Context, request api.ClaimAgentRequestObject) (api.ClaimAgentResponseObject, error) {
+// PostClaimAgent delegates to agent claim handler
+func (h *APIHandler) PostClaimAgent(ctx context.Context, request api.PostClaimAgentRequestObject) (api.PostClaimAgentResponseObject, error) {
 	return h.agent_claim.Handle(ctx, request)
 }

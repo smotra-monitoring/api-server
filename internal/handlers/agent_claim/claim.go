@@ -40,14 +40,14 @@ func NewHandler(logger *logger.Logger, db database.Database) *Handler {
 }
 
 // Handle processes agent claim requests
-func (h *Handler) Handle(ctx context.Context, req api.ClaimAgentRequestObject) (api.ClaimAgentResponseObject, error) {
+func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObject) (api.PostClaimAgentResponseObject, error) {
 	h.claimAttemptsTotal.Add(1)
 
 	q := queries.New(h.db.DB())
 
 	if req.Body == nil {
 		h.claimFailureTotal.Add(1)
-		return api.ClaimAgent400JSONResponse{
+		return api.PostClaimAgent400JSONResponse{
 			BadRequestJSONResponse: api.BadRequestJSONResponse{
 				Error:   "bad_request",
 				Message: "Request body is required",
@@ -69,7 +69,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ClaimAgentRequestObject) (
 			slog.String("agentId", agentIDStr),
 			slog.String("error", err.Error()),
 		)
-		return api.ClaimAgent404JSONResponse(api.Error{
+		return api.PostClaimAgent404JSONResponse(api.Error{
 			Error:   "claim_not_found",
 			Message: "Claim not found or invalid",
 		}), nil
@@ -84,7 +84,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ClaimAgentRequestObject) (
 	if err != nil {
 		if err == sql.ErrNoRows {
 			h.claimAlreadyClaimedTotal.Add(1)
-			return api.ClaimAgent409JSONResponse(api.Error{
+			return api.PostClaimAgent409JSONResponse(api.Error{
 				Error:   "already_claimed_or_invalid",
 				Message: "Agent has already been claimed or claim token is invalid/expired",
 			}), nil
@@ -95,7 +95,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ClaimAgentRequestObject) (
 			slog.String("agentId", agentIDStr),
 			slog.String("error", err.Error()),
 		)
-		return api.ClaimAgent403JSONResponse(api.Error{
+		return api.PostClaimAgent403JSONResponse(api.Error{
 			Error:   "invalid_claim_token",
 			Message: "Invalid or expired claim token",
 		}), nil
@@ -104,7 +104,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ClaimAgentRequestObject) (
 	// Double-check it's not already claimed (additional safety)
 	if claimFromDB.ClaimedAt.Valid {
 		h.claimAlreadyClaimedTotal.Add(1)
-		return api.ClaimAgent409JSONResponse(api.Error{
+		return api.PostClaimAgent409JSONResponse(api.Error{
 			Error:   "already_claimed",
 			Message: "Agent has already been claimed",
 		}), nil
@@ -113,7 +113,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ClaimAgentRequestObject) (
 	// Verify constant-time comparison of token hash (extra security)
 	if subtle.ConstantTimeCompare([]byte(claimFromDB.ClaimTokenHash), []byte(claimTokenHash)) != 1 {
 		h.claimInvalidTokenTotal.Add(1)
-		return api.ClaimAgent403JSONResponse(api.Error{
+		return api.PostClaimAgent403JSONResponse(api.Error{
 			Error:   "invalid_claim_token",
 			Message: "Invalid claim token",
 		}), nil
@@ -127,7 +127,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ClaimAgentRequestObject) (
 			slog.String("error", err.Error()),
 		)
 		h.claimFailureTotal.Add(1)
-		return api.ClaimAgent500JSONResponse{
+		return api.PostClaimAgent500JSONResponse{
 			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
 				Error:   "internal_error",
 				Message: "Failed to generate API key",
@@ -163,7 +163,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ClaimAgentRequestObject) (
 			slog.String("error", err.Error()),
 		)
 		h.claimFailureTotal.Add(1)
-		return api.ClaimAgent500JSONResponse{
+		return api.PostClaimAgent500JSONResponse{
 			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
 				Error:   "internal_error",
 				Message: "Failed to create agent",
@@ -194,7 +194,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ClaimAgentRequestObject) (
 		slog.String("sectionId", req.Body.SectionId.String()),
 	)
 
-	return api.ClaimAgent200JSONResponse(api.ClaimAgentResponse{
+	return api.PostClaimAgent200JSONResponse(api.ClaimAgentResponse{
 		AgentId: req.Body.AgentId,
 		Status:  "claimed",
 		Message: "Agent claimed successfully. API key will be delivered on next poll.",

@@ -27,8 +27,8 @@ type testServerImpl struct {
 	*Handler
 }
 
-// ClaimAgent delegates to this handler
-func (t *testServerImpl) ClaimAgent(ctx context.Context, request api.ClaimAgentRequestObject) (api.ClaimAgentResponseObject, error) {
+// PostClaimAgent delegates to this handler
+func (t *testServerImpl) PostClaimAgent(ctx context.Context, request api.PostClaimAgentRequestObject) (api.PostClaimAgentResponseObject, error) {
 	return t.Handle(ctx, request)
 }
 
