@@ -614,16 +614,27 @@ go mod download
 - User authentication and management
 
 ## Contributing
+This is an open-source project, and we deeply value the community's interest. However, due to the high volume of automated and machine-generated code currently being submitted, we are significantly narrowing our intake process to maintain code quality and project stability.
 
-Contributions are welcome! Please follow these guidelines:
+### Current PR Policy
+To ensure our maintainers can focus on meaningful improvements:
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests and linting (`just all`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+- **General Pull Requests:** We are currently not accepting unsolicited PRs, particularly those containing generated code.
+
+- **Exceptions:** Critical bug fixes or major feature enhancements are still considered on a case-by-case basis.
+
+- **CLA Requirement:** If an exception is made for your contribution, you must sign our Contributor License Agreement (CLA) before any code can be reviewed or merged.
+
+### How to Help
+If you’ve found a bug or have a great idea:
+
+- **Open an Issue:** Please start by searching existing issues or creating a new one to discuss your proposal.
+
+- **Wait for Feedback:** Do not spend time on a PR until a maintainer has greenlit the approach in the issue comments.
+
+- **Follow the Workflow:** Once approved, you may fork the repo, work in a feature branch, and submit your PR (with tests!) for final review.
+
+See the [User Guide](GUIDE.md) for testing requirements and code standards.
 
 ### Code Style
 - Follow standard Go conventions and idioms

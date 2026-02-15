@@ -1,5 +1,6 @@
 Bulima
 Bulma
+CLA
 codegen
 connmaxidletime
 connmaxlifetime
@@ -10,13 +11,14 @@ createdb
 deregistration
 gotestsum
 Grafana
+greenlit
 healthz
 implementet
 isready
 justfile
 jwt
 ldflags
-linting
+Linting
 Liquibase
 mattn
 maxidleconns
