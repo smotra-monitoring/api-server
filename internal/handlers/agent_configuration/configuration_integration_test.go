@@ -35,7 +35,7 @@ func (t *testServerImpl) GetAgentClaimStatus(ctx context.Context, request api.Ge
 }
 
 // ClaimAgent delegates to agent claim handler
-func (t *testServerImpl) ClaimAgent(ctx context.Context, request api.ClaimAgentRequestObject) (api.ClaimAgentResponseObject, error) {
+func (t *testServerImpl) PostClaimAgent(ctx context.Context, request api.PostClaimAgentRequestObject) (api.PostClaimAgentResponseObject, error) {
 	return nil, nil
 }
 
