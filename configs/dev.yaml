@@ -17,7 +17,7 @@ sqlite_config:
     filepath: ./data/smotra.db
 logging:
     level: debug
-    format: json
+    format: text
 auth:
     jwt_secret: development-secret-change-in-production
     jwt_expiration: 24h0m0s

@@ -119,7 +119,7 @@ func (h *Handler) Handle(ctx context.Context, req api.RegisterAgentSelfRequestOb
 
 	response := api.AgentRegistrationResponse{
 		Status:    "pending_claim",
-		PollUrl:   fmt.Sprintf("/agents/%s/claim-status", agentIDStr),
+		PollUrl:   fmt.Sprintf("/agent/%s/claim-status", agentIDStr),
 		ClaimUrl:  fmt.Sprintf("%s/claim", h.config.Agent.ServerURL),
 		ExpiresAt: expiresAt,
 	}
