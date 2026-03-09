@@ -8,6 +8,7 @@ package queries
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const cleanupDeliveredClaims = `-- name: CleanupDeliveredClaims :exec
@@ -48,7 +49,7 @@ type CreateAgentClaimParams struct {
 	ClaimTokenHash      string
 	Hostname            string
 	AgentVersion        string
-	ClaimTokenExpiresAt string
+	ClaimTokenExpiresAt time.Time
 }
 
 func (q *Queries) CreateAgentClaim(ctx context.Context, arg CreateAgentClaimParams) (string, error) {
@@ -288,7 +289,7 @@ type UpsertAgentClaimParams struct {
 	ClaimTokenHash      string
 	Hostname            string
 	AgentVersion        string
-	ClaimTokenExpiresAt string
+	ClaimTokenExpiresAt time.Time
 }
 
 func (q *Queries) UpsertAgentClaim(ctx context.Context, arg UpsertAgentClaimParams) (string, error) {

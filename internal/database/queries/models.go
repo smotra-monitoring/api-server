@@ -6,6 +6,7 @@ package queries
 
 import (
 	"database/sql"
+	"time"
 )
 
 type Agent struct {
@@ -26,7 +27,7 @@ type AgentClaim struct {
 	ClaimTokenHash      string
 	Hostname            string
 	AgentVersion        string
-	ClaimTokenExpiresAt string
+	ClaimTokenExpiresAt time.Time
 	LastSeenAt          string
 	CreatedAt           string
 	ClaimedAt           sql.NullString
