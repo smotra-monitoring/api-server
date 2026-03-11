@@ -102,7 +102,7 @@ func TestGetAgentClaimStatus_Integration_PendingClaim(t *testing.T) {
 	claimToken := "test-claim-token-12345678"
 	claimTokenHash := sha256.Sum256([]byte(claimToken))
 	claimTokenHashStr := hex.EncodeToString(claimTokenHash[:])
-	expiresAt := time.Now().Add(24 * time.Hour).Format("2006-01-02 15:04:05")
+	expiresAt := time.Now().Add(24 * time.Hour)
 
 	_, err := q.UpsertAgentClaim(ctx, queries.UpsertAgentClaimParams{
 		ID:                  agentID.String(),
@@ -171,7 +171,7 @@ func TestGetAgentClaimStatus_Integration_AlreadyDelivered1(t *testing.T) {
 	claimToken := "test-claim-token-12345678"
 	claimTokenHash := sha256.Sum256([]byte(claimToken))
 	claimTokenHashStr := hex.EncodeToString(claimTokenHash[:])
-	expiresAt := time.Now().Add(24 * time.Hour).Format("2006-01-02 15:04:05")
+	expiresAt := time.Now().Add(24 * time.Hour)
 
 	_, err = q.UpsertAgentClaim(ctx, queries.UpsertAgentClaimParams{
 		ID:                  agentID.String(),
@@ -283,7 +283,7 @@ func TestGetAgentClaimStatus_Integration_AlreadyDelivered2(t *testing.T) {
 	claimToken := "test-claim-token-12345678"
 	claimTokenHash := sha256.Sum256([]byte(claimToken))
 	claimTokenHashStr := hex.EncodeToString(claimTokenHash[:])
-	expiresAt := time.Now().Add(24 * time.Hour).Format("2006-01-02 15:04:05")
+	expiresAt := time.Now().Add(24 * time.Hour)
 
 	_, err = q.UpsertAgentClaim(ctx, queries.UpsertAgentClaimParams{
 		ID:                  agentID.String(),

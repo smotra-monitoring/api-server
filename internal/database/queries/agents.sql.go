@@ -75,15 +75,15 @@ func (q *Queries) CreateAgentFromClaim(ctx context.Context, arg CreateAgentFromC
 }
 
 const getAgentConfigurationBase = `-- name: GetAgentConfigurationBase :one
-SELECT id, version, name, base_config FROM agents WHERE id = ?
+SELECT id, config_version, name, base_config FROM agents WHERE id = ?
 LIMIT 1
 `
 
 type GetAgentConfigurationBaseRow struct {
-	ID         string
-	Version    int64
-	Name       string
-	BaseConfig string
+	ID            string
+	ConfigVersion int64
+	Name          string
+	BaseConfig    string
 }
 
 func (q *Queries) GetAgentConfigurationBase(ctx context.Context, id string) (GetAgentConfigurationBaseRow, error) {
@@ -91,7 +91,7 @@ func (q *Queries) GetAgentConfigurationBase(ctx context.Context, id string) (Get
 	var i GetAgentConfigurationBaseRow
 	err := row.Scan(
 		&i.ID,
-		&i.Version,
+		&i.ConfigVersion,
 		&i.Name,
 		&i.BaseConfig,
 	)
@@ -197,18 +197,18 @@ func (q *Queries) GetEndpointTags(ctx context.Context, endpointID string) ([]str
 
 const updateAgentConfiguration = `-- name: UpdateAgentConfiguration :exec
 UPDATE agents
-SET version = ?, base_config = ?
+SET config_version = ?, base_config = ?
 WHERE id = ?
 `
 
 type UpdateAgentConfigurationParams struct {
-	Version    int64
-	BaseConfig string
-	ID         string
+	ConfigVersion int64
+	BaseConfig    string
+	ID            string
 }
 
 func (q *Queries) UpdateAgentConfiguration(ctx context.Context, arg UpdateAgentConfigurationParams) error {
-	_, err := q.db.ExecContext(ctx, updateAgentConfiguration, arg.Version, arg.BaseConfig, arg.ID)
+	_, err := q.db.ExecContext(ctx, updateAgentConfiguration, arg.ConfigVersion, arg.BaseConfig, arg.ID)
 	return err
 }
 

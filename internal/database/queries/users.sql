@@ -26,22 +26,22 @@ INSERT INTO users (
     oauth_subject,
     display_name,
     last_login_at
-) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%S', 'now'))
+) VALUES (?, ?, ?, ?, ?, datetime('now'))
 ON CONFLICT(oauth_provider, oauth_subject) DO UPDATE SET
     display_name = COALESCE(excluded.display_name, display_name),
-    last_login_at = strftime('%Y-%m-%d %H:%M:%S', 'now'),
-    updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    last_login_at = datetime('now'),
+    updated_at = datetime('now')
 RETURNING id;
 
 -- name: UpdateUserDisplayName :exec
 UPDATE users
 SET display_name = ?,
-    updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    updated_at = datetime('now')
 WHERE id = ?;
 
 -- name: UpdateUserLastLogin :exec
 UPDATE users
-SET last_login_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+SET last_login_at = datetime('now')
 WHERE id = ?;
 
 -- name: ListUsersByTenant :many

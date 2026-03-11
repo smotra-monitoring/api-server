@@ -1,5 +1,5 @@
 -- name: GetAgentConfigurationBase :one
-SELECT id, version, name, base_config FROM agents WHERE id = ?
+SELECT id, config_version, name, base_config FROM agents WHERE id = ?
 LIMIT 1;
 
 -- name: CreateAgent :one
@@ -27,7 +27,7 @@ WHERE at.agent_id = ? AND t.scope IN ('agent', 'global');
 
 -- name: UpdateAgentConfiguration :exec
 UPDATE agents
-SET version = ?, base_config = ?
+SET config_version = ?, base_config = ?
 WHERE id = ?;
 
 -- name: GetAgentEndpoints :many

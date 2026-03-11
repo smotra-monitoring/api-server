@@ -6,19 +6,20 @@ package queries
 
 import (
 	"database/sql"
+	"time"
 )
 
 type Agent struct {
-	ID           string
-	SectionID    string
-	Name         string
-	ApiKeyHash   string
-	BaseConfig   string
-	Version      int64
-	AgentVersion sql.NullString
-	LastSeenAt   sql.NullString
-	UpdatedAt    string
-	CreatedAt    string
+	ID            string
+	SectionID     string
+	Name          string
+	ApiKeyHash    string
+	BaseConfig    string
+	ConfigVersion int64
+	AgentVersion  sql.NullString
+	LastSeenAt    sql.NullTime
+	UpdatedAt     time.Time
+	CreatedAt     time.Time
 }
 
 type AgentClaim struct {
@@ -26,10 +27,10 @@ type AgentClaim struct {
 	ClaimTokenHash      string
 	Hostname            string
 	AgentVersion        string
-	ClaimTokenExpiresAt string
-	LastSeenAt          string
-	CreatedAt           string
-	ClaimedAt           sql.NullString
+	ClaimTokenExpiresAt time.Time
+	LastSeenAt          time.Time
+	CreatedAt           time.Time
+	ClaimedAt           sql.NullTime
 	ClaimedByUserID     sql.NullString
 	ApiKeyPlaintext     sql.NullString
 	ApiKeyDelivered     int64
@@ -46,8 +47,8 @@ type Endpoint struct {
 	Address   string
 	Port      sql.NullInt64
 	Enabled   int64
-	UpdatedAt string
-	CreatedAt string
+	UpdatedAt time.Time
+	CreatedAt time.Time
 }
 
 type EndpointTag struct {
@@ -71,7 +72,7 @@ type Tag struct {
 type Tenant struct {
 	ID        string
 	Name      string
-	CreatedAt string
+	CreatedAt time.Time
 }
 
 type User struct {
@@ -80,7 +81,7 @@ type User struct {
 	OauthProvider string
 	OauthSubject  string
 	DisplayName   string
-	LastLoginAt   sql.NullString
-	CreatedAt     string
-	UpdatedAt     string
+	LastLoginAt   sql.NullTime
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }

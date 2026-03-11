@@ -16,9 +16,9 @@ INSERT INTO agent_claims (
     agent_version,
     claim_token_expires_at,
     last_seen_at
-) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%S', 'now'))
+) VALUES (?, ?, ?, ?, ?, datetime('now'))
 ON CONFLICT(id) DO UPDATE SET
-    last_seen_at = strftime('%Y-%m-%d %H:%M:%S', 'now'),
+    last_seen_at = datetime('now'),
     hostname = COALESCE(excluded.hostname, hostname),
     agent_version = COALESCE(excluded.agent_version, agent_version)
 WHERE claimed_at IS NULL  -- Only update if not yet claimed
@@ -33,13 +33,13 @@ WHERE id = ? LIMIT 1;
 SELECT * FROM agent_claims
 WHERE id = ?
   AND claim_token_hash = ?
-  AND claim_token_expires_at > strftime('%Y-%m-%d %H:%M:%S', 'now')
+  AND claim_token_expires_at > datetime('now')
   AND claimed_at IS NULL
 LIMIT 1;
 
 -- name: MarkAgentClaimClaimed :exec
 UPDATE agent_claims
-SET claimed_at = strftime('%Y-%m-%d %H:%M:%S', 'now'),
+SET claimed_at = datetime('now'),
     claimed_by_user_id = ?,
     api_key_plaintext = ?
 WHERE id = ?;
@@ -65,7 +65,7 @@ LIMIT 1;
 
 -- name: CleanupExpiredClaims :exec
 DELETE FROM agent_claims 
-WHERE claim_token_expires_at < strftime('%Y-%m-%d %H:%M:%S', 'now');
+WHERE claim_token_expires_at < datetime('now');
 
 -- name: CleanupDeliveredClaims :exec
 DELETE FROM agent_claims 
@@ -76,7 +76,7 @@ WHERE claimed_at IS NOT NULL
 -- name: ListUnclaimedAgents :many
 SELECT * FROM agent_claims
 WHERE claimed_at IS NULL
-  AND claim_token_expires_at > strftime('%Y-%m-%d %H:%M:%S', 'now')
+  AND claim_token_expires_at > datetime('now')
 ORDER BY created_at DESC;
 
 -- name: ListPendingDeliveries :many
