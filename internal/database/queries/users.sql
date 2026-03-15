@@ -35,8 +35,7 @@ RETURNING id;
 
 -- name: UpdateUserDisplayName :exec
 UPDATE users
-SET display_name = ?,
-    updated_at = datetime('now')
+SET display_name = ?
 WHERE id = ?;
 
 -- name: UpdateUserLastLogin :exec

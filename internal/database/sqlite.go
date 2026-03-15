@@ -33,7 +33,7 @@ func (s *SQLiteDB) Open(ctx context.Context) error {
 	}
 
 	// Open database with additional pragmas for better performance
-	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL&_cache_size=1000000&_foreign_keys=on&parseTime=true",
+	dsn := fmt.Sprintf("%s?_parse_time=true&_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL&_cache_size=1000000&_foreign_keys=on",
 		s.config.FilePath)
 
 	db, err := sql.Open("sqlite3", dsn)

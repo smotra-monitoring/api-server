@@ -82,7 +82,7 @@ func (h *Handler) Handle(ctx context.Context, req api.RegisterAgentSelfRequestOb
 	}
 
 	// Calculate expiration time
-	expiresAt := time.Now().UTC().Add(time.Duration(h.config.Agent.ClaimTokenExpirationHours) * time.Hour)
+	expiresAt := time.Now().UTC().Add(time.Hour * time.Duration(h.config.Agent.ClaimTokenExpirationHours))
 
 	// Upsert agent claim (idempotent)
 	_, err = q.UpsertAgentClaim(ctx, queries.UpsertAgentClaimParams{
