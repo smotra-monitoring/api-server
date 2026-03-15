@@ -138,8 +138,7 @@ func (q *Queries) ListUsersByTenant(ctx context.Context, tenantID string) ([]Use
 
 const updateUserDisplayName = `-- name: UpdateUserDisplayName :exec
 UPDATE users
-SET display_name = ?,
-    updated_at = datetime('now')
+SET display_name = ?
 WHERE id = ?
 `
 
