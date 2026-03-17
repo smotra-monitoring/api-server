@@ -238,6 +238,18 @@ func newClaimStatus200Response(status interface{}) (api.GetAgentClaimStatusRespo
 	return &claimStatusResponse{data: jsonData}, nil
 }
 
+// TODO: replace below to generated type and generated implementation
+// type GetAgentClaimStatus200JSONResponse struct {
+// 	union json.RawMessage
+// }
+
+// func (response GetAgentClaimStatus200JSONResponse) VisitGetAgentClaimStatusResponse(w http.ResponseWriter) error {
+// 	w.Header().Set("Content-Type", "application/json")
+// 	w.WriteHeader(200)
+
+// 	return json.NewEncoder(w).Encode(response.union)
+// }
+
 // claimStatusResponse implements GetAgentClaimStatusResponseObject
 type claimStatusResponse struct {
 	data json.RawMessage

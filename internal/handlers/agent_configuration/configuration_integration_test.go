@@ -2,12 +2,10 @@ package agent_configuration
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -47,21 +45,6 @@ func setupTestRouter(handler *Handler) *chi.Mux {
 	return r
 }
 
-func applySchema(t *testing.T, ctx context.Context, db *sql.DB) {
-	t.Helper()
-
-	// Apply schema
-	schemaSQL, err := os.ReadFile("../../../data/db/dev/migrations/0001_schema.up.sql")
-	if err != nil {
-		t.Fatalf("Failed to read schema file: %v", err)
-	}
-
-	_, err = db.ExecContext(ctx, string(schemaSQL))
-	if err != nil {
-		t.Fatalf("Failed to apply schema: %v", err)
-	}
-}
-
 func TestGetAgentConfiguration_Integration(t *testing.T) {
 	log := logger.Default()
 
@@ -71,7 +54,7 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	// Apply schema manually (read from migration file)
-	applySchema(t, ctx, db.DB())
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db, "1.0.0")
 
