@@ -1,12 +1,14 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/smotra-monitoring/server/internal/database"
+	"gopkg.in/yaml.v3"
 )
 
 func TestLoadAndValidate_ValidYAML(t *testing.T) {
@@ -14,28 +16,26 @@ func TestLoadAndValidate_ValidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	configFile := filepath.Join(tmpDir, "config.yaml")
 
-	yamlContent := `
-server:
-    host: 127.0.0.1
-    port: 9090
-    read_timeout: 10s
-    write_timeout: 10s
-    idle_timeout: 60s
-    shutdown_timeout: 20s
-    environment: test
-database_type: sqlite
-sqlite_config:
-    filepath: /tmp/test.db
-logging:
-    level: debug
-    format: json
-auth:
-    jwt_secret: test-secret
-    jwt_expiration: 1h
-agent:
-    claim_token_expiration_hours: 24
-    server_url: https://test.example.com
-`
+	defaultConfig := Default()
+	defaultConfig.Server.Host = "127.0.0.1"
+	defaultConfig.Server.Port = 9090
+	defaultConfig.DatabaseType = "sqlite"
+	defaultConfig.SQLiteConfig = &database.SQLiteConfig{
+		FilePath: "/tmp/test.db",
+		Config: database.Config{
+			Type:            "sqlite",
+			MaxOpenConns:    1,
+			MaxIdleConns:    1,
+			ConnMaxLifetime: 0,
+			ConnMaxIdleTime: 0,
+		},
+	}
+	defaultConfig.Logging.Level = "debug"
+
+	yamlContent, err := yaml.Marshal(defaultConfig)
+	if err != nil {
+		t.Fatalf("Failed to marshal config to YAML: %v", err)
+	}
 
 	if err := os.WriteFile(configFile, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
@@ -71,42 +71,22 @@ func TestLoadAndValidate_ValidJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	configFile := filepath.Join(tmpDir, "config.json")
 
-	jsonContent := `{
-  "server": {
-    "host": "0.0.0.0",
-    "port": 8080,
-    "read_timeout": 15000000000,
-    "write_timeout": 15000000000,
-    "idle_timeout": 120000000000,
-    "shutdown_timeout": 30000000000,
-    "environment": "production"
-  },
-  "database_type": "postgres",
-  "postgres_config": {
-    "host": "db.example.com",
-    "port": 5432,
-    "username": "testuser",
-    "password": "testpass",
-    "database": "testdb",
-    "sslmode": "require",
-    "max_open_conns": 25,
-    "max_idle_conns": 5,
-    "conn_max_lifetime": 900000000000,
-    "conn_max_idle_time": 300000000000
-  },
-  "logging": {
-    "level": "info",
-    "format": "json"
-  },
-  "auth": {
-    "jwt_secret": "super-secret",
-    "jwt_expiration": 86400000000000
-  },
-  "agent": {
-    "claim_token_expiration_hours": 24,
-    "server_url": "https://test.example.com"
-  }
-}`
+	defaultConfig := Default()
+	defaultConfig.Server.Port = 8080
+	defaultConfig.DatabaseType = "postgres"
+	defaultConfig.PostgresConfig = &database.PostgresConfig{
+		Host:     "db.example.com",
+		Port:     5432,
+		Username: "testuser",
+		Password: "testpass",
+		Database: "testdb",
+		SSLMode:  "require",
+	}
+
+	jsonContent, err := json.Marshal(defaultConfig)
+	if err != nil {
+		t.Fatalf("Failed to marshal config to JSON: %v", err)
+	}
 
 	if err := os.WriteFile(configFile, []byte(jsonContent), 0644); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
