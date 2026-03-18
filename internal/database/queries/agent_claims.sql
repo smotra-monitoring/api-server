@@ -28,6 +28,11 @@ RETURNING id;
 SELECT * FROM agent_claims
 WHERE id = ? LIMIT 1;
 
+-- name: IncrementAgentClaimPollCount :exec
+UPDATE agent_claims
+SET poll_count = poll_count + 1
+WHERE id = ?;
+
 -- name: GetAgentClaimForClaiming :one
 -- Used when user attempts to claim an agent
 SELECT * FROM agent_claims

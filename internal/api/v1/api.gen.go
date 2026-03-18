@@ -143,6 +143,9 @@ type ClaimStatusPending struct {
 	// ExpiresAt When the claim token expires (RFC3339)
 	ExpiresAt time.Time `json:"expiresAt"`
 
+	// PollIn Seconds until next poll (server-controlled backoff)
+	PollIn int32 `json:"pollIn"`
+
 	// Status Pending claim status
 	Status ClaimStatusPendingEnum `json:"status"`
 }

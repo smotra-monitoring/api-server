@@ -28,6 +28,7 @@ type AgentClaim struct {
 	Hostname            string
 	AgentVersion        string
 	ClaimTokenExpiresAt time.Time
+	PollCount           int64
 	LastSeenAt          time.Time
 	CreatedAt           time.Time
 	ClaimedAt           sql.NullTime

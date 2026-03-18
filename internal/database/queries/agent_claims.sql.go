@@ -66,7 +66,7 @@ func (q *Queries) CreateAgentClaim(ctx context.Context, arg CreateAgentClaimPara
 }
 
 const getAgentClaim = `-- name: GetAgentClaim :one
-SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
+SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
 WHERE id = ? LIMIT 1
 `
 
@@ -79,6 +79,7 @@ func (q *Queries) GetAgentClaim(ctx context.Context, id string) (AgentClaim, err
 		&i.Hostname,
 		&i.AgentVersion,
 		&i.ClaimTokenExpiresAt,
+		&i.PollCount,
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.ClaimedAt,
@@ -90,7 +91,7 @@ func (q *Queries) GetAgentClaim(ctx context.Context, id string) (AgentClaim, err
 }
 
 const getAgentClaimForClaiming = `-- name: GetAgentClaimForClaiming :one
-SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
+SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
 WHERE id = ?
   AND claim_token_hash = ?
   AND claim_token_expires_at > datetime('now')
@@ -113,6 +114,7 @@ func (q *Queries) GetAgentClaimForClaiming(ctx context.Context, arg GetAgentClai
 		&i.Hostname,
 		&i.AgentVersion,
 		&i.ClaimTokenExpiresAt,
+		&i.PollCount,
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.ClaimedAt,
@@ -150,8 +152,19 @@ func (q *Queries) GetPendingAPIKeyDelivery(ctx context.Context, id string) (GetP
 	return i, err
 }
 
+const incrementAgentClaimPollCount = `-- name: IncrementAgentClaimPollCount :exec
+UPDATE agent_claims
+SET poll_count = poll_count + 1
+WHERE id = ?
+`
+
+func (q *Queries) IncrementAgentClaimPollCount(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, incrementAgentClaimPollCount, id)
+	return err
+}
+
 const listPendingDeliveries = `-- name: ListPendingDeliveries :many
-SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
+SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
 WHERE claimed_at IS NOT NULL
   AND api_key_delivered = 0
 ORDER BY claimed_at ASC
@@ -172,6 +185,7 @@ func (q *Queries) ListPendingDeliveries(ctx context.Context) ([]AgentClaim, erro
 			&i.Hostname,
 			&i.AgentVersion,
 			&i.ClaimTokenExpiresAt,
+			&i.PollCount,
 			&i.LastSeenAt,
 			&i.CreatedAt,
 			&i.ClaimedAt,
@@ -194,7 +208,7 @@ func (q *Queries) ListPendingDeliveries(ctx context.Context) ([]AgentClaim, erro
 
 const listUnclaimedAgents = `-- name: ListUnclaimedAgents :many
 
-SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
+SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
 WHERE claimed_at IS NULL
   AND claim_token_expires_at > datetime('now')
 ORDER BY created_at DESC
@@ -216,6 +230,7 @@ func (q *Queries) ListUnclaimedAgents(ctx context.Context) ([]AgentClaim, error)
 			&i.Hostname,
 			&i.AgentVersion,
 			&i.ClaimTokenExpiresAt,
+			&i.PollCount,
 			&i.LastSeenAt,
 			&i.CreatedAt,
 			&i.ClaimedAt,

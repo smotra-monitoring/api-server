@@ -24,3 +24,6 @@ auth:
 agent:
     claim_token_expiration_hours: 24
     server_url: https://smotra.net
+    claim_poll_initial_interval_secs: 5
+    claim_poll_increment_secs: 5
+    claim_poll_max_interval_secs: 30

@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -69,28 +67,13 @@ func setupTestRouter(handler *Handler) *chi.Mux {
 	return r
 }
 
-func applySchema(t *testing.T, ctx context.Context, db *sql.DB) {
-	t.Helper()
-
-	// Apply schema
-	schemaSQL, err := os.ReadFile("../../../data/db/dev/migrations/0001_schema.up.sql")
-	if err != nil {
-		t.Fatalf("Failed to read schema file: %v", err)
-	}
-
-	_, err = db.ExecContext(ctx, string(schemaSQL))
-	if err != nil {
-		t.Fatalf("Failed to apply schema: %v", err)
-	}
-}
-
 func TestClaimAgent_Integration_Success(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
 	ctx := context.Background()
 
 	q := queries.New(db.DB())
-	applySchema(t, ctx, db.DB())
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db)
 	router := setupTestRouter(handler)
@@ -197,7 +180,7 @@ func TestClaimAgent_Integration_InvalidToken(t *testing.T) {
 	ctx := context.Background()
 
 	q := queries.New(db.DB())
-	applySchema(t, ctx, db.DB())
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db)
 	router := setupTestRouter(handler)
@@ -270,7 +253,7 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 	ctx := context.Background()
 
 	q := queries.New(db.DB())
-	applySchema(t, ctx, db.DB())
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db)
 	router := setupTestRouter(handler)
@@ -369,7 +352,7 @@ func TestClaimAgent_Integration_NotFound(t *testing.T) {
 	db := testutil.SetupTestSQLiteDB(t)
 	ctx := context.Background()
 
-	applySchema(t, ctx, db.DB())
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db)
 	router := setupTestRouter(handler)
@@ -416,7 +399,7 @@ func TestClaimAgent_Integration_UsesHostnameWhenNameNotProvided(t *testing.T) {
 	ctx := context.Background()
 
 	q := queries.New(db.DB())
-	applySchema(t, ctx, db.DB())
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db)
 	router := setupTestRouter(handler)

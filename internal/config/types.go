@@ -46,6 +46,11 @@ type AuthConfig struct {
 type AgentConfig struct {
 	ClaimTokenExpirationHours int    `json:"claim_token_expiration_hours" yaml:"claim_token_expiration_hours"`
 	ServerURL                 string `json:"server_url" yaml:"server_url"`
+
+	// Claim status polling configuration (linear backoff)
+	ClaimPollInitialIntervalSecs int `json:"claim_poll_initial_interval_secs" yaml:"claim_poll_initial_interval_secs"`
+	ClaimPollIncrementSecs       int `json:"claim_poll_increment_secs" yaml:"claim_poll_increment_secs"`
+	ClaimPollMaxIntervalSecs     int `json:"claim_poll_max_interval_secs" yaml:"claim_poll_max_interval_secs"`
 }
 
 // Validate validates the configuration
@@ -108,6 +113,17 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("agent server URL is required")
 	}
 
+	// Polling configuration validation
+	if c.Agent.ClaimPollInitialIntervalSecs < 1 {
+		return fmt.Errorf("claim poll initial interval must be at least 1 second, got %d", c.Agent.ClaimPollInitialIntervalSecs)
+	}
+	if c.Agent.ClaimPollIncrementSecs < 1 {
+		return fmt.Errorf("claim poll increment must be at least 1 second, got %d", c.Agent.ClaimPollIncrementSecs)
+	}
+	if c.Agent.ClaimPollMaxIntervalSecs < c.Agent.ClaimPollInitialIntervalSecs {
+		return fmt.Errorf("claim poll max interval (%d) must be >= initial interval (%d)", c.Agent.ClaimPollMaxIntervalSecs, c.Agent.ClaimPollInitialIntervalSecs)
+	}
+
 	return nil
 }
 
@@ -155,7 +171,10 @@ func DefaultAuthConfig() AuthConfig {
 
 func DefaultAgentConfig() AgentConfig {
 	return AgentConfig{
-		ClaimTokenExpirationHours: 24,
-		ServerURL:                 "https://smotra.net",
+		ClaimTokenExpirationHours:    24,
+		ServerURL:                    "https://www.smotra.net",
+		ClaimPollInitialIntervalSecs: 5,  // Start at 5 seconds
+		ClaimPollIncrementSecs:       5,  // Increase by 5 seconds each attempt
+		ClaimPollMaxIntervalSecs:     30, // Cap at 30 seconds
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	api "github.com/smotra-monitoring/server/internal/api/v1"
+	"github.com/smotra-monitoring/server/internal/config"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/database/queries"
 	"github.com/smotra-monitoring/server/internal/logger"
@@ -19,6 +20,7 @@ import (
 type Handler struct {
 	logger *logger.Logger
 	db     database.Database
+	config *config.Config
 
 	// Metrics
 	pollAttemptsTotal         atomic.Uint64
@@ -30,10 +32,11 @@ type Handler struct {
 }
 
 // NewHandler creates a new agent claim status handler
-func NewHandler(logger *logger.Logger, db database.Database) *Handler {
+func NewHandler(logger *logger.Logger, db database.Database, cfg *config.Config) *Handler {
 	return &Handler{
 		logger: logger.WithComponent("agent_claim_status"),
 		db:     db,
+		config: cfg,
 	}
 }
 
@@ -45,11 +48,41 @@ func (h *Handler) Handle(ctx context.Context, req api.GetAgentClaimStatusRequest
 
 	agentIDStr := req.AgentId.String()
 
-	// Get agent claim
+	// Get agent claim FIRST (before incrementing poll count)
 	claim, err := q.GetAgentClaim(ctx, agentIDStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			h.pollNotFoundTotal.Add(1)
+			return api.GetAgentClaimStatus404JSONResponse(api.Error{
+				Error:   "not_found",
+				Message: "Agent registration not found or has expired",
+			}), nil
+		}
+
+		h.logger.ErrorContext(ctx, "Failed to get agent claim",
+			slog.String("agentId", agentIDStr),
+			slog.String("error", err.Error()),
+		)
+		h.pollFailedTotal.Add(1)
+
+		return api.GetAgentClaimStatus500JSONResponse{
+			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
+				Error:   "internal_error",
+				Message: "Failed to retrieve claim status",
+			},
+		}, nil
+	}
+
+	// Increment poll count for next time (after we've used the current value)
+	err = q.IncrementAgentClaimPollCount(ctx, agentIDStr)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			h.logger.WarnContext(ctx, "Failed to increment poll count, claim not found (might have been claimed or expired)",
+				slog.String("agentId", agentIDStr),
+				slog.String("error", err.Error()),
+			)
+			h.pollNotFoundTotal.Add(1)
+
 			return api.GetAgentClaimStatus404JSONResponse(api.Error{
 				Error:   "not_found",
 				Message: "Agent registration not found or has expired",
@@ -76,7 +109,9 @@ func (h *Handler) Handle(ctx context.Context, req api.GetAgentClaimStatusRequest
 		h.pollPendingTotal.Add(1)
 
 		pending := api.ClaimStatusPending{
-			Status: "pending_claim",
+			Status:    "pending_claim",
+			ExpiresAt: claim.ClaimTokenExpiresAt,
+			PollIn:    h.calculatePollIn(claim.PollCount),
 		}
 
 		return newClaimStatus200Response(pending)
@@ -92,7 +127,9 @@ func (h *Handler) Handle(ctx context.Context, req api.GetAgentClaimStatusRequest
 		// API key already delivered, return pending status
 		// (agent should stop polling after receiving the key once)
 		pending := api.ClaimStatusPending{
-			Status: "pending_claim",
+			Status:    "pending_claim",
+			ExpiresAt: claim.ClaimTokenExpiresAt,
+			PollIn:    h.calculatePollIn(claim.PollCount),
 		}
 		return newClaimStatus200Response(pending)
 	}
@@ -168,6 +205,22 @@ func (h *Handler) Handle(ctx context.Context, req api.GetAgentClaimStatusRequest
 	return newClaimStatus200Response(claimed)
 }
 
+// calculatePollIn calculates the polling interval using linear backoff
+// Formula: min(initial + (count × increment), max)
+func (h *Handler) calculatePollIn(pollCount int64) int32 {
+	cfg := h.config.Agent
+
+	// Linear backoff: start + (count × increment)
+	interval := cfg.ClaimPollInitialIntervalSecs + (int(pollCount) * cfg.ClaimPollIncrementSecs)
+
+	// Cap at maximum
+	if interval > cfg.ClaimPollMaxIntervalSecs {
+		interval = cfg.ClaimPollMaxIntervalSecs
+	}
+
+	return int32(interval)
+}
+
 // newClaimStatus200Response creates a GetAgentClaimStatus200JSONResponse from either
 // ClaimStatusPending or ClaimStatusClaimed by marshaling to JSON
 func newClaimStatus200Response(status interface{}) (api.GetAgentClaimStatusResponseObject, error) {
@@ -184,6 +237,18 @@ func newClaimStatus200Response(status interface{}) (api.GetAgentClaimStatusRespo
 	// Return the custom response wrapper that implements the interface
 	return &claimStatusResponse{data: jsonData}, nil
 }
+
+// TODO: replace below to generated type and generated implementation
+// type GetAgentClaimStatus200JSONResponse struct {
+// 	union json.RawMessage
+// }
+
+// func (response GetAgentClaimStatus200JSONResponse) VisitGetAgentClaimStatusResponse(w http.ResponseWriter) error {
+// 	w.Header().Set("Content-Type", "application/json")
+// 	w.WriteHeader(200)
+
+// 	return json.NewEncoder(w).Encode(response.union)
+// }
 
 // claimStatusResponse implements GetAgentClaimStatusResponseObject
 type claimStatusResponse struct {

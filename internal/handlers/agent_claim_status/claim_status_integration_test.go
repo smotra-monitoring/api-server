@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -50,29 +49,15 @@ func setupTestRouter(handler *Handler) *chi.Mux {
 	return r
 }
 
-func applySchema(t *testing.T, ctx context.Context, db *sql.DB) {
-	t.Helper()
-
-	// Apply schema
-	schemaSQL, err := os.ReadFile("../../../data/db/dev/migrations/0001_schema.up.sql")
-	if err != nil {
-		t.Fatalf("Failed to read schema file: %v", err)
-	}
-
-	_, err = db.ExecContext(ctx, string(schemaSQL))
-	if err != nil {
-		t.Fatalf("Failed to apply schema: %v", err)
-	}
-}
-
 func TestGetAgentClaimStatus_Integration_NotFound(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
 	ctx := context.Background()
+	cfg := testutil.DefaultTestConfig()
 
-	applySchema(t, ctx, db.DB())
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
-	handler := NewHandler(log, db)
+	handler := NewHandler(log, db, cfg)
 	router := setupTestRouter(handler)
 
 	agentID := uuid.Must(uuid.NewV7())
@@ -90,11 +75,12 @@ func TestGetAgentClaimStatus_Integration_PendingClaim(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
 	ctx := context.Background()
+	cfg := testutil.DefaultTestConfig()
 
 	q := queries.New(db.DB())
-	applySchema(t, ctx, db.DB())
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
-	handler := NewHandler(log, db)
+	handler := NewHandler(log, db, cfg)
 	router := setupTestRouter(handler)
 
 	// Create unclaimed agent
@@ -137,17 +123,63 @@ func TestGetAgentClaimStatus_Integration_PendingClaim(t *testing.T) {
 	if _, ok := response["api_key"]; ok {
 		t.Error("Expected no api_key in pending response")
 	}
+
+	// Verify expiresAt field is present
+	if expiresAtStr, ok := response["expiresAt"].(string); !ok || expiresAtStr == "" {
+		t.Errorf("Expected expiresAt to be present, got %v", response["expiresAt"])
+	} else {
+		// Parse the time to verify it's valid RFC3339
+		parsedTime, err := time.Parse(time.RFC3339, expiresAtStr)
+		if err != nil {
+			t.Errorf("expiresAt is not valid RFC3339: %v", err)
+		}
+
+		// Verify the time is in the future (within reasonable bounds)
+		timeDiff := parsedTime.Sub(expiresAt)
+		if timeDiff > time.Second || timeDiff < -time.Second {
+			t.Errorf("expiresAt time mismatch: expected %v, got %v (diff: %v)", expiresAt, parsedTime, timeDiff)
+		}
+	}
+
+	// Verify pollIn field is present (first poll should be initial interval: 5s)
+	if pollIn, ok := response["pollIn"].(float64); !ok {
+		t.Errorf("Expected pollIn to be present as number, got %v (type %T)", response["pollIn"], response["pollIn"])
+	} else if int(pollIn) != 5 {
+		t.Errorf("Expected pollIn to be 5 (initial interval), got %v", pollIn)
+	}
+
+	// Make a second poll to verify backoff increments
+	req2 := httptest.NewRequest(http.MethodGet, "/agent/"+agentID.String()+"/claim-status", nil)
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("Second poll: Expected status 200, got %d. Body: %s", w2.Code, w2.Body.String())
+	}
+
+	var response2 map[string]interface{}
+	if err := json.Unmarshal(w2.Body.Bytes(), &response2); err != nil {
+		t.Fatalf("Failed to unmarshal second poll response: %v", err)
+	}
+
+	// Second poll should increment (5 + 1×5 = 10)
+	if pollIn2, ok := response2["pollIn"].(float64); !ok {
+		t.Errorf("Second poll: Expected pollIn to be present as number, got %v", response2["pollIn"])
+	} else if int(pollIn2) != 10 {
+		t.Errorf("Second poll: Expected pollIn to be 10 (5 + 1×5), got %v", pollIn2)
+	}
 }
 
 func TestGetAgentClaimStatus_Integration_AlreadyDelivered1(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
 	ctx := context.Background()
+	cfg := testutil.DefaultTestConfig()
 
 	q := queries.New(db.DB())
-	applySchema(t, ctx, db.DB())
+		testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
-	handler := NewHandler(log, db)
+	handler := NewHandler(log, db, cfg)
 	router := setupTestRouter(handler)
 
 	// Create tenant and user
@@ -255,11 +287,12 @@ func TestGetAgentClaimStatus_Integration_AlreadyDelivered2(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
 	ctx := context.Background()
+	cfg := testutil.DefaultTestConfig()
 
 	q := queries.New(db.DB())
-	applySchema(t, ctx, db.DB())
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
-	handler := NewHandler(log, db)
+	handler := NewHandler(log, db, cfg)
 	router := setupTestRouter(handler)
 
 	// Create tenant and user

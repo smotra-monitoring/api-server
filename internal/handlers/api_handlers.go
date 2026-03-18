@@ -46,7 +46,7 @@ type APIHandler struct {
 func NewAPIHandler(logger *logger.Logger, db database.Database, cfg *config.Config, appVersion string, metricsHandler *metrics.Handler) *APIHandler {
 	configHandler := agent_configuration.NewHandler(logger, db, appVersion)
 	registerHandler := agent_register.NewHandler(logger, db, cfg)
-	claimStatusHandler := agent_claim_status.NewHandler(logger, db)
+	claimStatusHandler := agent_claim_status.NewHandler(logger, db, cfg)
 	claimHandler := agent_claim.NewHandler(logger, db)
 
 	// Register handlers as metrics providers
