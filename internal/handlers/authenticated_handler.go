@@ -41,8 +41,8 @@ func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, reques
 		}, nil
 	}
 
-	info, ok := authInfo.(*middleware.AuthInfo)
-	if !ok || !info.Authenticated {
+	ctxInfo, ok := authInfo.(*middleware.AuthInfo)
+	if !ok || !ctxInfo.Authenticated {
 		h.logger.Warn("Invalid authentication for agent configuration endpoint", "agent", request.AgentId.String())
 		return api.GetAgentConfiguration401JSONResponse{
 			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
@@ -53,11 +53,11 @@ func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, reques
 	}
 
 	// Verify that the authenticated agent matches the requested agent
-	agentID := request.AgentId.String()
-	if info.AgentID != agentID {
+	reqAgentID := request.AgentId.String()
+	if ctxInfo.AgentID != reqAgentID {
 		h.logger.Warn("Agent ID mismatch in authentication",
-			"authenticated_agent", info.AgentID,
-			"requested_agent", agentID,
+			"authenticated_agent", ctxInfo.AgentID,
+			"requested_agent", reqAgentID,
 		)
 		return api.GetAgentConfiguration503JSONResponse{
 			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{

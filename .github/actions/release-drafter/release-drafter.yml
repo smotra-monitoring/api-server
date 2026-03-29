@@ -63,6 +63,7 @@ autolabeler:
   - label: 'code refinement'
     title:
       - '/refine/i'
+      - '/code improvement/i'
       - '/clean/i'
   - label: 'performance'
     title:
