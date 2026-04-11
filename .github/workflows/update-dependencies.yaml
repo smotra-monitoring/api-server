@@ -99,4 +99,4 @@ jobs:
             \`\`\`diff
             ${{ env.UPDATE_REPORT }}
             \`\`\`" \
-            --label "bug,automated-issue,dependencies"
+            --label "github-actions"
