@@ -44,6 +44,19 @@ jobs:
         id: test
         run: go test ./...
 
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          labels=("dependencies" "github-actions")
+          for label in "${labels[@]}"; do
+            if ! gh label list --search "$label" | grep -q "$label"; then
+              echo "Creating missing label: $label"
+              # You can customize the color and description here
+              gh label create "$label" --color "ededed" --description "Automated maintenance label" || true
+            fi
+          done
+
       - name: Create Pull Request on Success
         if: success()
         env:
@@ -88,7 +101,7 @@ jobs:
             --title "📦 Update Go Dependencies ($(date +'%b %Y'))" \
             --body "$PR_BODY" \
             --head auto-update-deps \
-            --label "dependencies" || echo "PR already exists, updated via force-push."
+            --label "dependencies,github-actions" || echo "PR already exists, updated via force-push."
 
       - name: Create Issue on Failure
         if: failure() && steps.test.outcome == 'failure'
@@ -101,4 +114,4 @@ jobs:
             \`\`\`diff
             ${{ env.UPDATE_REPORT }}
             \`\`\`" \
-            --label "github-actions"
+            --label "dependencies,github-actions"
