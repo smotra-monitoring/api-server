@@ -136,8 +136,8 @@ func (h *Handler) Handle(ctx context.Context, req api.SubmitAgentResultsRequestO
 			)
 			return api.SubmitAgentResults503JSONResponse{
 				InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
-					Error:   "database_error",
-					Message: "Failed to store result",
+					Error:   "check type error",
+					Message: "Unrecognised check type",
 				},
 			}, nil
 		}
@@ -216,7 +216,7 @@ func (h *Handler) Handle(ctx context.Context, req api.SubmitAgentResultsRequestO
 	h.resultsDuplicates.Add(uint64(duplicates))
 	h.submissionSuccessTotal.Add(1)
 
-	h.logger.InfoContext(ctx, "Batch submission processed",
+	h.logger.DebugContext(ctx, "Batch submission processed",
 		slog.String("agent_id", urlAgentID),
 		slog.String("submission_id", submissionID.String()),
 		slog.Int("total", len(req.Body.Results)),
@@ -224,11 +224,10 @@ func (h *Handler) Handle(ctx context.Context, req api.SubmitAgentResultsRequestO
 		slog.Int("duplicates", duplicates),
 	)
 
-	duplicatesPtr := &duplicates
 	return api.SubmitAgentResults202JSONResponse(api.ResultsBatchAcknowledgment{
 		SubmissionId:      submissionID,
 		Accepted:          accepted,
-		DuplicatesSkipped: duplicatesPtr,
+		DuplicatesSkipped: &duplicates,
 		ReceivedAt:        receivedAt,
 	}), nil
 }
@@ -285,7 +284,7 @@ func extractCheckInfo(result api.MonitoringResult) (checkType string, success bo
 // insertTypeSpecificResult inserts the per-type child row into the appropriate table.
 // Returns (success bool, checkType string, error). On an unrecognised union variant
 // it returns an error and the caller returns 503 to the agent.
-func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queries, checkID string, result api.MonitoringResult) (success bool, checkType string, err error) {
+func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queries, resultID string, result api.MonitoringResult) (success bool, checkType string, err error) {
 	disc, discErr := result.CheckType.Discriminator()
 	if discErr != nil {
 		return false, "unknown", fmt.Errorf("could not determine check type: %w", discErr)
@@ -305,7 +304,7 @@ func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queri
 			errorsJSON = sql.NullString{String: string(b), Valid: true}
 		}
 		err = q.InsertPingCheckResult(ctx, queries.InsertPingCheckResultParams{
-			CheckID:    checkID,
+			CheckID:    resultID,
 			ResolvedIp: ping.Result.ResolvedIp,
 			Successes:  int64(ping.Result.Successes),
 			Failures:   int64(ping.Result.Failures),
@@ -326,7 +325,7 @@ func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queri
 		checkType = "httpget"
 		success = httpGet.Result.Success
 		err = q.InsertHttpGetCheckResult(ctx, queries.InsertHttpGetCheckResultParams{
-			CheckID:    checkID,
+			CheckID:    resultID,
 			StatusCode: int64(httpGet.Result.StatusCode),
 			ResponseTimeMs: sql.NullFloat64{
 				Float64: ptrFloat64Val(httpGet.Result.ResponseTimeMs),
@@ -351,7 +350,7 @@ func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queri
 		checkType = "tcpconnect"
 		success = tcp.Result.Connected
 		err = q.InsertTcpConnectCheckResult(ctx, queries.InsertTcpConnectCheckResultParams{
-			CheckID:    checkID,
+			CheckID:    resultID,
 			ResolvedIp: tcp.Result.ResolvedIp,
 			Connected:  boolToInt64(tcp.Result.Connected),
 			ConnectTimeMs: sql.NullFloat64{
@@ -373,7 +372,7 @@ func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queri
 		checkType = "udpconnect"
 		success = udp.Result.ProbeSuccessful
 		err = q.InsertUdpConnectCheckResult(ctx, queries.InsertUdpConnectCheckResultParams{
-			CheckID:         checkID,
+			CheckID:         resultID,
 			ResolvedIp:      udp.Result.ResolvedIp,
 			ProbeSuccessful: boolToInt64(udp.Result.ProbeSuccessful),
 			ResponseTimeMs: sql.NullFloat64{
@@ -400,7 +399,7 @@ func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queri
 			trErrorsJSON = sql.NullString{String: string(b), Valid: true}
 		}
 		err = q.InsertTracerouteCheckResult(ctx, queries.InsertTracerouteCheckResultParams{
-			CheckID:       checkID,
+			CheckID:       resultID,
 			TargetReached: boolToInt64(tr.Result.TargetReached),
 			TotalTimeMs: sql.NullFloat64{
 				Float64: ptrFloat64Val(tr.Result.TotalTimeMs),
@@ -415,7 +414,7 @@ func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queri
 			hopID := uuid.Must(uuid.NewV7())
 			if err = q.InsertTracerouteHop(ctx, queries.InsertTracerouteHopParams{
 				ID:      hopID.String(),
-				CheckID: checkID,
+				CheckID: resultID,
 				Hop:     int64(hop.Hop),
 				Address: sql.NullString{
 					String: ptrStringVal(hop.Address),
@@ -444,7 +443,7 @@ func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queri
 		success = plugin.Result.Success
 		dataJSON, _ := json.Marshal(plugin.Result.Data)
 		err = q.InsertPluginCheckResult(ctx, queries.InsertPluginCheckResultParams{
-			CheckID:       checkID,
+			CheckID:       resultID,
 			PluginName:    plugin.Result.PluginName,
 			PluginVersion: plugin.Result.PluginVersion,
 			Success:       boolToInt64(plugin.Result.Success),
@@ -461,7 +460,7 @@ func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queri
 		return
 
 	default:
-		return false, "unknown", fmt.Errorf("unrecognised check type %q in result %s", disc, checkID)
+		return false, "unknown", fmt.Errorf("unrecognised check type %q in result %s", disc, resultID)
 	}
 }
 

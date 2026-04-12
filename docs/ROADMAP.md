@@ -1,12 +1,15 @@
 ## Roadmap
 
 ### Current PR
-- [ ] SQL schema. What is the purpose of target_address and target_port in the check_results table? We can get them from the endpoint FK. If we keep them, we need to make sure they are consistent with the endpoint data. 
+- [ ] SQL schema. What is the purpose of target_address and target_port in the check_results table? We can get them from the endpoint FK. If we keep them, we need to make sure they are consistent with the endpoint data. check_results.endpoint_id is nullable - why ? Explain the reasoning behind this design choice. If endpoint_id wouldn't be nullable, we can remove target_address and target_port fields from check_results table, as they can be obtained from the endpoints table using the endpoint_id foreign key. This would help to reduce data redundancy and ensure data consistency. 
 - [ ] resolved_ip is missed in http_get_check_results. Is this on purpose? If not, we need to add it and make sure it is populated correctly in the code.
 - [ ] resolved_ip renamed to address in tracerout_hops table. We should standardize on one naming convention for this field across all tables to avoid confusion.
-- [ ] Inconsistency in errors_json vs error field in check results tables. We should standardize on one approach for storing error information. Is it a good idea to encode field type into field name? 
+- [ ] Inconsistency in errors_json vs error field in check results tables. We should standardize on one approach for storing error information. Is it a good idea to encode field type into field name? Though in Plugin there is field data_json. So maybe we can have errors_json in all tables for consistency, even if it is just a JSON object with a single "error" field for now. This will allow for more flexibility in the future if we want to add additional error details without changing the schema again. 
 - [ ] Replace `UPDATE agents SET last_seen_at = ? WHERE id = ?;` in agent.sql (lines 44-45) with DB-trigger. This will ensure that last_seen_at is always updated whenever an agent interacts with the database, without relying on application code to do it correctly. This trigger should be used when agent submits results, but also when it fetches its configuration.  
-- [ ] Endpoint could be monitoring multiple ports on the same address. In this case, we need to add port field to the `endpoints.sql` query `SELECT id FROM endpoints WHERE agent_id = ? AND address = ? LIMIT 1;` and make sure it is populated correctly in the code. 
+- [ ] Endpoint could be monitoring multiple ports on the same address (for example: HTTP and HTTPS). In this case, we need to add port field to the `endpoints.sql` query `SELECT id FROM endpoints WHERE agent_id = ? AND address = ? LIMIT 1;` and make sure it is populated correctly in the code. 
+- [ ] Add performance benchmarks on submit_results handler to identify potential bottlenecks and optimize database interactions. This will help ensure that the system can handle high volumes of monitoring data efficiently.
+- [ ] Make duplicates_skipped in OpenAPI spec required. This will ensure that the client is aware of how many duplicate results were skipped during submission, which can be useful for monitoring and debugging purposes. Regenerate OpenAPI spec and update copilot-instructions.md accordingly.
+
 
 ### Completed
 - [x] SQLite and PostgreSQL database support with interface abstraction
