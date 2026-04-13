@@ -269,11 +269,11 @@ type MonitoringResult struct {
 	AgentId   UUIDv7    `json:"agent_id"`
 	CheckType CheckType `json:"check_type"`
 
+	// EndpointId UUID version 7 as per RFC 4122
+	EndpointId UUIDv7 `json:"endpoint_id"`
+
 	// Id UUID version 7 as per RFC 4122
 	Id UUIDv7 `json:"id"`
-
-	// Target An endpoint to monitor (IP address, hostname, or URL)
-	Target Endpoint `json:"target"`
 
 	// Timestamp Timestamp when the report was generated (RFC3339)
 	Timestamp time.Time `json:"timestamp"`
@@ -452,6 +452,9 @@ type NotImplemented = Error
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
+
+// UnprocessableEntity defines model for UnprocessableEntity.
+type UnprocessableEntity = Error
 
 // PostClaimAgentJSONRequestBody defines body for PostClaimAgent for application/json ContentType.
 type PostClaimAgentJSONRequestBody = ClaimAgentRequest
@@ -998,6 +1001,8 @@ type NotImplementedJSONResponse Error
 
 type UnauthorizedJSONResponse Error
 
+type UnprocessableEntityJSONResponse Error
+
 type PostClaimAgentRequestObject struct {
 	Body *PostClaimAgentJSONRequestBody
 }
@@ -1243,6 +1248,17 @@ type SubmitAgentResults401JSONResponse struct{ UnauthorizedJSONResponse }
 func (response SubmitAgentResults401JSONResponse) VisitSubmitAgentResultsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitAgentResults422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response SubmitAgentResults422JSONResponse) VisitSubmitAgentResultsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
 
 	return json.NewEncoder(w).Encode(response)
 }

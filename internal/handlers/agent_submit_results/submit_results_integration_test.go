@@ -135,11 +135,11 @@ func TestIntegration_PingBatch_Accepted(t *testing.T) {
 	}
 
 	result := api.MonitoringResult{
-		Id:        uuid.Must(uuid.NewV7()),
-		AgentId:   agentID,
-		CheckType: pingCheckType(t, "8.8.8.8", 5, 0),
-		Target:    api.Endpoint{Address: "8.8.8.8", Tags: []string{}},
-		Timestamp: time.Now().UTC(),
+		Id:         uuid.Must(uuid.NewV7()),
+		AgentId:    agentID,
+		CheckType:  pingCheckType(t, "8.8.8.8", 5, 0),
+		EndpointId: uuid.MustParse(endpointID),
+		Timestamp:  time.Now().UTC(),
 	}
 
 	w := postBatch(t, router, agentID, []api.MonitoringResult{result})
@@ -189,11 +189,11 @@ func TestIntegration_Deduplication(t *testing.T) {
 	}
 
 	result := api.MonitoringResult{
-		Id:        uuid.Must(uuid.NewV7()),
-		AgentId:   agentID,
-		CheckType: pingCheckType(t, "1.1.1.1", 3, 1),
-		Target:    api.Endpoint{Address: "1.1.1.1", Tags: []string{}},
-		Timestamp: time.Now().UTC(),
+		Id:         uuid.Must(uuid.NewV7()),
+		AgentId:    agentID,
+		CheckType:  pingCheckType(t, "1.1.1.1", 3, 1),
+		EndpointId: uuid.MustParse(endpointID),
+		Timestamp:  time.Now().UTC(),
 	}
 
 	w1 := postBatch(t, router, agentID, []api.MonitoringResult{result})
@@ -241,11 +241,11 @@ func TestIntegration_UpdatesLastSeenAt(t *testing.T) {
 	start := time.Now().UTC().Add(-time.Second)
 	finish := start.Add(2 * time.Second)
 	result := api.MonitoringResult{
-		Id:        uuid.Must(uuid.NewV7()),
-		AgentId:   agentID,
-		CheckType: pingCheckType(t, "9.9.9.9", 1, 0),
-		Target:    api.Endpoint{Address: "9.9.9.9", Tags: []string{}},
-		Timestamp: time.Now().UTC(),
+		Id:         uuid.Must(uuid.NewV7()),
+		AgentId:    agentID,
+		CheckType:  pingCheckType(t, "9.9.9.9", 1, 0),
+		EndpointId: uuid.MustParse(endpointID),
+		Timestamp:  time.Now().UTC(),
 	}
 
 	w := postBatch(t, router, agentID, []api.MonitoringResult{result})
@@ -267,7 +267,7 @@ func TestIntegration_UpdatesLastSeenAt(t *testing.T) {
 	}
 }
 
-func TestIntegration_EndpointIDResolved(t *testing.T) {
+func TestIntegration_EndpointIDStored(t *testing.T) {
 	db, agentID := setupRealDB(t)
 	ctx := context.Background()
 
@@ -281,11 +281,11 @@ func TestIntegration_EndpointIDResolved(t *testing.T) {
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
 	result := api.MonitoringResult{
-		Id:        uuid.Must(uuid.NewV7()),
-		AgentId:   agentID,
-		CheckType: pingCheckType(t, "10.0.0.1", 2, 0),
-		Target:    api.Endpoint{Address: "10.0.0.1", Tags: []string{}},
-		Timestamp: time.Now().UTC(),
+		Id:         uuid.Must(uuid.NewV7()),
+		AgentId:    agentID,
+		CheckType:  pingCheckType(t, "10.0.0.1", 2, 0),
+		EndpointId: uuid.MustParse(endpointID),
+		Timestamp:  time.Now().UTC(),
 	}
 
 	w := postBatch(t, router, agentID, []api.MonitoringResult{result})
@@ -293,11 +293,11 @@ func TestIntegration_EndpointIDResolved(t *testing.T) {
 		t.Fatalf("expected 202, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resolvedID sql.NullString
+	var storedID string
 	db.DB().QueryRowContext(ctx,
-		`SELECT endpoint_id FROM check_results WHERE id = ?`, result.Id.String()).Scan(&resolvedID)
-	if !resolvedID.Valid || resolvedID.String != endpointID {
-		t.Errorf("expected endpoint_id %q, got %v", endpointID, resolvedID)
+		`SELECT endpoint_id FROM check_results WHERE id = ?`, result.Id.String()).Scan(&storedID)
+	if storedID != endpointID {
+		t.Errorf("expected endpoint_id %q in check_results, got %q", endpointID, storedID)
 	}
 }
 
@@ -305,6 +305,14 @@ func TestIntegration_TracerouteHopsStored(t *testing.T) {
 	db, agentID := setupRealDB(t)
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
+	ctx := context.Background()
+
+	endpointID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx,
+		`INSERT INTO endpoints (id, agent_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		endpointID, agentID.String(), "10.0.0.1"); err != nil {
+		t.Fatalf("insert endpoint: %v", err)
+	}
 
 	hop1addr := "192.168.1.1"
 	hop2addr := "10.0.0.1"
@@ -314,11 +322,11 @@ func TestIntegration_TracerouteHopsStored(t *testing.T) {
 		{Hop: 2, Address: &hop2addr, ResponseTimeMs: &rt2},
 	}
 	result := api.MonitoringResult{
-		Id:        uuid.Must(uuid.NewV7()),
-		AgentId:   agentID,
-		CheckType: tracerouteCheckType(t, hops),
-		Target:    api.Endpoint{Address: "10.0.0.1", Tags: []string{}},
-		Timestamp: time.Now().UTC(),
+		Id:         uuid.Must(uuid.NewV7()),
+		AgentId:    agentID,
+		CheckType:  tracerouteCheckType(t, hops),
+		EndpointId: uuid.MustParse(endpointID),
+		Timestamp:  time.Now().UTC(),
 	}
 
 	w := postBatch(t, router, agentID, []api.MonitoringResult{result})
@@ -370,14 +378,14 @@ func TestIntegration_MixedTypeBatch(t *testing.T) {
 	results := []api.MonitoringResult{
 		{
 			Id: uuid.Must(uuid.NewV7()), AgentId: agentID,
-			CheckType: pingCheckType(t, "8.8.8.8", 3, 0),
-			Target:    api.Endpoint{Address: "8.8.8.8", Tags: []string{}},
-			Timestamp: time.Now().UTC(),
+			CheckType:  pingCheckType(t, "8.8.8.8", 3, 0),
+			EndpointId: uuid.MustParse(endpointID),
+			Timestamp:  time.Now().UTC(),
 		},
 		{
 			Id: uuid.Must(uuid.NewV7()), AgentId: agentID,
-			CheckType: tracerouteCheckType(t, []api.TracerouteHop{{Hop: 1}}),
-			Target:    api.Endpoint{Address: "8.8.8.8", Tags: []string{}},
+			CheckType:  tracerouteCheckType(t, []api.TracerouteHop{{Hop: 1}}),
+			EndpointId: uuid.MustParse(endpointID),
 			Timestamp: time.Now().UTC(),
 		},
 	}
@@ -400,5 +408,67 @@ func TestIntegration_MixedTypeBatch(t *testing.T) {
 		`SELECT COUNT(*) FROM check_results WHERE agent_id = ?`, agentID.String()).Scan(&cnt)
 	if cnt != 2 {
 		t.Errorf("expected 2 rows in check_results, got %d", cnt)
+	}
+}
+
+func TestIntegration_UnknownEndpointID_Returns422(t *testing.T) {
+	db, agentID := setupRealDB(t)
+	h := NewHandler(logger.Default(), db)
+	router := setupTestRouter(h)
+
+	result := api.MonitoringResult{
+		Id:         uuid.Must(uuid.NewV7()),
+		AgentId:    agentID,
+		CheckType:  pingCheckType(t, "1.2.3.4", 1, 0),
+		EndpointId: uuid.Must(uuid.NewV7()), // random UUID — not in DB
+		Timestamp:  time.Now().UTC(),
+	}
+
+	w := postBatch(t, router, agentID, []api.MonitoringResult{result})
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIntegration_WrongAgentEndpointID_Returns422(t *testing.T) {
+	db, agentID := setupRealDB(t)
+	h := NewHandler(logger.Default(), db)
+	router := setupTestRouter(h)
+	ctx := context.Background()
+
+	// Create a second agent, insert an endpoint under it
+	tenantID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO tenants (id, name) VALUES (?, ?)`, tenantID, "Other Tenant"); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	sectionID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)`, sectionID, tenantID, "Other Section"); err != nil {
+		t.Fatalf("insert section: %v", err)
+	}
+	otherAgentID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx,
+		`INSERT INTO agents (id, section_id, name, api_key_hash, base_config) VALUES (?, ?, ?, ?, ?)`,
+		otherAgentID, sectionID, "other-agent", "fakehash2", "{}"); err != nil {
+		t.Fatalf("insert other agent: %v", err)
+	}
+	otherEndpointID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx,
+		`INSERT INTO endpoints (id, agent_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		otherEndpointID, otherAgentID, "9.9.9.9"); err != nil {
+		t.Fatalf("insert other endpoint: %v", err)
+	}
+
+	// Submit with the other agent's endpoint_id — should be rejected
+	result := api.MonitoringResult{
+		Id:         uuid.Must(uuid.NewV7()),
+		AgentId:    agentID,
+		CheckType:  pingCheckType(t, "9.9.9.9", 1, 0),
+		EndpointId: uuid.MustParse(otherEndpointID),
+		Timestamp:  time.Now().UTC(),
+	}
+
+	w := postBatch(t, router, agentID, []api.MonitoringResult{result})
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", w.Code, w.Body.String())
 	}
 }

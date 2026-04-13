@@ -27,22 +27,18 @@ INSERT INTO check_results (
     agent_id,
     endpoint_id,
     check_type,
-    target_address,
-    target_port,
     success,
     checked_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?)
 `
 
 type InsertCheckResultParams struct {
-	ID            string
-	AgentID       string
-	EndpointID    sql.NullString
-	CheckType     string
-	TargetAddress string
-	TargetPort    sql.NullInt64
-	Success       int64
-	CheckedAt     time.Time
+	ID         string
+	AgentID    string
+	EndpointID string
+	CheckType  string
+	Success    int64
+	CheckedAt  time.Time
 }
 
 func (q *Queries) InsertCheckResult(ctx context.Context, arg InsertCheckResultParams) error {
@@ -51,8 +47,6 @@ func (q *Queries) InsertCheckResult(ctx context.Context, arg InsertCheckResultPa
 		arg.AgentID,
 		arg.EndpointID,
 		arg.CheckType,
-		arg.TargetAddress,
-		arg.TargetPort,
 		arg.Success,
 		arg.CheckedAt,
 	)

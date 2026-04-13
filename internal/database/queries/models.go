@@ -43,15 +43,13 @@ type AgentTag struct {
 }
 
 type CheckResult struct {
-	ID            string
-	AgentID       string
-	EndpointID    sql.NullString
-	CheckType     string
-	TargetAddress string
-	TargetPort    sql.NullInt64
-	Success       int64
-	CheckedAt     time.Time
-	ReceivedAt    time.Time
+	ID         string
+	AgentID    string
+	EndpointID string
+	CheckType  string
+	Success    int64
+	CheckedAt  time.Time
+	ReceivedAt time.Time
 }
 
 type Endpoint struct {

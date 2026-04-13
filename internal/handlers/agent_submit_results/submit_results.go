@@ -116,14 +116,38 @@ func (h *Handler) Handle(ctx context.Context, req api.SubmitAgentResultsRequestO
 			}, nil
 		}
 
-		// Resolve endpoint_id by agent + address (nullable FK)
-		var endpointID sql.NullString
-		epID, lookupErr := q.LookupEndpointByAgentAndAddress(ctx, queries.LookupEndpointByAgentAndAddressParams{
+		// Validate endpoint_id: must exist and belong to this agent
+		endpointID := result.EndpointId.String()
+		_, epErr := q.GetEndpointByIDAndAgentID(ctx, queries.GetEndpointByIDAndAgentIDParams{
+			ID:      endpointID,
 			AgentID: urlAgentID,
-			Address: result.Target.Address,
 		})
-		if lookupErr == nil {
-			endpointID = sql.NullString{String: epID, Valid: true}
+		if epErr == sql.ErrNoRows {
+			h.submissionFailureTotal.Add(1)
+			h.logger.WarnContext(ctx, "Batch rejected: unknown or unauthorized endpoint_id",
+				slog.String("check_id", checkID),
+				slog.String("endpoint_id", endpointID),
+				slog.Int("result_index", i),
+			)
+			return api.SubmitAgentResults422JSONResponse{
+				UnprocessableEntityJSONResponse: api.UnprocessableEntityJSONResponse{
+					Error:   "invalid_endpoint_id",
+					Message: fmt.Sprintf("result[%d]: endpoint_id %q does not exist or does not belong to this agent", i, endpointID),
+				},
+			}, nil
+		}
+		if epErr != nil {
+			h.submissionFailureTotal.Add(1)
+			h.logger.ErrorContext(ctx, "Failed to validate endpoint_id",
+				slog.String("check_id", checkID),
+				slog.String("error", epErr.Error()),
+			)
+			return api.SubmitAgentResults503JSONResponse{
+				InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
+					Error:   "database_error",
+					Message: "Failed to process batch",
+				},
+			}, nil
 		}
 
 		// Inspect union type without DB calls; needed before inserting base row
@@ -149,17 +173,12 @@ func (h *Handler) Handle(ctx context.Context, req api.SubmitAgentResultsRequestO
 
 		// Insert the base check_results row FIRST (child rows reference this via FK)
 		if err := q.InsertCheckResult(ctx, queries.InsertCheckResultParams{
-			ID:            checkID,
-			AgentID:       urlAgentID,
-			EndpointID:    endpointID,
-			CheckType:     checkType,
-			TargetAddress: result.Target.Address,
-			TargetPort: sql.NullInt64{
-				Int64: int64(ptrIntVal(result.Target.Port)),
-				Valid: result.Target.Port != nil,
-			},
-			Success:   successInt,
-			CheckedAt: result.Timestamp,
+			ID:         checkID,
+			AgentID:    urlAgentID,
+			EndpointID: endpointID,
+			CheckType:  checkType,
+			Success:    successInt,
+			CheckedAt:  result.Timestamp,
 		}); err != nil {
 			h.submissionFailureTotal.Add(1)
 			h.logger.ErrorContext(ctx, "Failed to insert check result",
@@ -505,13 +524,6 @@ func ptrFloat64Val(p *float64) float64 {
 }
 
 func ptrInt64Val(p *int64) int64 {
-	if p == nil {
-		return 0
-	}
-	return *p
-}
-
-func ptrIntVal(p *int) int {
 	if p == nil {
 		return 0
 	}

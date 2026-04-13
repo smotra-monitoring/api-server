@@ -7,11 +7,9 @@ INSERT INTO check_results (
     agent_id,
     endpoint_id,
     check_type,
-    target_address,
-    target_port,
     success,
     checked_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, ?, ?, ?, ?, ?);
 
 -- name: InsertPingCheckResult :exec
 INSERT INTO ping_check_results (

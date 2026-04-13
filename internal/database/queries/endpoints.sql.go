@@ -9,17 +9,17 @@ import (
 	"context"
 )
 
-const lookupEndpointByAgentAndAddress = `-- name: LookupEndpointByAgentAndAddress :one
-SELECT id FROM endpoints WHERE agent_id = ? AND address = ? LIMIT 1
+const getEndpointByIDAndAgentID = `-- name: GetEndpointByIDAndAgentID :one
+SELECT id FROM endpoints WHERE id = ? AND agent_id = ? LIMIT 1
 `
 
-type LookupEndpointByAgentAndAddressParams struct {
+type GetEndpointByIDAndAgentIDParams struct {
+	ID      string
 	AgentID string
-	Address string
 }
 
-func (q *Queries) LookupEndpointByAgentAndAddress(ctx context.Context, arg LookupEndpointByAgentAndAddressParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, lookupEndpointByAgentAndAddress, arg.AgentID, arg.Address)
+func (q *Queries) GetEndpointByIDAndAgentID(ctx context.Context, arg GetEndpointByIDAndAgentIDParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getEndpointByIDAndAgentID, arg.ID, arg.AgentID)
 	var id string
 	err := row.Scan(&id)
 	return id, err

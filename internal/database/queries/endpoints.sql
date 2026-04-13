@@ -1,2 +1,2 @@
--- name: LookupEndpointByAgentAndAddress :one
-SELECT id FROM endpoints WHERE agent_id = ? AND address = ? LIMIT 1;
+-- name: GetEndpointByIDAndAgentID :one
+SELECT id FROM endpoints WHERE id = ? AND agent_id = ? LIMIT 1;
