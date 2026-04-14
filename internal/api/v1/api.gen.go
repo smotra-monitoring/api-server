@@ -203,8 +203,8 @@ type Endpoint struct {
 	Enabled bool   `json:"enabled"`
 
 	// Id UUID version 7 as per RFC 4122
-	Id   *UUIDv7 `json:"id,omitempty"`
-	Port *int    `json:"port,omitempty"`
+	Id   UUIDv7 `json:"id"`
+	Port *int   `json:"port,omitempty"`
 
 	// Tags Tags associated with the target
 	Tags []string `json:"tags"`

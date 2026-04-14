@@ -63,7 +63,8 @@ func (h *Handler) Handle(ctx context.Context, req api.SubmitAgentResultsRequestO
 
 	urlAgentID := req.AgentId.String()
 
-	// Reject the entire batch if any result's agent_id doesn't match the URL
+	// Pre-validate all results before touching the database.
+	// Both agent_id mismatch and missing endpoint_id are structural (400) errors.
 	for i, result := range req.Body.Results {
 		if result.AgentId.String() != urlAgentID {
 			h.submissionFailureTotal.Add(1)
@@ -76,6 +77,18 @@ func (h *Handler) Handle(ctx context.Context, req api.SubmitAgentResultsRequestO
 				BadRequestJSONResponse: api.BadRequestJSONResponse{
 					Error:   "agent_id_mismatch",
 					Message: fmt.Sprintf("result[%d]: agent_id %q does not match URL agent ID %q", i, result.AgentId.String(), urlAgentID),
+				},
+			}, nil
+		}
+		if result.EndpointId == (uuid.UUID{}) {
+			h.submissionFailureTotal.Add(1)
+			h.logger.WarnContext(ctx, "Batch rejected: missing endpoint_id",
+				slog.Int("result_index", i),
+			)
+			return api.SubmitAgentResults400JSONResponse{
+				BadRequestJSONResponse: api.BadRequestJSONResponse{
+					Error:   "endpoint_id_required",
+					Message: fmt.Sprintf("result[%d]: endpoint_id is required", i),
 				},
 			}, nil
 		}

@@ -134,6 +134,33 @@ func TestHandle_AgentIDMismatch_Returns400(t *testing.T) {
 	}
 }
 
+func TestHandle_ZeroEndpointID_Returns400(t *testing.T) {
+	h := NewHandler(logger.Default(), testutil.NewMockDatabase())
+
+	agentID := uuid.Must(uuid.NewV7())
+	avg := 10.0
+	result := makeResult(agentID, makePingCheck(t, "1.2.3.4", 1, 0, &avg), uuid.UUID{}) // zero UUID = missing field
+
+	resp, err := h.Handle(context.Background(), api.SubmitAgentResultsRequestObject{
+		AgentId: agentID,
+		Body:    &api.BatchMonitoringResults{Results: []api.MonitoringResult{result}},
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	r400, ok := resp.(api.SubmitAgentResults400JSONResponse)
+	if !ok {
+		t.Fatalf("expected 400 response, got %T", resp)
+	}
+	if r400.Error != "endpoint_id_required" {
+		t.Errorf("expected error code %q, got %q", "endpoint_id_required", r400.Error)
+	}
+	if h.submissionFailureTotal.Load() != 1 {
+		t.Error("failure counter not incremented")
+	}
+}
+
 // MetricsProvider interface satisfaction (compile-time check)
 var _ interface{ GetMetrics() string } = (*Handler)(nil)
 
