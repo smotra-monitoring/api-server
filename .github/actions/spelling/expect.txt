@@ -8,11 +8,14 @@ CORS
 cosmtrek
 coverprofile
 createdb
+dedup
 deregistration
+google
 gotestsum
 Grafana
 greenlit
 healthz
+httpget
 implementet
 isready
 justfile
@@ -38,10 +41,12 @@ sqlite
 sslmode
 standalone
 subfolders
+tcpconnect
 testutil
 Tful
 tokio
 traceroute
+udpconnect
 UUIDv
 versioned
 versioning
