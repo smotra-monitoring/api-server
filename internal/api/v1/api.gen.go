@@ -401,10 +401,10 @@ type TracerouteCheckType string
 
 // TracerouteHop defines model for TracerouteHop.
 type TracerouteHop struct {
-	Address        *string  `json:"address,omitempty"`
-	Hop            int32    `json:"hop"`
-	Hostname       *string  `json:"hostname,omitempty"`
-	ResponseTimeMs *float64 `json:"response_time_ms,omitempty"`
+	Address          *string    `json:"address,omitempty"`
+	Hop              int32      `json:"hop"`
+	Hostname         *string    `json:"hostname,omitempty"`
+	SuccessLatencies *[]float64 `json:"success_latencies,omitempty"`
 }
 
 // TracerouteResult defines model for TracerouteResult.

@@ -444,6 +444,7 @@ func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queri
 		}
 		for _, hop := range tr.Result.Hops {
 			hopID := uuid.Must(uuid.NewV7())
+			latenciesJSON, _ := json.Marshal(hop.SuccessLatencies)
 			if err = q.InsertTracerouteHop(ctx, queries.InsertTracerouteHopParams{
 				ID:      hopID.String(),
 				CheckID: resultID,
@@ -456,10 +457,7 @@ func (h *Handler) insertTypeSpecificResult(ctx context.Context, q *queries.Queri
 					String: ptrStringVal(hop.Hostname),
 					Valid:  hop.Hostname != nil,
 				},
-				ResponseTimeMs: sql.NullFloat64{
-					Float64: ptrFloat64Val(hop.ResponseTimeMs),
-					Valid:   hop.ResponseTimeMs != nil,
-				},
+				SuccessLatenciesJson: string(latenciesJSON),
 			}); err != nil {
 				return
 			}

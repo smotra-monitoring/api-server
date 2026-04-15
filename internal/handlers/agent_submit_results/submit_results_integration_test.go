@@ -316,10 +316,9 @@ func TestIntegration_TracerouteHopsStored(t *testing.T) {
 
 	hop1addr := "192.168.1.1"
 	hop2addr := "10.0.0.1"
-	rt1, rt2 := 1.2, 5.6
 	hops := []api.TracerouteHop{
-		{Hop: 1, Address: &hop1addr, ResponseTimeMs: &rt1},
-		{Hop: 2, Address: &hop2addr, ResponseTimeMs: &rt2},
+		{Hop: 1, Address: &hop1addr, SuccessLatencies: &[]float64{1.0, 1.1, 1.2}},
+		{Hop: 2, Address: &hop2addr, SuccessLatencies: &[]float64{5.6}},
 	}
 	result := api.MonitoringResult{
 		Id:         uuid.Must(uuid.NewV7()),

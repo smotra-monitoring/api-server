@@ -64,7 +64,7 @@ INSERT INTO check_results_traceroute_hops (
     hop,
     address,
     hostname,
-    response_time_ms
+    success_latencies_json
 ) VALUES (?, ?, ?, ?, ?, ?);
 
 -- name: InsertPluginCheckResult :exec

@@ -96,12 +96,12 @@ type CheckResultsTraceroute struct {
 }
 
 type CheckResultsTracerouteHop struct {
-	ID             string
-	CheckID        string
-	Hop            int64
-	Address        sql.NullString
-	Hostname       sql.NullString
-	ResponseTimeMs sql.NullFloat64
+	ID                   string
+	CheckID              string
+	Hop                  int64
+	Address              sql.NullString
+	Hostname             sql.NullString
+	SuccessLatenciesJson string
 }
 
 type CheckResultsUdpConnect struct {
