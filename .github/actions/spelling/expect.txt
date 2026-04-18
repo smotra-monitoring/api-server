@@ -33,6 +33,7 @@ oapi
 oauth
 openapi
 postgre
+reqwest
 roadmap
 Screenshots
 smotra
@@ -40,7 +41,6 @@ sqlc
 sqlite
 sslmode
 standalone
-subfolders
 tcpconnect
 testutil
 Tful
@@ -52,4 +52,3 @@ versioned
 versioning
 wontfix
 workflows
-yourusername
