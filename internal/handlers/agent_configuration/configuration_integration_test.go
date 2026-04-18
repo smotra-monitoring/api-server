@@ -37,6 +37,10 @@ func (t *testServerImpl) PostClaimAgent(ctx context.Context, request api.PostCla
 	return nil, nil
 }
 
+func (t *testServerImpl) SubmitAgentResults(ctx context.Context, request api.SubmitAgentResultsRequestObject) (api.SubmitAgentResultsResponseObject, error) {
+	return nil, nil
+}
+
 func setupTestRouter(handler *Handler) *chi.Mux {
 	testImpl := &testServerImpl{Handler: handler}
 	r := chi.NewRouter()
@@ -184,9 +188,28 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 			t.Errorf("Expected tag 'production', got %s", (*config.Tags)[0])
 		}
 
-		// Verify endpoints
+		// Verify endpoints: count, IDs, and the required id field is populated
 		if len(config.Endpoints) != 2 {
 			t.Errorf("Expected 2 endpoints, got %d", len(config.Endpoints))
+		} else {
+			// Build a set of expected endpoint IDs for order-independent comparison
+			expectedIDs := map[string]bool{
+				endpoint1ID: true,
+				endpoint2ID: true,
+			}
+			for _, ep := range config.Endpoints {
+				epID := ep.Id.String()
+				if epID == (uuid.UUID{}).String() {
+					t.Errorf("Endpoint has zero UUID id — required field is empty")
+				}
+				if !expectedIDs[epID] {
+					t.Errorf("Unexpected endpoint ID %q in response", epID)
+				}
+				delete(expectedIDs, epID)
+			}
+			for missing := range expectedIDs {
+				t.Errorf("Endpoint ID %q not found in response", missing)
+			}
 		}
 
 		// Verify monitoring config

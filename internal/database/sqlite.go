@@ -42,10 +42,10 @@ func (s *SQLiteDB) Open(ctx context.Context) error {
 	}
 
 	// SQLite benefits from limited connections in WAL mode
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(0) // Connections never expire
-	db.SetConnMaxIdleTime(0)
+	db.SetMaxOpenConns(s.config.MaxOpenConns)
+	db.SetMaxIdleConns(s.config.MaxIdleConns)
+	db.SetConnMaxLifetime(s.config.ConnMaxLifetime)
+	db.SetConnMaxIdleTime(s.config.ConnMaxIdleTime)
 
 	// Verify connection
 	if err := db.PingContext(ctx); err != nil {

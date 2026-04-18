@@ -10,10 +10,10 @@ database_type: sqlite
 sqlite_config:
     config:
         type: sqlite
-        maxopenconns: 25
-        maxidleconns: 5
-        connmaxlifetime: 15m0s
-        connmaxidletime: 5m0s
+        maxopenconns: 1
+        maxidleconns: 1
+        connmaxlifetime: 0s
+        connmaxidletime: 0s
     filepath: ./data/smotra.db
 logging:
     level: debug

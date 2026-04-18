@@ -11,10 +11,10 @@
   "database_type": "sqlite",
   "sqlite_config": {
     "Type": "sqlite",
-    "MaxOpenConns": 25,
-    "MaxIdleConns": 5,
-    "ConnMaxLifetime": 900000000000,
-    "ConnMaxIdleTime": 300000000000,
+    "MaxOpenConns": 1,
+    "MaxIdleConns": 1,
+    "ConnMaxLifetime": 0,
+    "ConnMaxIdleTime": 0,
     "FilePath": "./data/smotra.db"
   },
   "logging": {

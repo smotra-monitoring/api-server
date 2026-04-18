@@ -29,17 +29,19 @@ import (
 	"github.com/smotra-monitoring/server/internal/handlers/agent_claim_status"
 	"github.com/smotra-monitoring/server/internal/handlers/agent_configuration"
 	"github.com/smotra-monitoring/server/internal/handlers/agent_register"
+	"github.com/smotra-monitoring/server/internal/handlers/agent_submit_results"
 	"github.com/smotra-monitoring/server/internal/handlers/metrics"
 	"github.com/smotra-monitoring/server/internal/logger"
 )
 
 // APIHandler combines all handler implementations
 type APIHandler struct {
-	metrics             *metrics.Handler
-	agent_configuration *agent_configuration.Handler
-	agent_register      *agent_register.Handler
-	agent_claim_status  *agent_claim_status.Handler
-	agent_claim         *agent_claim.Handler
+	metrics               *metrics.Handler
+	agent_configuration   *agent_configuration.Handler
+	agent_register        *agent_register.Handler
+	agent_claim_status    *agent_claim_status.Handler
+	agent_claim           *agent_claim.Handler
+	agent_submit_results  *agent_submit_results.Handler
 }
 
 // NewAPIHandler creates a new combined handler
@@ -48,22 +50,25 @@ func NewAPIHandler(logger *logger.Logger, db database.Database, cfg *config.Conf
 	registerHandler := agent_register.NewHandler(logger, db, cfg)
 	claimStatusHandler := agent_claim_status.NewHandler(logger, db, cfg)
 	claimHandler := agent_claim.NewHandler(logger, db)
+	submitResultsHandler := agent_submit_results.NewHandler(logger, db)
 
 	// Register handlers as metrics providers
 	metricsHandler.RegisterMetricsProvider(configHandler)
 	metricsHandler.RegisterMetricsProvider(registerHandler)
 	metricsHandler.RegisterMetricsProvider(claimStatusHandler)
 	metricsHandler.RegisterMetricsProvider(claimHandler)
+	metricsHandler.RegisterMetricsProvider(submitResultsHandler)
 
 	// Note: Claim-related handlers use string metrics, not metrics provider interface
 	// Their metrics are exposed through a different mechanism
 
 	return &APIHandler{
-		metrics:             metricsHandler,
-		agent_configuration: configHandler,
-		agent_register:      registerHandler,
-		agent_claim_status:  claimStatusHandler,
-		agent_claim:         claimHandler,
+		metrics:              metricsHandler,
+		agent_configuration:  configHandler,
+		agent_register:       registerHandler,
+		agent_claim_status:   claimStatusHandler,
+		agent_claim:          claimHandler,
+		agent_submit_results: submitResultsHandler,
 	}
 }
 
@@ -85,4 +90,9 @@ func (h *APIHandler) GetAgentClaimStatus(ctx context.Context, request api.GetAge
 // PostClaimAgent delegates to agent claim handler
 func (h *APIHandler) PostClaimAgent(ctx context.Context, request api.PostClaimAgentRequestObject) (api.PostClaimAgentResponseObject, error) {
 	return h.agent_claim.Handle(ctx, request)
+}
+
+// SubmitAgentResults delegates to submit results handler
+func (h *APIHandler) SubmitAgentResults(ctx context.Context, request api.SubmitAgentResultsRequestObject) (api.SubmitAgentResultsResponseObject, error) {
+	return h.agent_submit_results.Handle(ctx, request)
 }

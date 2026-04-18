@@ -212,6 +212,20 @@ func (q *Queries) UpdateAgentConfiguration(ctx context.Context, arg UpdateAgentC
 	return err
 }
 
+const updateAgentLastSeen = `-- name: UpdateAgentLastSeen :exec
+UPDATE agents SET last_seen_at = ? WHERE id = ?
+`
+
+type UpdateAgentLastSeenParams struct {
+	LastSeenAt sql.NullTime
+	ID         string
+}
+
+func (q *Queries) UpdateAgentLastSeen(ctx context.Context, arg UpdateAgentLastSeenParams) error {
+	_, err := q.db.ExecContext(ctx, updateAgentLastSeen, arg.LastSeenAt, arg.ID)
+	return err
+}
+
 const verifyAgentAPIKey = `-- name: VerifyAgentAPIKey :one
 SELECT id, api_key_hash FROM agents WHERE id = ?
 `
