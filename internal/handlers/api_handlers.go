@@ -57,6 +57,7 @@ func NewAPIHandler(logger *logger.Logger, db database.Database, cfg *config.Conf
 	metricsHandler.RegisterMetricsProvider(registerHandler)
 	metricsHandler.RegisterMetricsProvider(claimStatusHandler)
 	metricsHandler.RegisterMetricsProvider(claimHandler)
+	metricsHandler.RegisterMetricsProvider(authHandler)
 
 	// Note: Claim-related handlers use string metrics, not metrics provider interface
 	// Their metrics are exposed through a different mechanism

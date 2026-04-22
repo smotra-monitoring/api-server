@@ -50,9 +50,9 @@ func checkIPSafe(ip net.IP) error {
 	// Cloud metadata endpoints (AWS, GCP, Azure, DigitalOcean, etc.)
 	blockedCIDRs := []string{
 		"169.254.0.0/16", // link-local (includes 169.254.169.254 metadata)
-		"127.0.0.0/8",   // loopback
-		"10.0.0.0/8",    // RFC1918
-		"172.16.0.0/12", // RFC1918
+		"127.0.0.0/8",    // loopback
+		"10.0.0.0/8",     // RFC1918
+		"172.16.0.0/12",  // RFC1918
 		"192.168.0.0/16", // RFC1918
 		"::1/128",        // IPv6 loopback
 		"fc00::/7",       // IPv6 unique-local (fd00::/8 is a sub-range)

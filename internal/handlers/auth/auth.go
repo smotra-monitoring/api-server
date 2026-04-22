@@ -569,3 +569,52 @@ func (h *Handler) postForm(ctx context.Context, endpoint string, form url.Values
 	// Caller is responsible for closing resp.Body.
 	return resp, nil
 }
+
+// GetMetrics returns current handler metrics in Prometheus format
+func (h *Handler) GetMetrics() string {
+	metrics := ""
+
+	metrics += "# HELP auth_authorize_total Total number of /auth/oauth2/authorize requests\n"
+	metrics += "# TYPE auth_authorize_total counter\n"
+	metrics += fmt.Sprintf("auth_authorize_total %d\n", h.authorizeTotal.Load())
+	metrics += "\n"
+
+	metrics += "# HELP auth_callback_total Total number of /auth/oauth2/callback requests\n"
+	metrics += "# TYPE auth_callback_total counter\n"
+	metrics += fmt.Sprintf("auth_callback_total %d\n", h.callbackTotal.Load())
+	metrics += "\n"
+
+	metrics += "# HELP auth_token_total Total number of /auth/oauth2/token requests\n"
+	metrics += "# TYPE auth_token_total counter\n"
+	metrics += fmt.Sprintf("auth_token_total %d\n", h.tokenTotal.Load())
+	metrics += "\n"
+
+	metrics += "# HELP auth_revoke_total Total number of /auth/oauth2/revoke requests\n"
+	metrics += "# TYPE auth_revoke_total counter\n"
+	metrics += fmt.Sprintf("auth_revoke_total %d\n", h.revokeTotal.Load())
+	metrics += "\n"
+
+	metrics += "# HELP auth_userinfo_total Total number of /auth/userinfo requests\n"
+	metrics += "# TYPE auth_userinfo_total counter\n"
+	metrics += fmt.Sprintf("auth_userinfo_total %d\n", h.userInfoTotal.Load())
+	metrics += "\n"
+
+	metrics += "# HELP auth_logout_total Total number of /auth/logout requests\n"
+	metrics += "# TYPE auth_logout_total counter\n"
+	metrics += fmt.Sprintf("auth_logout_total %d\n", h.logoutTotal.Load())
+	metrics += "\n"
+
+	metrics += "# HELP auth_unknown_provider_total Total number of unknown provider errors\n"
+	metrics += "# TYPE auth_unknown_provider_total counter\n"
+	metrics += fmt.Sprintf("auth_unknown_provider_total %d\n", h.unknownProvider.Load())
+	metrics += "\n"
+
+	metrics += "# HELP auth_idp_error_total Total number of IDP errors\n"
+	metrics += "# TYPE auth_idp_error_total counter\n"
+	metrics += fmt.Sprintf("auth_idp_error_total %d\n", h.idpErrorTotal.Load())
+	metrics += "\n"
+
+	metrics += "\n"
+
+	return metrics
+}
