@@ -31,8 +31,8 @@ type cachedDoc struct {
 // For type=static it reads endpoints directly from config.
 // Explicit endpoint overrides in config always win over discovery values.
 type endpointResolver struct {
-	client             *http.Client
-	allowPrivateHosts  bool // set in tests to skip SSRF validation
+	client            *http.Client
+	allowPrivateHosts bool // set in tests to skip SSRF validation
 
 	mu    sync.Mutex
 	cache map[string]cachedDoc // keyed by issuer URL
@@ -110,6 +110,10 @@ func (r *endpointResolver) resolve(ctx context.Context, cfg config.OAuthProvider
 
 // fetchDiscovery fetches and caches the OIDC discovery document for the given issuer URL.
 func (r *endpointResolver) fetchDiscovery(ctx context.Context, issuerURL string) (discoveryDoc, error) {
+	if issuerURL == "" {
+		return discoveryDoc{}, fmt.Errorf("issuer URL cannot be empty")
+	}
+
 	r.mu.Lock()
 	if cached, ok := r.cache[issuerURL]; ok && time.Now().Before(cached.expiresAt) {
 		r.mu.Unlock()
