@@ -106,6 +106,14 @@ Documentation is organized in the docs/ folder:
 - **docs/TESTING.md** - Testing strategy and how to run tests
 - **docs/ROADMAP.md** - Planned features and improvements for future releases
 
+## Metrics implementation
+
+Metrics **must always** be implemented when new features are added, according to the guidelines in `.github/instructions/metrics.instructions.md`. This includes:
+- Defining relevant metrics for server performance, API usage, and agent interactions
+- Implementing Prometheus instrumentation in the server code
+- Exposing a /metrics endpoint for Prometheus scraping
+- Documenting the metrics in docs/TESTING.md for monitoring and alerting purposes
+
 ## Testing Requirements
 
 Tests **must always** be written or updated alongside code changes:
