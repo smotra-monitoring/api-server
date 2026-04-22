@@ -47,31 +47,31 @@ var defaultProviders = map[string]config.OAuthProviderConfig{
 
 // Handler implements the authentication-related StrictServerInterface methods.
 type Handler struct {
-	log                 *logger.Logger
-	auth                *config.AuthConfig
-	resolver            *endpointResolver
-	client              *http.Client
-	allowPrivateHosts   bool // set in tests to skip SSRF validation
+	log               *logger.Logger
+	authConfig        *config.AuthConfig
+	resolver          *endpointResolver
+	client            *http.Client
+	allowPrivateHosts bool // set in tests to skip SSRF validation
 
 	// Metrics
-	authorizeTotal    atomic.Uint64
-	callbackTotal     atomic.Uint64
-	tokenTotal        atomic.Uint64
-	revokeTotal       atomic.Uint64
-	userInfoTotal     atomic.Uint64
-	logoutTotal       atomic.Uint64
-	unknownProvider   atomic.Uint64
-	idpErrorTotal     atomic.Uint64
+	authorizeTotal  atomic.Uint64
+	callbackTotal   atomic.Uint64
+	tokenTotal      atomic.Uint64
+	revokeTotal     atomic.Uint64
+	userInfoTotal   atomic.Uint64
+	logoutTotal     atomic.Uint64
+	unknownProvider atomic.Uint64
+	idpErrorTotal   atomic.Uint64
 }
 
 // NewHandler creates a new auth handler.
 func NewHandler(log *logger.Logger, auth *config.AuthConfig) *Handler {
 	client := newHTTPClient()
 	return &Handler{
-		log:      log.WithComponent("auth"),
-		auth:     auth,
-		resolver: newEndpointResolver(client),
-		client:   client,
+		log:        log.WithComponent("auth"),
+		authConfig: auth,
+		resolver:   newEndpointResolver(client),
+		client:     client,
 	}
 }
 
@@ -95,7 +95,7 @@ func (h *Handler) resolveProvider(name string) (config.OAuthProviderConfig, erro
 	}
 
 	// Apply server-config overrides.
-	if override, ok := h.auth.Providers[name]; ok {
+	if override, ok := h.authConfig.Providers[name]; ok {
 		if override.Type != "" {
 			cfg.Type = override.Type
 		}
@@ -166,7 +166,7 @@ func (h *Handler) Oauth2Authorize(ctx context.Context, req api.Oauth2AuthorizeRe
 	params := url.Values{}
 	params.Set("response_type", "code")
 	params.Set("client_id", cfg.ClientID)
-	params.Set("redirect_uri", h.auth.ServerCallbackURL)
+	params.Set("redirect_uri", h.authConfig.ServerCallbackURL)
 	params.Set("scope", req.Params.Scope)
 	params.Set("state", req.Params.State)
 	params.Set("code_challenge", req.Params.CodeChallenge)
@@ -186,7 +186,7 @@ func (h *Handler) Oauth2Authorize(ctx context.Context, req api.Oauth2AuthorizeRe
 func (h *Handler) Oauth2Callback(_ context.Context, req api.Oauth2CallbackRequestObject) (api.Oauth2CallbackResponseObject, error) {
 	h.callbackTotal.Add(1)
 
-	frontendURL := h.auth.FrontendCallbackURL
+	frontendURL := h.authConfig.FrontendCallbackURL
 	params := url.Values{}
 
 	if req.Params.Error != nil {
