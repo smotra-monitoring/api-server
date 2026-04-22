@@ -93,6 +93,7 @@ func RequestID(log *logger.Logger) func(next http.Handler) http.Handler {
 					requestID = uuid.NewString()
 				}
 			}
+			r.Header.Set("X-Request-ID", requestID) // propagate to request for downstream readers
 			w.Header().Set("X-Request-ID", requestID)
 			next.ServeHTTP(w, r)
 		})
