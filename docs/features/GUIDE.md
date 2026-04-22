@@ -92,7 +92,9 @@ curl http://localhost:8080/agents/019c1234-5678-7abc-def0-123456789abc/claim-sta
 # { "status": "pending" }
 ```
 
-#### Administrator Claims Agent (requires OAuth2 - coming soon)
+#### Administrator Claims Agent (requires OAuth2)
+
+See [docs/features/authentication.md](authentication.md) for the full OAuth2 setup. Once authenticated, an admin can claim a pending agent:
 
 ```bash
 # Admin claims pending agent via web UI or API
@@ -156,10 +158,6 @@ Both YAML and JSON formats are supported.
 server:
   host: 0.0.0.0
   port: 8080
-  read_timeout: 15s
-  write_timeout: 15s
-  idle_timeout: 2m
-  shutdown_timeout: 30s
   environment: development
 
 database_type: sqlite
@@ -169,8 +167,6 @@ sqlite_config:
     type: sqlite
     maxopenconns: 25
     maxidleconns: 5
-    connmaxlifetime: 15m
-    connmaxidletime: 5m
   filepath: ./data/smotra.db
 
 logging:
@@ -178,8 +174,11 @@ logging:
   format: json
 
 auth:
-  jwt_secret: development-secret-change-in-production
-  jwt_expiration: 24h
+  server_callback_url: http://localhost:8080/v1/auth/oauth2/callback
+  frontend_callback_url: http://localhost:3000/auth/callback
+  providers:
+    github:
+      client_id: your-github-client-id
 ```
 
 **Production Configuration (configs/prod.yaml):**
@@ -187,10 +186,6 @@ auth:
 server:
   host: 0.0.0.0
   port: 8080
-  read_timeout: 30s
-  write_timeout: 30s
-  idle_timeout: 2m
-  shutdown_timeout: 30s
   environment: production
 
 database_type: postgres
@@ -214,8 +209,11 @@ logging:
   format: json
 
 auth:
-  jwt_secret: ""  # Required - set via environment variable
-  jwt_expiration: 24h
+  server_callback_url: https://api.example.com/v1/auth/oauth2/callback
+  frontend_callback_url: https://app.example.com/auth/callback
+  providers:
+    google:
+      client_id: ""  # Required — set in config or environment
 ```
 
 ### Configuration Fields
@@ -258,8 +256,10 @@ auth:
 - `format`: json or text
 
 #### Authentication
-- `jwt_secret`: JWT signing secret (required in production)
-- `jwt_expiration`: JWT token expiration duration (default: 24h)
+- See [docs/features/authentication.md](authentication.md) for full OAuth2/OIDC configuration reference.
+- `auth.server_callback_url`: Public URL of this server's `/v1/auth/oauth2/callback` endpoint
+- `auth.frontend_callback_url`: Frontend URL to redirect to after IDP callback
+- `auth.providers`: Map of provider name to OAuth2 configuration
 
 ## Building for Production
 
