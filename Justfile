@@ -73,6 +73,10 @@ test-watch:
         echo "gotestsum not found. Install it with: go install gotest.tools/gotestsum@latest"; \
     fi
 
+test-benchmark:
+    @echo "Running benchmarks..."
+    go test -bench=. -benchmem ./...
+
 # Clean build artifacts
 clean:
     @echo "Cleaning..."

@@ -11,6 +11,7 @@ CORS
 cosmtrek
 coverprofile
 createdb
+dedup
 deregistration
 Entra
 google
@@ -20,6 +21,7 @@ Grafana
 greenlit
 healthz
 IDPs
+httpget
 implementet
 isready
 justfile
@@ -41,6 +43,7 @@ oidc
 openapi
 PKCE
 postgre
+reqwest
 roadmap
 Screenshots
 smotra
@@ -49,11 +52,13 @@ sqlite
 sslmode
 SSRF
 standalone
+tcpconnect
 testutil
 Tful
 tokio
 traceroute
 userinfo
+udpconnect
 UUIDv
 versioned
 versioning

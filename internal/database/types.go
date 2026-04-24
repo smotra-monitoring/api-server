@@ -72,6 +72,11 @@ func DefaultConfig() Config {
 func DefaultSQLiteConfig() SQLiteConfig {
 	config := DefaultConfig()
 	config.Type = "sqlite"
+	// SQLite with WAL mode benefits from limited connections to avoid write contention
+	config.MaxOpenConns = 1
+	config.MaxIdleConns = 1
+	config.ConnMaxLifetime = 0 // Connections never expire
+	config.ConnMaxIdleTime = 0
 	return SQLiteConfig{
 		Config:   config,
 		FilePath: "./data/smotra.db",

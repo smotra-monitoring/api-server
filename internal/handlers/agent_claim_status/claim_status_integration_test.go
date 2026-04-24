@@ -65,6 +65,10 @@ func (t *testServerImpl) GetUserInfo(ctx context.Context, request api.GetUserInf
 	return nil, nil
 }
 
+func (t *testServerImpl) SubmitAgentResults(ctx context.Context, request api.SubmitAgentResultsRequestObject) (api.SubmitAgentResultsResponseObject, error) {
+	return nil, nil
+}
+
 func setupTestRouter(handler *Handler) *chi.Mux {
 	testImpl := &testServerImpl{Handler: handler}
 	r := chi.NewRouter()
@@ -201,7 +205,7 @@ func TestGetAgentClaimStatus_Integration_AlreadyDelivered1(t *testing.T) {
 	cfg := testutil.DefaultTestConfig()
 
 	q := queries.New(db.DB())
-		testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db, cfg)
 	router := setupTestRouter(handler)

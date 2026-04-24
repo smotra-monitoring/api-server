@@ -6,6 +6,7 @@ package api_v1
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -37,9 +38,39 @@ const (
 	ClaimStatusPendingEnumPendingClaim ClaimStatusPendingEnum = "pending_claim"
 )
 
+// Defines values for HttpGetCheckType.
+const (
+	Httpget HttpGetCheckType = "httpget"
+)
+
+// Defines values for PingCheckType.
+const (
+	Ping PingCheckType = "ping"
+)
+
+// Defines values for PluginCheckType.
+const (
+	Plugin PluginCheckType = "plugin"
+)
+
 // Defines values for RegistrationStatus.
 const (
 	RegistrationStatusPendingClaim RegistrationStatus = "pending_claim"
+)
+
+// Defines values for TcpConnectCheckType.
+const (
+	Tcpconnect TcpConnectCheckType = "tcpconnect"
+)
+
+// Defines values for TracerouteCheckType.
+const (
+	Traceroute TracerouteCheckType = "traceroute"
+)
+
+// Defines values for UdpConnectCheckType.
+const (
+	Udpconnect UdpConnectCheckType = "udpconnect"
 )
 
 // Defines values for Oauth2AuthorizeParamsCodeChallengeMethod.
@@ -110,6 +141,18 @@ type AgentSelfRegistration struct {
 	Hostname string `json:"hostname"`
 }
 
+// BatchMonitoringResults A batch of monitoring results submitted by an agent from its local cache.
+// The server deduplicates entries by `MonitoringResult.id`.
+type BatchMonitoringResults struct {
+	// Results Ordered list of monitoring results (oldest-first)
+	Results []MonitoringResult `json:"results"`
+}
+
+// CheckType defines model for CheckType.
+type CheckType struct {
+	union json.RawMessage
+}
+
 // ClaimAgentRequest defines model for ClaimAgentRequest.
 type ClaimAgentRequest struct {
 	// AgentId UUID version 7 as per RFC 4122
@@ -170,7 +213,7 @@ type ClaimStatusPending struct {
 // ClaimStatusPendingEnum Pending claim status
 type ClaimStatusPendingEnum string
 
-// Endpoint defines model for Endpoint.
+// Endpoint An endpoint to monitor (IP address, hostname, or URL)
 type Endpoint struct {
 	// Address IP address, hostname, or URL
 	Address string `json:"address"`
@@ -181,7 +224,7 @@ type Endpoint struct {
 	Port *int   `json:"port,omitempty"`
 
 	// Tags Tags associated with the target
-	Tags *[]string `json:"tags,omitempty"`
+	Tags []string `json:"tags"`
 }
 
 // Error defines model for Error.
@@ -196,6 +239,31 @@ type Error struct {
 	Error            string              `json:"error"`
 	Message          string              `json:"message"`
 	RequestId        *openapi_types.UUID `json:"request_id,omitempty"`
+}
+
+// ErrorDetails Error information from a check, stored as an extensible JSON object
+type ErrorDetails struct {
+	// Errors List of error messages from the check
+	Errors *[]string `json:"errors,omitempty"`
+}
+
+// HttpGetCheck defines model for HttpGetCheck.
+type HttpGetCheck struct {
+	Result HttpGetResult    `json:"result"`
+	Type   HttpGetCheckType `json:"type"`
+}
+
+// HttpGetCheckType defines model for HttpGetCheckType.
+type HttpGetCheckType string
+
+// HttpGetResult defines model for HttpGetResult.
+type HttpGetResult struct {
+	// ErrorDetails Error information from a check, stored as an extensible JSON object
+	ErrorDetails      *ErrorDetails `json:"error_details"`
+	ResponseSizeBytes *int64        `json:"response_size_bytes"`
+	ResponseTimeMs    *float64      `json:"response_time_ms"`
+	StatusCode        int32         `json:"status_code"`
+	Success           bool          `json:"success"`
 }
 
 // MonitoringConfig defines model for MonitoringConfig.
@@ -219,8 +287,81 @@ type MonitoringConfig struct {
 	TracerouteOnFailure bool `json:"traceroute_on_failure"`
 }
 
+// MonitoringResult defines model for MonitoringResult.
+type MonitoringResult struct {
+	// AgentId UUID version 7 as per RFC 4122
+	AgentId   UUIDv7    `json:"agent_id"`
+	CheckType CheckType `json:"check_type"`
+
+	// EndpointId UUID version 7 as per RFC 4122
+	EndpointId UUIDv7 `json:"endpoint_id"`
+
+	// Id UUID version 7 as per RFC 4122
+	Id UUIDv7 `json:"id"`
+
+	// Timestamp Timestamp when the report was generated (RFC3339)
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// PingCheck defines model for PingCheck.
+type PingCheck struct {
+	Result PingResult    `json:"result"`
+	Type   PingCheckType `json:"type"`
+}
+
+// PingCheckType defines model for PingCheckType.
+type PingCheckType string
+
+// PingResult defines model for PingResult.
+type PingResult struct {
+	// ErrorDetails Error information from a check, stored as an extensible JSON object
+	ErrorDetails *ErrorDetails `json:"error_details"`
+	Failures     int32         `json:"failures"`
+
+	// ResolvedIp Resolved IP address of the target
+	ResolvedIp       string    `json:"resolved_ip"`
+	SuccessLatencies []float64 `json:"success_latencies"`
+	Successes        int32     `json:"successes"`
+}
+
+// PluginCheck defines model for PluginCheck.
+type PluginCheck struct {
+	Result PluginResult    `json:"result"`
+	Type   PluginCheckType `json:"type"`
+}
+
+// PluginCheckType defines model for PluginCheckType.
+type PluginCheckType string
+
+// PluginResult defines model for PluginResult.
+type PluginResult struct {
+	Data map[string]string `json:"data"`
+
+	// ErrorDetails Error information from a check, stored as an extensible JSON object
+	ErrorDetails   *ErrorDetails `json:"error_details"`
+	PluginName     string        `json:"plugin_name"`
+	PluginVersion  string        `json:"plugin_version"`
+	ResponseTimeMs *float64      `json:"response_time_ms"`
+	Success        bool          `json:"success"`
+}
+
 // RegistrationStatus Status of agent registration
 type RegistrationStatus string
+
+// ResultsBatchAcknowledgment defines model for ResultsBatchAcknowledgment.
+type ResultsBatchAcknowledgment struct {
+	// Accepted Number of results accepted for processing
+	Accepted int `json:"accepted"`
+
+	// DuplicatesSkipped Number of results deduplicated (already known to the server)
+	DuplicatesSkipped *int `json:"duplicates_skipped,omitempty"`
+
+	// ReceivedAt Timestamp when the batch was received by the server
+	ReceivedAt time.Time `json:"received_at"`
+
+	// SubmissionId UUID version 7 as per RFC 4122
+	SubmissionId UUIDv7 `json:"submission_id"`
+}
 
 // ServerConfig defines model for ServerConfig.
 type ServerConfig struct {
@@ -258,6 +399,25 @@ type StorageConfig struct {
 	MaxCachedResults int `json:"max_cached_results"`
 }
 
+// TcpConnectCheck defines model for TcpConnectCheck.
+type TcpConnectCheck struct {
+	Result TcpConnectResult    `json:"result"`
+	Type   TcpConnectCheckType `json:"type"`
+}
+
+// TcpConnectCheckType defines model for TcpConnectCheckType.
+type TcpConnectCheckType string
+
+// TcpConnectResult defines model for TcpConnectResult.
+type TcpConnectResult struct {
+	ConnectTimeMs *float64 `json:"connect_time_ms"`
+	Connected     bool     `json:"connected"`
+
+	// ErrorDetails Error information from a check, stored as an extensible JSON object
+	ErrorDetails *ErrorDetails `json:"error_details"`
+	ResolvedIp   string        `json:"resolved_ip"`
+}
+
 // TokenResponse defines model for TokenResponse.
 type TokenResponse struct {
 	// AccessToken JWT access token
@@ -277,8 +437,53 @@ type TokenResponse struct {
 	TokenType string  `json:"token_type"`
 }
 
+// TracerouteCheck defines model for TracerouteCheck.
+type TracerouteCheck struct {
+	Result TracerouteResult    `json:"result"`
+	Type   TracerouteCheckType `json:"type"`
+}
+
+// TracerouteCheckType defines model for TracerouteCheckType.
+type TracerouteCheckType string
+
+// TracerouteHop defines model for TracerouteHop.
+type TracerouteHop struct {
+	Hop      int32   `json:"hop"`
+	Hostname *string `json:"hostname,omitempty"`
+
+	// ResolvedIp Resolved IP address of the target
+	ResolvedIp       *string    `json:"resolved_ip,omitempty"`
+	SuccessLatencies *[]float64 `json:"success_latencies,omitempty"`
+}
+
+// TracerouteResult defines model for TracerouteResult.
+type TracerouteResult struct {
+	// ErrorDetails Error information from a check, stored as an extensible JSON object
+	ErrorDetails  *ErrorDetails   `json:"error_details"`
+	Hops          []TracerouteHop `json:"hops"`
+	TargetReached bool            `json:"target_reached"`
+}
+
 // UUIDv7 UUID version 7 as per RFC 4122
 type UUIDv7 = uuid.UUID
+
+// UdpConnectCheck defines model for UdpConnectCheck.
+type UdpConnectCheck struct {
+	Result UdpConnectResult    `json:"result"`
+	Type   UdpConnectCheckType `json:"type"`
+}
+
+// UdpConnectCheckType defines model for UdpConnectCheckType.
+type UdpConnectCheckType string
+
+// UdpConnectResult defines model for UdpConnectResult.
+type UdpConnectResult struct {
+	// ErrorDetails Error information from a check, stored as an extensible JSON object
+	ErrorDetails    *ErrorDetails `json:"error_details"`
+	ProbeSuccessful bool          `json:"probe_successful"`
+	ResolvedIp      string        `json:"resolved_ip"`
+	ResponseTimeMs  *float64      `json:"response_time_ms"`
+}
 
 // UserInfo defines model for UserInfo.
 type UserInfo struct {
@@ -313,6 +518,9 @@ type NotImplemented = Error
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
+
+// UnprocessableEntity defines model for UnprocessableEntity.
+type UnprocessableEntity = Error
 
 // LogoutJSONBody defines parameters for Logout.
 type LogoutJSONBody struct {
@@ -419,6 +627,9 @@ type PostClaimAgentJSONRequestBody = ClaimAgentRequest
 // RegisterAgentSelfJSONRequestBody defines body for RegisterAgentSelf for application/json ContentType.
 type RegisterAgentSelfJSONRequestBody = AgentSelfRegistration
 
+// SubmitAgentResultsJSONRequestBody defines body for SubmitAgentResults for application/json ContentType.
+type SubmitAgentResultsJSONRequestBody = BatchMonitoringResults
+
 // LogoutJSONRequestBody defines body for Logout for application/json ContentType.
 type LogoutJSONRequestBody LogoutJSONBody
 
@@ -427,6 +638,215 @@ type Oauth2RevokeFormdataRequestBody Oauth2RevokeFormdataBody
 
 // Oauth2TokenFormdataRequestBody defines body for Oauth2Token for application/x-www-form-urlencoded ContentType.
 type Oauth2TokenFormdataRequestBody Oauth2TokenFormdataBody
+
+// AsPingCheck returns the union data inside the CheckType as a PingCheck
+func (t CheckType) AsPingCheck() (PingCheck, error) {
+	var body PingCheck
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPingCheck overwrites any union data inside the CheckType as the provided PingCheck
+func (t *CheckType) FromPingCheck(v PingCheck) error {
+	v.Type = "ping"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePingCheck performs a merge with any union data inside the CheckType, using the provided PingCheck
+func (t *CheckType) MergePingCheck(v PingCheck) error {
+	v.Type = "ping"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTracerouteCheck returns the union data inside the CheckType as a TracerouteCheck
+func (t CheckType) AsTracerouteCheck() (TracerouteCheck, error) {
+	var body TracerouteCheck
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTracerouteCheck overwrites any union data inside the CheckType as the provided TracerouteCheck
+func (t *CheckType) FromTracerouteCheck(v TracerouteCheck) error {
+	v.Type = "traceroute"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTracerouteCheck performs a merge with any union data inside the CheckType, using the provided TracerouteCheck
+func (t *CheckType) MergeTracerouteCheck(v TracerouteCheck) error {
+	v.Type = "traceroute"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTcpConnectCheck returns the union data inside the CheckType as a TcpConnectCheck
+func (t CheckType) AsTcpConnectCheck() (TcpConnectCheck, error) {
+	var body TcpConnectCheck
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTcpConnectCheck overwrites any union data inside the CheckType as the provided TcpConnectCheck
+func (t *CheckType) FromTcpConnectCheck(v TcpConnectCheck) error {
+	v.Type = "tcpconnect"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTcpConnectCheck performs a merge with any union data inside the CheckType, using the provided TcpConnectCheck
+func (t *CheckType) MergeTcpConnectCheck(v TcpConnectCheck) error {
+	v.Type = "tcpconnect"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsUdpConnectCheck returns the union data inside the CheckType as a UdpConnectCheck
+func (t CheckType) AsUdpConnectCheck() (UdpConnectCheck, error) {
+	var body UdpConnectCheck
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromUdpConnectCheck overwrites any union data inside the CheckType as the provided UdpConnectCheck
+func (t *CheckType) FromUdpConnectCheck(v UdpConnectCheck) error {
+	v.Type = "udpconnect"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeUdpConnectCheck performs a merge with any union data inside the CheckType, using the provided UdpConnectCheck
+func (t *CheckType) MergeUdpConnectCheck(v UdpConnectCheck) error {
+	v.Type = "udpconnect"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsHttpGetCheck returns the union data inside the CheckType as a HttpGetCheck
+func (t CheckType) AsHttpGetCheck() (HttpGetCheck, error) {
+	var body HttpGetCheck
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromHttpGetCheck overwrites any union data inside the CheckType as the provided HttpGetCheck
+func (t *CheckType) FromHttpGetCheck(v HttpGetCheck) error {
+	v.Type = "httpget"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeHttpGetCheck performs a merge with any union data inside the CheckType, using the provided HttpGetCheck
+func (t *CheckType) MergeHttpGetCheck(v HttpGetCheck) error {
+	v.Type = "httpget"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPluginCheck returns the union data inside the CheckType as a PluginCheck
+func (t CheckType) AsPluginCheck() (PluginCheck, error) {
+	var body PluginCheck
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPluginCheck overwrites any union data inside the CheckType as the provided PluginCheck
+func (t *CheckType) FromPluginCheck(v PluginCheck) error {
+	v.Type = "plugin"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePluginCheck performs a merge with any union data inside the CheckType, using the provided PluginCheck
+func (t *CheckType) MergePluginCheck(v PluginCheck) error {
+	v.Type = "plugin"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CheckType) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t CheckType) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "httpget":
+		return t.AsHttpGetCheck()
+	case "ping":
+		return t.AsPingCheck()
+	case "plugin":
+		return t.AsPluginCheck()
+	case "tcpconnect":
+		return t.AsTcpConnectCheck()
+	case "traceroute":
+		return t.AsTracerouteCheck()
+	case "udpconnect":
+		return t.AsUdpConnectCheck()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t CheckType) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CheckType) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -442,6 +862,9 @@ type ServerInterface interface {
 	// Get agent configuration
 	// (GET /agent/{agentId}/configuration)
 	GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId)
+	// Submit batch monitoring results
+	// (POST /agent/{agentId}/results)
+	SubmitAgentResults(w http.ResponseWriter, r *http.Request, agentId AgentId)
 	// User logout
 	// (POST /auth/logout)
 	Logout(w http.ResponseWriter, r *http.Request)
@@ -487,6 +910,12 @@ func (_ Unimplemented) GetAgentClaimStatus(w http.ResponseWriter, r *http.Reques
 // Get agent configuration
 // (GET /agent/{agentId}/configuration)
 func (_ Unimplemented) GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Submit batch monitoring results
+// (POST /agent/{agentId}/results)
+func (_ Unimplemented) SubmitAgentResults(w http.ResponseWriter, r *http.Request, agentId AgentId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -618,6 +1047,37 @@ func (siw *ServerInterfaceWrapper) GetAgentConfiguration(w http.ResponseWriter, 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAgentConfiguration(w, r, agentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SubmitAgentResults operation middleware
+func (siw *ServerInterfaceWrapper) SubmitAgentResults(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentId" -------------
+	var agentId AgentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentId", chi.URLParam(r, "agentId"), &agentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, AgentApiKeyScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SubmitAgentResults(w, r, agentId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -992,6 +1452,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/agent/{agentId}/configuration", wrapper.GetAgentConfiguration)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/agent/{agentId}/results", wrapper.SubmitAgentResults)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/auth/logout", wrapper.Logout)
 	})
 	r.Group(func(r chi.Router) {
@@ -1022,6 +1485,8 @@ type NotFoundJSONResponse Error
 type NotImplementedJSONResponse Error
 
 type UnauthorizedJSONResponse Error
+
+type UnprocessableEntityJSONResponse Error
 
 type PostClaimAgentRequestObject struct {
 	Body *PostClaimAgentJSONRequestBody
@@ -1230,6 +1695,64 @@ type GetAgentConfiguration503JSONResponse struct {
 }
 
 func (response GetAgentConfiguration503JSONResponse) VisitGetAgentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitAgentResultsRequestObject struct {
+	AgentId AgentId `json:"agentId"`
+	Body    *SubmitAgentResultsJSONRequestBody
+}
+
+type SubmitAgentResultsResponseObject interface {
+	VisitSubmitAgentResultsResponse(w http.ResponseWriter) error
+}
+
+type SubmitAgentResults202JSONResponse ResultsBatchAcknowledgment
+
+func (response SubmitAgentResults202JSONResponse) VisitSubmitAgentResultsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitAgentResults400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SubmitAgentResults400JSONResponse) VisitSubmitAgentResultsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitAgentResults401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SubmitAgentResults401JSONResponse) VisitSubmitAgentResultsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitAgentResults422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response SubmitAgentResults422JSONResponse) VisitSubmitAgentResultsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitAgentResults503JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response SubmitAgentResults503JSONResponse) VisitSubmitAgentResultsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(503)
 
@@ -1462,6 +1985,9 @@ type StrictServerInterface interface {
 	// Get agent configuration
 	// (GET /agent/{agentId}/configuration)
 	GetAgentConfiguration(ctx context.Context, request GetAgentConfigurationRequestObject) (GetAgentConfigurationResponseObject, error)
+	// Submit batch monitoring results
+	// (POST /agent/{agentId}/results)
+	SubmitAgentResults(ctx context.Context, request SubmitAgentResultsRequestObject) (SubmitAgentResultsResponseObject, error)
 	// User logout
 	// (POST /auth/logout)
 	Logout(ctx context.Context, request LogoutRequestObject) (LogoutResponseObject, error)
@@ -1618,6 +2144,39 @@ func (sh *strictHandler) GetAgentConfiguration(w http.ResponseWriter, r *http.Re
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAgentConfigurationResponseObject); ok {
 		if err := validResponse.VisitGetAgentConfigurationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SubmitAgentResults operation middleware
+func (sh *strictHandler) SubmitAgentResults(w http.ResponseWriter, r *http.Request, agentId AgentId) {
+	var request SubmitAgentResultsRequestObject
+
+	request.AgentId = agentId
+
+	var body SubmitAgentResultsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SubmitAgentResults(ctx, request.(SubmitAgentResultsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SubmitAgentResults")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SubmitAgentResultsResponseObject); ok {
+		if err := validResponse.VisitSubmitAgentResultsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

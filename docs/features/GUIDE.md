@@ -605,13 +605,68 @@ go mod download
 ### Agent Configuration
 - `GET /agent/{agentId}/configuration` - Retrieve agent-specific configuration including monitoring settings, endpoints, and tags (requires `X-Agent-API-Key` header)
 
+### Agent Registration and Claiming
+- `POST /agent/register` - Agent self-registration (unclaimed agents)
+- `GET /agent/{agentId}/claim-status` - Poll claim status and receive API key (one-time)
+- `POST /agent/claim` - Administrator claims a pending agent (requires OAuth2)
+
+### Monitoring Data Submission
+- `POST /agent/{agentId}/results` - Submit a batch of monitoring check results (requires `X-Agent-API-Key` header)
+
+Agents POST a `BatchMonitoringResults` object containing an array of `MonitoringResult` items to report check outcomes. Each result is identified by a client-assigned UUIDv7 (`id`) used for server-side deduplication — re-sending the same batch is safe.
+
+**Supported check types** (discriminated by the `type` field):
+| type | Child table | Notes |
+|------|-------------|-------|
+| `ping` | `ping_check_results` | ICMP ping, includes per-latency histogram |
+| `httpget` | `http_get_check_results` | HTTP/S GET with status code and response time |
+| `tcpconnect` | `tcp_connect_check_results` | TCP connection probe |
+| `udpconnect` | `udp_connect_check_results` | UDP probe |
+| `traceroute` | `traceroute_check_results` + `traceroute_hops` | Full hop-by-hop path data |
+| `plugin` | `plugin_check_results` | Arbitrary plugin data as JSON blob |
+
+**Example request:**
+```json
+POST /v1/agent/{agentId}/results
+X-Agent-API-Key: <api-key>
+Content-Type: application/json
+
+{
+  "results": [
+    {
+      "id": "019d6abc-0000-7000-8000-000000000001",
+      "agent_id": "<agentId>",
+      "timestamp": "2026-04-08T10:00:00Z",
+      "target": { "address": "dns.google", "tags": [] },
+      "check_type": {
+        "type": "ping",
+        "result": {
+          "resolved_ip": "8.8.8.8",
+          "successes": 5,
+          "failures": 0,
+          "avg_response_time_ms": 12.5,
+          "success_latencies": [10.1, 11.2, 13.3, 14.4, 12.5]
+        }
+      }
+    }
+  ]
+}
+```
+
+**Example response (202 Accepted):**
+```json
+{
+  "submission_id": "019d6abc-0001-7000-8000-000000000001",
+  "accepted": 1,
+  "duplicates_skipped": 0,
+  "received_at": "2026-04-08T10:00:00.123Z"
+}
+```
+
 ### Future Endpoints
-(To be implemented based on OpenAPI specification)
-- Agent registration (`POST /agent/register`)
-- Agent status reporting (`POST /agent/report`)
-- Metrics submission and retrieval
-- Alert configuration
+- Alert configuration and management
 - User authentication and management
+- Report generation and export
 
 ## Contributing
 This is an open-source project, and we deeply value the community's interest. However, due to the high volume of automated and machine-generated code currently being submitted, we are significantly narrowing our intake process to maintain code quality and project stability.

@@ -70,3 +70,43 @@ func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, reques
 	// Authentication successful, delegate to the actual handler
 	return h.APIHandler.GetAgentConfiguration(ctx, request)
 }
+
+// SubmitAgentResults wraps the submit results handler with authentication
+func (h *AuthenticatedHandler) SubmitAgentResults(ctx context.Context, request api.SubmitAgentResultsRequestObject) (api.SubmitAgentResultsResponseObject, error) {
+	authInfo := ctx.Value(middleware.AuthContextKey)
+	if authInfo == nil {
+		h.logger.Warn("No authentication provided for submit results endpoint", "agent", request.AgentId.String())
+		return api.SubmitAgentResults401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "No authentication provided",
+			},
+		}, nil
+	}
+
+	ctxInfo, ok := authInfo.(*middleware.AuthInfo)
+	if !ok || !ctxInfo.Authenticated {
+		h.logger.Warn("Invalid authentication for submit results endpoint", "agent", request.AgentId.String())
+		return api.SubmitAgentResults401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Invalid authentication",
+			},
+		}, nil
+	}
+
+	if ctxInfo.AgentID != request.AgentId.String() {
+		h.logger.Warn("Agent ID mismatch in submit results authentication",
+			"authenticated_agent", ctxInfo.AgentID,
+			"requested_agent", request.AgentId.String(),
+		)
+		return api.SubmitAgentResults503JSONResponse{
+			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
+				Error:   "forbidden",
+				Message: "Access denied due to internal server error",
+			},
+		}, nil
+	}
+
+	return h.APIHandler.SubmitAgentResults(ctx, request)
+}

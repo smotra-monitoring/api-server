@@ -19,7 +19,7 @@ import (
 	"github.com/smotra-monitoring/server/internal/middleware"
 )
 
-const appVersion = "0.0.1"
+var appVersion = "0.0.1"
 
 func main() {
 	// Parse command line flags

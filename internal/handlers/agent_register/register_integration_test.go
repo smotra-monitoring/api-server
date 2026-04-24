@@ -66,6 +66,10 @@ func (t *testServerImpl) GetUserInfo(ctx context.Context, request api.GetUserInf
 	return nil, nil
 }
 
+func (t *testServerImpl) SubmitAgentResults(ctx context.Context, request api.SubmitAgentResultsRequestObject) (api.SubmitAgentResultsResponseObject, error) {
+	return nil, nil
+}
+
 func setupTestRouter(handler *Handler) *chi.Mux {
 	testImpl := &testServerImpl{Handler: handler}
 	r := chi.NewRouter()

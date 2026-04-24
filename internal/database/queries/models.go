@@ -42,6 +42,74 @@ type AgentTag struct {
 	TagID   string
 }
 
+type CheckResult struct {
+	ID         string
+	AgentID    string
+	EndpointID string
+	CheckType  string
+	Success    int64
+	CheckedAt  time.Time
+	ReceivedAt time.Time
+}
+
+type CheckResultsHttpGet struct {
+	CheckID           string
+	StatusCode        int64
+	ResponseTimeMs    sql.NullFloat64
+	ResponseSizeBytes sql.NullInt64
+	ErrorsJson        sql.NullString
+}
+
+type CheckResultsPing struct {
+	CheckID              string
+	ResolvedIp           string
+	Successes            int64
+	Failures             int64
+	SuccessLatenciesJson string
+	ErrorsJson           sql.NullString
+}
+
+type CheckResultsPlugin struct {
+	CheckID        string
+	PluginName     string
+	PluginVersion  string
+	Success        int64
+	ResponseTimeMs sql.NullFloat64
+	ErrorsJson     sql.NullString
+	DataJson       string
+}
+
+type CheckResultsTcpConnect struct {
+	CheckID       string
+	ResolvedIp    string
+	Connected     int64
+	ConnectTimeMs sql.NullFloat64
+	ErrorsJson    sql.NullString
+}
+
+type CheckResultsTraceroute struct {
+	CheckID       string
+	TargetReached int64
+	ErrorsJson    sql.NullString
+}
+
+type CheckResultsTracerouteHop struct {
+	ID                   string
+	CheckID              string
+	Hop                  int64
+	ResolvedIp           sql.NullString
+	Hostname             sql.NullString
+	SuccessLatenciesJson string
+}
+
+type CheckResultsUdpConnect struct {
+	CheckID         string
+	ResolvedIp      string
+	ProbeSuccessful int64
+	ResponseTimeMs  sql.NullFloat64
+	ErrorsJson      sql.NullString
+}
+
 type Endpoint struct {
 	ID        string
 	AgentID   string

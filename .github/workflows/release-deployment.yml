@@ -57,7 +57,7 @@ jobs:
           
       - name: Build server
         run: |
-          go build -o bin/server ./cmd/server
+          go build -ldflags="-X 'main.appVersion=${{ github.ref_name }}'" -o bin/server ./cmd/server
           
       - name: Run tests
         run: |
