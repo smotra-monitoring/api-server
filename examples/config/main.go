@@ -146,13 +146,16 @@ func generateConfig(opts GenerateOptions) error {
 	switch opts.Mode {
 	case "development":
 		cfg.Logging.Level = "debug"
-		cfg.Auth.JWTSecret = "development-secret-change-in-production"
+		cfg.Auth.FrontendCallbackURL = "http://localhost:3000/auth/callback"
+		cfg.Auth.ServerCallbackURL = "http://localhost:8080/v1/auth/oauth2/callback"
 	case "staging":
 		cfg.Logging.Level = "info"
-		cfg.Auth.JWTSecret = "staging-secret-change-in-production"
+		cfg.Auth.FrontendCallbackURL = "https://staging.example.com/auth/callback"
+		cfg.Auth.ServerCallbackURL = "https://staging-api.example.com/v1/auth/oauth2/callback"
 	case "production":
 		cfg.Logging.Level = "warn"
-		cfg.Auth.JWTSecret = "" // Must be set via environment or config file
+		cfg.Auth.FrontendCallbackURL = "" // Must be set in config file
+		cfg.Auth.ServerCallbackURL = ""   // Must be set in config file
 	}
 
 	// Marshal config based on output type

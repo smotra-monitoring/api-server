@@ -40,5 +40,6 @@ generate:
 output-options:
   include-tags:
   - current
+  - authentication
   exclude-tags:
   - health

@@ -37,6 +37,30 @@ func (t *testServerImpl) PostClaimAgent(ctx context.Context, request api.PostCla
 	return nil, nil
 }
 
+func (t *testServerImpl) Logout(ctx context.Context, request api.LogoutRequestObject) (api.LogoutResponseObject, error) {
+	return nil, nil
+}
+
+func (t *testServerImpl) Oauth2Authorize(ctx context.Context, request api.Oauth2AuthorizeRequestObject) (api.Oauth2AuthorizeResponseObject, error) {
+	return nil, nil
+}
+
+func (t *testServerImpl) Oauth2Callback(ctx context.Context, request api.Oauth2CallbackRequestObject) (api.Oauth2CallbackResponseObject, error) {
+	return nil, nil
+}
+
+func (t *testServerImpl) Oauth2Revoke(ctx context.Context, request api.Oauth2RevokeRequestObject) (api.Oauth2RevokeResponseObject, error) {
+	return nil, nil
+}
+
+func (t *testServerImpl) Oauth2Token(ctx context.Context, request api.Oauth2TokenRequestObject) (api.Oauth2TokenResponseObject, error) {
+	return nil, nil
+}
+
+func (t *testServerImpl) GetUserInfo(ctx context.Context, request api.GetUserInfoRequestObject) (api.GetUserInfoResponseObject, error) {
+	return nil, nil
+}
+
 func (t *testServerImpl) SubmitAgentResults(ctx context.Context, request api.SubmitAgentResultsRequestObject) (api.SubmitAgentResultsResponseObject, error) {
 	return nil, nil
 }

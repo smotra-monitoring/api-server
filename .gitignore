@@ -2,6 +2,9 @@
 api/spec.yaml
 api/strict.yaml
 
+# Ignore production configuration files
+configs/prod*
+
 # Binaries for programs and plugins
 *.exe
 *.exe~

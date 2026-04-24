@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/smotra-monitoring/server/internal/database"
 	"gopkg.in/yaml.v3"
@@ -220,20 +219,19 @@ func TestConfig_Validate_InvalidLogFormat(t *testing.T) {
 	}
 }
 
-func TestConfig_Validate_MissingJWTSecretInProduction(t *testing.T) {
+func TestConfig_Validate_MissingFrontendCallbackURL(t *testing.T) {
 	cfg := Default()
-	cfg.Server.Environment = "production"
-	cfg.Auth.JWTSecret = ""
+	cfg.Auth.FrontendCallbackURL = ""
 
 	err := cfg.Validate()
 	if err == nil {
-		t.Error("Expected validation error for missing JWT secret in production, got nil")
+		t.Error("Expected validation error for missing frontend_callback_url, got nil")
 	}
 }
 
 func TestConfig_Validate_ValidConfig(t *testing.T) {
 	cfg := Default()
-	cfg.Auth.JWTSecret = "test-secret"
+	// Default() already sets FrontendCallbackURL and ServerCallbackURL.
 
 	err := cfg.Validate()
 	if err != nil {
@@ -268,8 +266,12 @@ func TestDefault(t *testing.T) {
 		t.Errorf("Expected default log format json, got %s", cfg.Logging.Format)
 	}
 
-	if cfg.Auth.JWTExpiration != 24*time.Hour {
-		t.Errorf("Expected default JWT expiration 24h, got %v", cfg.Auth.JWTExpiration)
+	if cfg.Auth.FrontendCallbackURL == "" {
+		t.Error("Expected default FrontendCallbackURL to be non-empty")
+	}
+
+	if cfg.Auth.ServerCallbackURL == "" {
+		t.Error("Expected default ServerCallbackURL to be non-empty")
 	}
 }
 

@@ -39,6 +39,7 @@ func CreateTestConfigJSON(t *testing.T, content string) string {
 // DefaultTestConfig returns a default config suitable for testing
 func DefaultTestConfig() *config.Config {
 	cfg := config.Default()
-	cfg.Auth.JWTSecret = "test-secret-key-for-testing"
+	cfg.Auth.FrontendCallbackURL = "http://localhost:3000/auth/callback"
+	cfg.Auth.ServerCallbackURL = "http://localhost:8080/v1/auth/oauth2/callback"
 	return cfg
 }

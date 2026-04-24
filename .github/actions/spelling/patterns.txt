@@ -52,3 +52,6 @@
 \b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b
 # UUIDv7 pattern (Generalized variant):
 \b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b
+
+# client_id and client_secret
+\b(?:client_id|client_secret)\b\s*[=:]\s*['"]?[0-9a-zA-Z]{20,}['"]?

@@ -1,26 +1,36 @@
 server:
     host: 0.0.0.0
     port: 8080
-    read_timeout: 15s
-    write_timeout: 15s
-    idle_timeout: 2m0s
-    shutdown_timeout: 30s
+    # read_timeout: 15s
+    # write_timeout: 15s
+    # idle_timeout: 2m0s
+    # shutdown_timeout: 30s
     environment: development
 database_type: sqlite
 sqlite_config:
     config:
         type: sqlite
-        maxopenconns: 1
-        maxidleconns: 1
-        connmaxlifetime: 0s
-        connmaxidletime: 0s
+        # maxopenconns: 25
+        # maxidleconns: 5
+        # connmaxlifetime: 15m0s
+        # connmaxidletime: 5m0s
     filepath: ./data/smotra.db
 logging:
     level: debug
     format: text
 auth:
-    jwt_secret: development-secret-change-in-production
-    jwt_expiration: 24h0m0s
+    frontend_callback_url: http://localhost:3000/auth/callback
+    server_callback_url: http://localhost:8080/v1/auth/oauth2/callback
+    providers:
+        # Example: configure GitHub for local dev
+        # github:
+        #     type: static
+        #     client_id: your-github-client-id
+        # Example: configure Google OIDC
+        # google:
+        #     type: oidc
+        #     issuer_url: https://accounts.google.com
+        #     client_id: your-google-client-id
 agent:
     claim_token_expiration_hours: 24
     server_url: https://smotra.net

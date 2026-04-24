@@ -37,9 +37,52 @@ type LoggingConfig struct {
 
 // AuthConfig holds authentication configuration
 type AuthConfig struct {
-	JWTSecret     string        `json:"jwt_secret" yaml:"jwt_secret"`
-	JWTExpiration time.Duration `json:"jwt_expiration" yaml:"jwt_expiration"`
-	// OAuth2 settings can be added here
+	// FrontendCallbackURL is the frontend URL the server redirects to after
+	// receiving the OAuth2 callback from the IDP (e.g. https://app.example.com/auth/callback).
+	FrontendCallbackURL string `json:"frontend_callback_url" yaml:"frontend_callback_url"`
+
+	// ServerCallbackURL is the URL of this server's /auth/oauth2/callback endpoint,
+	// registered with IDPs as the redirect_uri.
+	ServerCallbackURL string `json:"server_callback_url" yaml:"server_callback_url"`
+
+	// Providers is a map of provider name to its configuration.
+	// Built-in provider names: okta, auth0, azure, google, github.
+	// Custom providers can be added here with any unique name.
+	Providers map[string]OAuthProviderConfig `json:"providers,omitempty" yaml:"providers,omitempty"`
+}
+
+// OAuthProviderType defines the endpoint resolution strategy for a provider.
+type OAuthProviderType string
+
+const (
+	// OAuthProviderTypeOIDC resolves endpoints via OIDC discovery at
+	// {IssuerURL}/.well-known/openid-configuration.
+	OAuthProviderTypeOIDC OAuthProviderType = "oidc"
+
+	// OAuthProviderTypeStatic uses endpoint URLs directly from config (no discovery).
+	// Required for GitHub and other non-OIDC OAuth2 providers.
+	OAuthProviderTypeStatic OAuthProviderType = "static"
+)
+
+// OAuthProviderConfig holds configuration for a single OAuth2/OIDC provider.
+type OAuthProviderConfig struct {
+	// Type determines endpoint resolution strategy: "oidc" or "static".
+	Type OAuthProviderType `json:"type" yaml:"type"`
+
+	// IssuerURL is the OIDC issuer base URL. Required for type=oidc.
+	// Discovery document is fetched from {IssuerURL}/.well-known/openid-configuration.
+	IssuerURL string `json:"issuer_url,omitempty" yaml:"issuer_url,omitempty"`
+
+	// ClientID is the OAuth2 application client ID registered with the provider.
+	ClientID string `json:"client_id" yaml:"client_id"`
+
+	// Endpoint overrides. For type=static these are required.
+	// For type=oidc they override the values from the discovery document.
+	AuthorizationEndpoint string `json:"authorization_endpoint,omitempty" yaml:"authorization_endpoint,omitempty"`
+	TokenEndpoint         string `json:"token_endpoint,omitempty" yaml:"token_endpoint,omitempty"`
+	UserInfoEndpoint      string `json:"userinfo_endpoint,omitempty" yaml:"userinfo_endpoint,omitempty"`
+	RevocationEndpoint    string `json:"revocation_endpoint,omitempty" yaml:"revocation_endpoint,omitempty"`
+	EndSessionEndpoint    string `json:"end_session_endpoint,omitempty" yaml:"end_session_endpoint,omitempty"`
 }
 
 // AgentConfig holds agent-related configuration
@@ -100,9 +143,35 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid log format: %s", c.Logging.Format)
 	}
 
-	// Auth validation (warning only for development)
-	if c.Auth.JWTSecret == "" && c.Server.Environment == "production" {
-		return fmt.Errorf("JWT secret is required in production")
+	// Auth validation
+	if c.Auth.FrontendCallbackURL == "" {
+		return fmt.Errorf("auth.frontend_callback_url is required")
+	}
+	if c.Auth.ServerCallbackURL == "" {
+		return fmt.Errorf("auth.server_callback_url is required")
+	}
+	for name, p := range c.Auth.Providers {
+		if p.ClientID == "" {
+			return fmt.Errorf("auth.providers[%s]: client_id is required", name)
+		}
+		switch p.Type {
+		case OAuthProviderTypeOIDC:
+			if p.IssuerURL == "" {
+				return fmt.Errorf("auth.providers[%s]: issuer_url is required for type=oidc", name)
+			}
+		case OAuthProviderTypeStatic:
+			if p.AuthorizationEndpoint == "" {
+				return fmt.Errorf("auth.providers[%s]: authorization_endpoint is required for type=static", name)
+			}
+			if p.TokenEndpoint == "" {
+				return fmt.Errorf("auth.providers[%s]: token_endpoint is required for type=static", name)
+			}
+			if p.UserInfoEndpoint == "" {
+				return fmt.Errorf("auth.providers[%s]: userinfo_endpoint is required for type=static", name)
+			}
+		default:
+			return fmt.Errorf("auth.providers[%s]: unknown type %q (must be oidc or static)", name, p.Type)
+		}
 	}
 
 	// Agent config validation
@@ -164,8 +233,9 @@ func DefaultLoggingConfig() LoggingConfig {
 
 func DefaultAuthConfig() AuthConfig {
 	return AuthConfig{
-		JWTSecret:     "",
-		JWTExpiration: 24 * time.Hour,
+		FrontendCallbackURL: "http://localhost:3000/auth/callback",
+		ServerCallbackURL:   "http://localhost:8080/v1/auth/oauth2/callback",
+		Providers:           map[string]OAuthProviderConfig{},
 	}
 }
 

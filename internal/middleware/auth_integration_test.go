@@ -273,16 +273,16 @@ func TestAuthenticationChain_Integration(t *testing.T) {
 		}
 	})
 
-	// Test: OAuth2 Bearer token is rejected
-	t.Run("OAuth2IsNotImplemented", func(t *testing.T) {
+	// Test: OAuth2 Bearer token is stored in context but Authenticated=false; RequireAuth rejects it
+	t.Run("OAuth2BearerTokenDoesNotAuthenticateAgents", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/agent/"+agentID+"/configuration", nil)
 		req.Header.Set("Authorization", "Bearer some-token")
 		w := httptest.NewRecorder()
 
 		chain.ServeHTTP(w, req)
 
-		if w.Code != http.StatusNotImplemented {
-			t.Errorf("Expected status 501, got %d", w.Code)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", w.Code)
 		}
 	})
 }

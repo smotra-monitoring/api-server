@@ -24,8 +24,9 @@ logging:
     level: warn
     format: json
 auth:
-    jwt_secret: ""
-    jwt_expiration: 24h0m0s
+    frontend_callback_url: ""
+    server_callback_url: ""
+    providers: {}
 agent:
     claim_token_expiration_hours: 24
     server_url: https://smotra.net

@@ -30,6 +30,7 @@ type AuthInfo struct {
 	AgentID       string
 	AuthType      string // "agent_api_key" or "oauth2"
 	Authenticated bool
+	BearerToken   string // raw "Authorization: Bearer <token>" value (OAuth2 only; not yet validated)
 }
 
 // AgentAPIKeyAuth returns a middleware that authenticates using agent API keys
@@ -103,16 +104,15 @@ func OAuth2Auth(log *logger.Logger) func(next http.Handler) http.Handler {
 				return
 			}
 
-			// Check if it's a Bearer token
+			// Check if it's a Bearer token; store it for downstream handlers (e.g. GetUserInfo).
+			// Authenticated is left false — the token is not validated here.
 			if strings.HasPrefix(authHeader, "Bearer ") {
-				log.Warn("OAuth2 authentication attempted but not implemented")
-
-				response := api.GetAgentConfiguration501JSONResponse{}
-				response.Error = "not_implemented"
-				response.Message = "OAuth2 authentication is not yet implemented"
-				response.RequestId = getRequestIDFromHeader(r, log)
-
-				response.VisitGetAgentConfigurationResponse(w)
+				authInfo := &AuthInfo{
+					AuthType:    "oauth2",
+					BearerToken: authHeader,
+				}
+				ctx := context.WithValue(r.Context(), AuthContextKey, authInfo)
+				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 
