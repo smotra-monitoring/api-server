@@ -105,7 +105,7 @@ func main() {
 		// Future API endpoints will be added here
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"message":"Monitoring API v1","version":"` + appVersion + `"}`))
+			w.Write([]byte(`{"message":"Monitoring API","api_version":"v1","app_version":"` + appVersion + `"}`))
 		})
 	})
 
