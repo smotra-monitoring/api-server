@@ -12,6 +12,7 @@ import (
 	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/config"
 	"github.com/smotra-monitoring/server/internal/handlers/auth"
+	"github.com/smotra-monitoring/server/internal/middleware"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
 
@@ -403,9 +404,10 @@ func TestGetUserInfo_ProxiesToIDP(t *testing.T) {
 
 	h := newTestHandler(t, stub.URL)
 
-	httpReq := httptest.NewRequest(http.MethodGet, "/auth/userinfo", nil)
-	httpReq.Header.Set("Authorization", "Bearer test-access-token")
-	ctx := auth.WithHTTPRequest(context.Background(), httpReq)
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, &middleware.AuthInfo{
+		AuthType:    "oauth2",
+		BearerToken: "Bearer test-access-token",
+	})
 
 	resp, err := h.GetUserInfo(ctx, api.GetUserInfoRequestObject{
 		Params: api.GetUserInfoParams{Provider: "teststatic"},
@@ -426,9 +428,7 @@ func TestGetUserInfo_ProxiesToIDP(t *testing.T) {
 func TestGetUserInfo_MissingAuthHeader_Returns401(t *testing.T) {
 	h := newTestHandler(t, "http://idp.test")
 
-	httpReq := httptest.NewRequest(http.MethodGet, "/auth/userinfo", nil)
-	// No Authorization header
-	ctx := auth.WithHTTPRequest(context.Background(), httpReq)
+	ctx := context.Background() // no AuthInfo in context → should return 401
 
 	resp, err := h.GetUserInfo(ctx, api.GetUserInfoRequestObject{
 		Params: api.GetUserInfoParams{Provider: "teststatic"},

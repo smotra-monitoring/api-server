@@ -172,8 +172,10 @@ func TestOAuth2Auth_WithBearerToken(t *testing.T) {
 
 	middleware := OAuth2Auth(log)
 
+	var capturedCtx context.Context
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("Handler should not be called when OAuth2 is not implemented")
+		capturedCtx = r.Context()
+		w.WriteHeader(http.StatusOK)
 	})
 
 	req := httptest.NewRequest("GET", "/agent/019bdeb2-50dc-794e-808b-cf47526b867f/configuration", nil)
@@ -182,8 +184,22 @@ func TestOAuth2Auth_WithBearerToken(t *testing.T) {
 
 	middleware(handler).ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotImplemented {
-		t.Errorf("Expected status 501, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	authInfo, ok := capturedCtx.Value(AuthContextKey).(*AuthInfo)
+	if !ok || authInfo == nil {
+		t.Fatal("Expected AuthInfo in context, got none")
+	}
+	if authInfo.AuthType != "oauth2" {
+		t.Errorf("Expected AuthType=oauth2, got %q", authInfo.AuthType)
+	}
+	if authInfo.BearerToken != "Bearer token123" {
+		t.Errorf("Expected BearerToken='Bearer token123', got %q", authInfo.BearerToken)
+	}
+	if authInfo.Authenticated {
+		t.Error("Expected Authenticated=false (token not validated)")
 	}
 }
 

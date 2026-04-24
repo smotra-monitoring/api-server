@@ -13,6 +13,7 @@ import (
 	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/config"
 	"github.com/smotra-monitoring/server/internal/logger"
+	"github.com/smotra-monitoring/server/internal/middleware"
 )
 
 // defaultProviders contains built-in provider configurations that are
@@ -413,20 +414,14 @@ func (h *Handler) GetUserInfo(ctx context.Context, req api.GetUserInfoRequestObj
 		}}, nil
 	}
 
-	// Extract the Bearer token from the incoming request context.
-	// The strict handler framework gives us access to the original request via context.
-	httpReq, ok := ctx.Value(httpRequestContextKey{}).(*http.Request)
-	if !ok || httpReq == nil {
+	// Extract the Bearer token stored in context by middleware.OAuth2Auth.
+	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+	if !ok || authInfo == nil || authInfo.BearerToken == "" {
 		return api.GetUserInfo401JSONResponse{UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
 			Error: "unauthorized", Message: "Authorization header is required",
 		}}, nil
 	}
-	authHeader := httpReq.Header.Get("Authorization")
-	if authHeader == "" {
-		return api.GetUserInfo401JSONResponse{UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-			Error: "unauthorized", Message: "Authorization header is required",
-		}}, nil
-	}
+	authHeader := authInfo.BearerToken
 
 	idpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoints.UserInfoEndpoint, nil)
 	if err != nil {
