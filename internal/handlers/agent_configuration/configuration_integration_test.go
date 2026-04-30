@@ -180,10 +180,10 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topologies (id, section_id, name, type, enabled) VALUES (?, ?, ?, ?, ?)", topologyID, sectionID, "Test Topology", "full-mesh", 1); err != nil {
 		t.Fatalf("Failed to create topology: %v", err)
 	}
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, ?)", topologyID, agentTag1ID, "agent"); err != nil {
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, ?)", topologyID, agentTag1ID, "monitor"); err != nil {
 		t.Fatalf("Failed to add agent topology member: %v", err)
 	}
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, ?)", topologyID, endpointTag1ID, "endpoint"); err != nil {
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, ?)", topologyID, endpointTag1ID, "target"); err != nil {
 		t.Fatalf("Failed to add endpoint topology member: %v", err)
 	}
 

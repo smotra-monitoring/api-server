@@ -126,12 +126,12 @@ func setupTopologyPermission(t *testing.T, db database.Database, sectionID, agen
 		t.Fatalf("insert topology: %v", err)
 	}
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, 'agent')`,
+		`INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, 'monitor')`,
 		topologyID, tagID); err != nil {
 		t.Fatalf("insert agent topology member: %v", err)
 	}
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, 'endpoint')`,
+		`INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, 'target')`,
 		topologyID, tagID); err != nil {
 		t.Fatalf("insert endpoint topology member: %v", err)
 	}
