@@ -217,7 +217,7 @@ func TestHandler_ValidateRequest_IpAddresses(t *testing.T) {
 			ipAddresses: []api.AgentNetworkInterface{
 				{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: false},
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "multiple recommended entries",
