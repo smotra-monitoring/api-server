@@ -173,13 +173,13 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 	txQueries := q.WithTx(tx)
 
 	if _, err = txQueries.CreateAgentFromClaim(ctx, queries.CreateAgentFromClaimParams{
-		ID:           agentIDStr,
-		SectionID:    req.Body.SectionId.String(),
-		Name:         agentName,
-		ApiKeyHash:   apiKeyHash,
-		BaseConfig:   "{}",
-		AgentVersion: sql.NullString{String: claimFromDB.AgentVersion, Valid: true},
-		IpAddressesJson:  claimFromDB.IpAddressesJson,
+		ID:              agentIDStr,
+		SectionID:       req.Body.SectionId.String(),
+		Name:            agentName,
+		ApiKeyHash:      apiKeyHash,
+		BaseConfig:      "{}",
+		AgentVersion:    sql.NullString{String: claimFromDB.AgentVersion, Valid: true},
+		IpAddressesJson: claimFromDB.IpAddressesJson,
 	}); err != nil {
 		h.logger.ErrorContext(ctx, "Failed to create agent from claim",
 			slog.String("agentId", agentIDStr),
