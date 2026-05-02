@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync/atomic"
@@ -178,6 +179,7 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 		ApiKeyHash:   apiKeyHash,
 		BaseConfig:   "{}",
 		AgentVersion: sql.NullString{String: claimFromDB.AgentVersion, Valid: true},
+		IpAddressesJson:  claimFromDB.IpAddressesJson,
 	}); err != nil {
 		h.logger.ErrorContext(ctx, "Failed to create agent from claim",
 			slog.String("agentId", agentIDStr),
@@ -193,11 +195,13 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 	}
 
 	// Auto-register the agent as a section endpoint so it can participate in topologies.
+	// Prefer the recommended IP address; fall back to first IP; fall back to hostname.
+	endpointAddress := selectEndpointAddress(claimFromDB.IpAddressesJson, claimFromDB.Hostname)
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err = txQueries.CreateAgentEndpoint(ctx, queries.CreateAgentEndpointParams{
 		ID:            endpointID,
 		SectionID:     req.Body.SectionId.String(),
-		Address:       claimFromDB.Hostname,
+		Address:       endpointAddress,
 		LinkedAgentID: sql.NullString{String: agentIDStr, Valid: true},
 	}); err != nil {
 		h.logger.ErrorContext(ctx, "Failed to create agent endpoint",
@@ -258,6 +262,23 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 		Status:  "claimed",
 		Message: "Agent claimed successfully. API key will be delivered on next poll.",
 	}), nil
+}
+
+// selectEndpointAddress picks the best address for the agent endpoint.
+// It prefers the entry with recommended=true, then falls back to the first
+// entry in the list, and finally to the hostname if the list is empty or
+// cannot be parsed.
+func selectEndpointAddress(ipAddressesJSON string, hostname string) string {
+	var ifaces []api.AgentNetworkInterface
+	if err := json.Unmarshal([]byte(ipAddressesJSON), &ifaces); err != nil || len(ifaces) == 0 {
+		return hostname
+	}
+	for _, iface := range ifaces {
+		if iface.Recommended {
+			return iface.Ip
+		}
+	}
+	return ifaces[0].Ip
 }
 
 // hashClaimToken hashes a claim token using SHA-256

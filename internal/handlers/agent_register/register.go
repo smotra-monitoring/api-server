@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"sync/atomic"
 	"time"
 
@@ -84,12 +86,29 @@ func (h *Handler) Handle(ctx context.Context, req api.RegisterAgentSelfRequestOb
 	// Calculate expiration time
 	expiresAt := time.Now().UTC().Add(time.Hour * time.Duration(h.config.Agent.ClaimTokenExpirationHours))
 
+	// Serialize IP addresses to JSON for storage
+	ipAddressesJSON, err := json.Marshal(req.Body.IpAddresses)
+	if err != nil {
+		h.registrationFailureTotal.Add(1)
+		h.logger.ErrorContext(ctx, "Failed to serialize IP addresses",
+			slog.String("agentId", agentIDStr),
+			slog.String("error", err.Error()),
+		)
+		return api.RegisterAgentSelf500JSONResponse{
+			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
+				Error:   "internal_error",
+				Message: "Failed to process IP addresses",
+			},
+		}, nil
+	}
+
 	// Upsert agent claim (idempotent)
 	_, err = q.UpsertAgentClaim(ctx, queries.UpsertAgentClaimParams{
 		ID:                  agentIDStr,
 		ClaimTokenHash:      req.Body.ClaimTokenHash,
 		Hostname:            req.Body.Hostname,
 		AgentVersion:        req.Body.AgentVersion,
+		IpAddressesJson:     string(ipAddressesJSON),
 		ClaimTokenExpiresAt: expiresAt,
 	})
 
@@ -161,6 +180,26 @@ func (h *Handler) validateRequest(req *api.AgentSelfRegistration) error {
 
 	if req.AgentVersion == "" {
 		return fmt.Errorf("agentVersion is required")
+	}
+
+	if len(req.IpAddresses) == 0 {
+		return fmt.Errorf("ipAddresses must contain at least one entry")
+	}
+
+	recommendedCount := 0
+	for i, iface := range req.IpAddresses {
+		if iface.Iface == "" {
+			return fmt.Errorf("ipAddresses[%d].iface is required", i)
+		}
+		if net.ParseIP(iface.Ip) == nil {
+			return fmt.Errorf("ipAddresses[%d].ip %q is not a valid IP address", i, iface.Ip)
+		}
+		if iface.Recommended {
+			recommendedCount++
+		}
+	}
+	if recommendedCount > 1 {
+		return fmt.Errorf("ipAddresses should not have more than one entry with recommended=true, got %d", recommendedCount)
 	}
 
 	return nil

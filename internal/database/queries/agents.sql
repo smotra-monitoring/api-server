@@ -16,8 +16,9 @@ INSERT INTO agents (
     name,
     api_key_hash,
     base_config,
-    agent_version
-) VALUES (?, ?, ?, ?, ?, ?)
+    agent_version,
+    ip_addresses_json
+) VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING id;
 
 -- name: GetAgentTags :many

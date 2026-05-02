@@ -44,18 +44,20 @@ INSERT INTO agents (
     name,
     api_key_hash,
     base_config,
-    agent_version
-) VALUES (?, ?, ?, ?, ?, ?)
+    agent_version,
+    ip_addresses_json
+) VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING id
 `
 
 type CreateAgentFromClaimParams struct {
-	ID           string
-	SectionID    string
-	Name         string
-	ApiKeyHash   string
-	BaseConfig   string
-	AgentVersion sql.NullString
+	ID              string
+	SectionID       string
+	Name            string
+	ApiKeyHash      string
+	BaseConfig      string
+	AgentVersion    sql.NullString
+	IpAddressesJson string
 }
 
 // Creates an agent after successful claim
@@ -68,6 +70,7 @@ func (q *Queries) CreateAgentFromClaim(ctx context.Context, arg CreateAgentFromC
 		arg.ApiKeyHash,
 		arg.BaseConfig,
 		arg.AgentVersion,
+		arg.IpAddressesJson,
 	)
 	var id string
 	err := row.Scan(&id)

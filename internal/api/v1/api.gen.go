@@ -43,6 +43,12 @@ const (
 	Httpget HttpGetCheckType = "httpget"
 )
 
+// Defines values for IpAddressFamily.
+const (
+	Ipv4 IpAddressFamily = "ipv4"
+	Ipv6 IpAddressFamily = "ipv6"
+)
+
 // Defines values for PingCheckType.
 const (
 	Ping PingCheckType = "ping"
@@ -111,6 +117,24 @@ type AgentConfig struct {
 	Version int32 `json:"version"`
 }
 
+// AgentNetworkInterface defines model for AgentNetworkInterface.
+type AgentNetworkInterface struct {
+	// Family IP address family (IPv4 or IPv6)
+	Family IpAddressFamily `json:"family"`
+
+	// Iface Name of the network interface
+	Iface string `json:"iface"`
+
+	// Ip IP address of the network interface (IPv4 or IPv6, excluding loopback and link-local)
+	Ip string `json:"ip"`
+
+	// Recommended Whether this address is recommended for the server to use when communicating
+	// with the agent. Determined by the agent using the OS routing table: the source
+	// IP the OS selects when opening a connection toward the server is marked as
+	// recommended. Only one entry will have recommended=true.
+	Recommended bool `json:"recommended"`
+}
+
 // AgentRegistrationResponse defines model for AgentRegistrationResponse.
 type AgentRegistrationResponse struct {
 	// ClaimUrl URL for user to claim the agent (web UI)
@@ -139,6 +163,14 @@ type AgentSelfRegistration struct {
 
 	// Hostname System hostname of the machine running the agent
 	Hostname string `json:"hostname"`
+
+	// IpAddresses List of all non-loopback, non-link-local network interfaces on the agent host.
+	// Loopback (127.x.x.x / ::1) and link-local (169.254.x.x / fe80::/10) addresses
+	// are excluded. The server should store all addresses and allow the operator to
+	// select the preferred one during the claim process. The entry with
+	// recommended=true reflects the OS-selected source IP for connections toward
+	// the server (determined via routing table, no traffic sent).
+	IpAddresses []AgentNetworkInterface `json:"ipAddresses"`
 }
 
 // BatchMonitoringResults A batch of monitoring results submitted by an agent from its local cache.
@@ -265,6 +297,9 @@ type HttpGetResult struct {
 	StatusCode        int32         `json:"status_code"`
 	Success           bool          `json:"success"`
 }
+
+// IpAddressFamily IP address family (IPv4 or IPv6)
+type IpAddressFamily string
 
 // MonitoringConfig defines model for MonitoringConfig.
 type MonitoringConfig struct {

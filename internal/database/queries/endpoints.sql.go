@@ -109,9 +109,9 @@ SELECT DISTINCT e.id, e.address, e.port, e.enabled
 FROM endpoints e
 JOIN endpoint_tags   et    ON et.endpoint_id = e.id
 JOIN topology_members tm_t ON tm_t.tag_id = et.tag_id AND tm_t.role = 'target'
-JOIN topologies      t     ON t.id = tm_t.topology_id  AND t.enabled = 1
-JOIN topology_members tm_m ON tm_m.topology_id = t.id  AND tm_m.role = 'monitor'
-JOIN agent_tags      at    ON at.tag_id = tm_m.tag_id   AND at.agent_id = ?1
+JOIN topologies      t     ON t.id = tm_t.topology_id AND t.enabled = 1
+JOIN topology_members tm_m ON tm_m.topology_id = t.id AND tm_m.role = 'monitor'
+JOIN agent_tags      at    ON at.tag_id = tm_m.tag_id AND at.agent_id = ?1
 WHERE e.enabled = 1
   AND e.section_id = (SELECT section_id FROM agents WHERE id = ?1)
   AND NOT (e.is_agent = 1 AND e.linked_agent_id = ?1)
