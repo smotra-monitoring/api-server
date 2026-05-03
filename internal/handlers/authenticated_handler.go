@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"sync/atomic"
 
 	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/config"
@@ -16,22 +18,34 @@ type AuthenticatedHandler struct {
 	*APIHandler
 	logger *logger.Logger
 	db     database.Database
+
+	// Authentication metrics counters
+	authAttemptsTotal      atomic.Uint64
+	authNoAuthTotal        atomic.Uint64
+	authInvalidTotal       atomic.Uint64
+	authAgentIDMismatchTotal atomic.Uint64
+	authSuccessTotal       atomic.Uint64
 }
 
 // NewAuthenticatedHandler creates a new authenticated handler wrapper
 func NewAuthenticatedHandler(logger *logger.Logger, db database.Database, cfg *config.Config, apiVersion string, metricsHandler *metrics.Handler) *AuthenticatedHandler {
-	return &AuthenticatedHandler{
+	h := &AuthenticatedHandler{
 		APIHandler: NewAPIHandler(logger, db, cfg, apiVersion, metricsHandler),
 		logger:     logger,
 		db:         db,
 	}
+	metricsHandler.RegisterMetricsProvider(h)
+	return h
 }
 
 // GetAgentConfiguration wraps the configuration handler with authentication
 func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, request api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
+	h.authAttemptsTotal.Add(1)
+
 	// Check if authentication is present in context
 	authInfo := ctx.Value(middleware.AuthContextKey)
 	if authInfo == nil {
+		h.authNoAuthTotal.Add(1)
 		h.logger.Warn("No authentication provided for agent configuration endpoint", "agent", request.AgentId.String())
 		return api.GetAgentConfiguration401JSONResponse{
 			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
@@ -43,6 +57,7 @@ func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, reques
 
 	ctxInfo, ok := authInfo.(*middleware.AuthInfo)
 	if !ok || !ctxInfo.Authenticated {
+		h.authInvalidTotal.Add(1)
 		h.logger.Warn("Invalid authentication for agent configuration endpoint", "agent", request.AgentId.String())
 		return api.GetAgentConfiguration401JSONResponse{
 			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
@@ -55,6 +70,7 @@ func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, reques
 	// Verify that the authenticated agent matches the requested agent
 	reqAgentID := request.AgentId.String()
 	if ctxInfo.AgentID != reqAgentID {
+		h.authAgentIDMismatchTotal.Add(1)
 		h.logger.Warn("Agent ID mismatch in authentication",
 			"authenticated_agent", ctxInfo.AgentID,
 			"requested_agent", reqAgentID,
@@ -68,13 +84,17 @@ func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, reques
 	}
 
 	// Authentication successful, delegate to the actual handler
+	h.authSuccessTotal.Add(1)
 	return h.APIHandler.GetAgentConfiguration(ctx, request)
 }
 
 // SubmitAgentResults wraps the submit results handler with authentication
 func (h *AuthenticatedHandler) SubmitAgentResults(ctx context.Context, request api.SubmitAgentResultsRequestObject) (api.SubmitAgentResultsResponseObject, error) {
+	h.authAttemptsTotal.Add(1)
+
 	authInfo := ctx.Value(middleware.AuthContextKey)
 	if authInfo == nil {
+		h.authNoAuthTotal.Add(1)
 		h.logger.Warn("No authentication provided for submit results endpoint", "agent", request.AgentId.String())
 		return api.SubmitAgentResults401JSONResponse{
 			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
@@ -86,6 +106,7 @@ func (h *AuthenticatedHandler) SubmitAgentResults(ctx context.Context, request a
 
 	ctxInfo, ok := authInfo.(*middleware.AuthInfo)
 	if !ok || !ctxInfo.Authenticated {
+		h.authInvalidTotal.Add(1)
 		h.logger.Warn("Invalid authentication for submit results endpoint", "agent", request.AgentId.String())
 		return api.SubmitAgentResults401JSONResponse{
 			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
@@ -96,6 +117,7 @@ func (h *AuthenticatedHandler) SubmitAgentResults(ctx context.Context, request a
 	}
 
 	if ctxInfo.AgentID != request.AgentId.String() {
+		h.authAgentIDMismatchTotal.Add(1)
 		h.logger.Warn("Agent ID mismatch in submit results authentication",
 			"authenticated_agent", ctxInfo.AgentID,
 			"requested_agent", request.AgentId.String(),
@@ -108,5 +130,84 @@ func (h *AuthenticatedHandler) SubmitAgentResults(ctx context.Context, request a
 		}, nil
 	}
 
+	h.authSuccessTotal.Add(1)
 	return h.APIHandler.SubmitAgentResults(ctx, request)
+}
+
+// SendAgentHeartbeat wraps the heartbeat handler with authentication
+func (h *AuthenticatedHandler) SendAgentHeartbeat(ctx context.Context, request api.SendAgentHeartbeatRequestObject) (api.SendAgentHeartbeatResponseObject, error) {
+	h.authAttemptsTotal.Add(1)
+
+	authInfo := ctx.Value(middleware.AuthContextKey)
+	if authInfo == nil {
+		h.authNoAuthTotal.Add(1)
+		h.logger.Warn("No authentication provided for heartbeat endpoint", "agent", request.AgentId.String())
+		return api.SendAgentHeartbeat401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "No authentication provided",
+			},
+		}, nil
+	}
+
+	ctxInfo, ok := authInfo.(*middleware.AuthInfo)
+	if !ok || !ctxInfo.Authenticated {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Invalid authentication for heartbeat endpoint", "agent", request.AgentId.String())
+		return api.SendAgentHeartbeat401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Invalid authentication",
+			},
+		}, nil
+	}
+
+	if ctxInfo.AgentID != request.AgentId.String() {
+		h.authAgentIDMismatchTotal.Add(1)
+		h.logger.Warn("Agent ID mismatch in heartbeat authentication",
+			"authenticated_agent", ctxInfo.AgentID,
+			"requested_agent", request.AgentId.String(),
+		)
+		return api.SendAgentHeartbeat503JSONResponse{
+			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
+				Error:   "forbidden",
+				Message: "Access denied due to internal server error",
+			},
+		}, nil
+	}
+
+	h.authSuccessTotal.Add(1)
+	return h.APIHandler.SendAgentHeartbeat(ctx, request)
+}
+
+// GetMetrics returns current authentication metrics in Prometheus format
+func (h *AuthenticatedHandler) GetMetrics() string {
+	out := ""
+
+	out += "# HELP smotra_auth_attempts_total Total authentication attempts across all authenticated endpoints\n"
+	out += "# TYPE smotra_auth_attempts_total counter\n"
+	out += fmt.Sprintf("smotra_auth_attempts_total %d\n", h.authAttemptsTotal.Load())
+	out += "\n"
+
+	out += "# HELP smotra_auth_no_auth_total Authentication attempts with no credentials provided\n"
+	out += "# TYPE smotra_auth_no_auth_total counter\n"
+	out += fmt.Sprintf("smotra_auth_no_auth_total %d\n", h.authNoAuthTotal.Load())
+	out += "\n"
+
+	out += "# HELP smotra_auth_invalid_total Authentication attempts with invalid credentials\n"
+	out += "# TYPE smotra_auth_invalid_total counter\n"
+	out += fmt.Sprintf("smotra_auth_invalid_total %d\n", h.authInvalidTotal.Load())
+	out += "\n"
+
+	out += "# HELP smotra_auth_agent_id_mismatch_total Authentication attempts where agent ID does not match token\n"
+	out += "# TYPE smotra_auth_agent_id_mismatch_total counter\n"
+	out += fmt.Sprintf("smotra_auth_agent_id_mismatch_total %d\n", h.authAgentIDMismatchTotal.Load())
+	out += "\n"
+
+	out += "# HELP smotra_auth_success_total Successful authentications\n"
+	out += "# TYPE smotra_auth_success_total counter\n"
+	out += fmt.Sprintf("smotra_auth_success_total %d\n", h.authSuccessTotal.Load())
+	out += "\n"
+
+	return out
 }
