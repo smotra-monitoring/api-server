@@ -87,6 +87,10 @@ func (t *testServerImpl) SubmitAgentResults(ctx context.Context, request api.Sub
 	return nil, nil
 }
 
+func (t *testServerImpl) SendAgentHeartbeat(ctx context.Context, request api.SendAgentHeartbeatRequestObject) (api.SendAgentHeartbeatResponseObject, error) {
+	return nil, nil
+}
+
 func setupTestRouter(handler *Handler) *chi.Mux {
 	testImpl := &testServerImpl{Handler: handler}
 	r := chi.NewRouter()

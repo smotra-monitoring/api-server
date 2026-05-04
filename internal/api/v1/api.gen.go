@@ -23,6 +23,12 @@ const (
 	OAuth2AuthorizationCodeScopes = "OAuth2AuthorizationCode.Scopes"
 )
 
+// Defines values for AgentHealthStatus.
+const (
+	Degraded AgentHealthStatus = "degraded"
+	Healthy  AgentHealthStatus = "healthy"
+)
+
 // Defines values for ClaimResponseStatus.
 const (
 	ClaimResponseStatusClaimed ClaimResponseStatus = "claimed"
@@ -115,6 +121,27 @@ type AgentConfig struct {
 
 	// Version Configuration version (used for syncing with server)
 	Version int32 `json:"version"`
+}
+
+// AgentHealthStatus Health status of the agent
+type AgentHealthStatus string
+
+// AgentHeartbeat defines model for AgentHeartbeat.
+type AgentHeartbeat struct {
+	// CpuUsagePercent CPU utilisation percentage (0.0–100.0)
+	CpuUsagePercent float32 `json:"cpu_usage_percent"`
+
+	// MemoryTotalMb Total physical memory available (MB)
+	MemoryTotalMb float32 `json:"memory_total_mb"`
+
+	// MemoryUsageMb Resident memory currently in use (MB)
+	MemoryUsageMb float32 `json:"memory_usage_mb"`
+
+	// Status Health status of the agent
+	Status AgentHealthStatus `json:"status"`
+
+	// Timestamp Agent-local timestamp when the heartbeat was generated (RFC3339)
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // AgentNetworkInterface defines model for AgentNetworkInterface.
@@ -662,6 +689,9 @@ type PostClaimAgentJSONRequestBody = ClaimAgentRequest
 // RegisterAgentSelfJSONRequestBody defines body for RegisterAgentSelf for application/json ContentType.
 type RegisterAgentSelfJSONRequestBody = AgentSelfRegistration
 
+// SendAgentHeartbeatJSONRequestBody defines body for SendAgentHeartbeat for application/json ContentType.
+type SendAgentHeartbeatJSONRequestBody = AgentHeartbeat
+
 // SubmitAgentResultsJSONRequestBody defines body for SubmitAgentResults for application/json ContentType.
 type SubmitAgentResultsJSONRequestBody = BatchMonitoringResults
 
@@ -897,6 +927,9 @@ type ServerInterface interface {
 	// Get agent configuration
 	// (GET /agent/{agentId}/configuration)
 	GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId)
+	// Send agent heartbeat
+	// (POST /agent/{agentId}/heartbeat)
+	SendAgentHeartbeat(w http.ResponseWriter, r *http.Request, agentId AgentId)
 	// Submit batch monitoring results
 	// (POST /agent/{agentId}/results)
 	SubmitAgentResults(w http.ResponseWriter, r *http.Request, agentId AgentId)
@@ -945,6 +978,12 @@ func (_ Unimplemented) GetAgentClaimStatus(w http.ResponseWriter, r *http.Reques
 // Get agent configuration
 // (GET /agent/{agentId}/configuration)
 func (_ Unimplemented) GetAgentConfiguration(w http.ResponseWriter, r *http.Request, agentId AgentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Send agent heartbeat
+// (POST /agent/{agentId}/heartbeat)
+func (_ Unimplemented) SendAgentHeartbeat(w http.ResponseWriter, r *http.Request, agentId AgentId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1082,6 +1121,37 @@ func (siw *ServerInterfaceWrapper) GetAgentConfiguration(w http.ResponseWriter, 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAgentConfiguration(w, r, agentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SendAgentHeartbeat operation middleware
+func (siw *ServerInterfaceWrapper) SendAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentId" -------------
+	var agentId AgentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentId", chi.URLParam(r, "agentId"), &agentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, AgentApiKeyScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendAgentHeartbeat(w, r, agentId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1487,6 +1557,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/agent/{agentId}/configuration", wrapper.GetAgentConfiguration)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/agent/{agentId}/heartbeat", wrapper.SendAgentHeartbeat)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/agent/{agentId}/results", wrapper.SubmitAgentResults)
 	})
 	r.Group(func(r chi.Router) {
@@ -1730,6 +1803,52 @@ type GetAgentConfiguration503JSONResponse struct {
 }
 
 func (response GetAgentConfiguration503JSONResponse) VisitGetAgentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SendAgentHeartbeatRequestObject struct {
+	AgentId AgentId `json:"agentId"`
+	Body    *SendAgentHeartbeatJSONRequestBody
+}
+
+type SendAgentHeartbeatResponseObject interface {
+	VisitSendAgentHeartbeatResponse(w http.ResponseWriter) error
+}
+
+type SendAgentHeartbeat204Response struct {
+}
+
+func (response SendAgentHeartbeat204Response) VisitSendAgentHeartbeatResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SendAgentHeartbeat400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SendAgentHeartbeat400JSONResponse) VisitSendAgentHeartbeatResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SendAgentHeartbeat401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SendAgentHeartbeat401JSONResponse) VisitSendAgentHeartbeatResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SendAgentHeartbeat503JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response SendAgentHeartbeat503JSONResponse) VisitSendAgentHeartbeatResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(503)
 
@@ -2020,6 +2139,9 @@ type StrictServerInterface interface {
 	// Get agent configuration
 	// (GET /agent/{agentId}/configuration)
 	GetAgentConfiguration(ctx context.Context, request GetAgentConfigurationRequestObject) (GetAgentConfigurationResponseObject, error)
+	// Send agent heartbeat
+	// (POST /agent/{agentId}/heartbeat)
+	SendAgentHeartbeat(ctx context.Context, request SendAgentHeartbeatRequestObject) (SendAgentHeartbeatResponseObject, error)
 	// Submit batch monitoring results
 	// (POST /agent/{agentId}/results)
 	SubmitAgentResults(ctx context.Context, request SubmitAgentResultsRequestObject) (SubmitAgentResultsResponseObject, error)
@@ -2179,6 +2301,39 @@ func (sh *strictHandler) GetAgentConfiguration(w http.ResponseWriter, r *http.Re
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAgentConfigurationResponseObject); ok {
 		if err := validResponse.VisitGetAgentConfigurationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SendAgentHeartbeat operation middleware
+func (sh *strictHandler) SendAgentHeartbeat(w http.ResponseWriter, r *http.Request, agentId AgentId) {
+	var request SendAgentHeartbeatRequestObject
+
+	request.AgentId = agentId
+
+	var body SendAgentHeartbeatJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SendAgentHeartbeat(ctx, request.(SendAgentHeartbeatRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SendAgentHeartbeat")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SendAgentHeartbeatResponseObject); ok {
+		if err := validResponse.VisitSendAgentHeartbeatResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
