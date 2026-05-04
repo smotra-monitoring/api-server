@@ -140,6 +140,9 @@ type AgentHeartbeat struct {
 	// Status Health status of the agent
 	Status AgentHealthStatus `json:"status"`
 
+	// SystemUptimeSecs System uptime in seconds
+	SystemUptimeSecs int64 `json:"system_uptime_secs"`
+
 	// Timestamp Agent-local timestamp when the heartbeat was generated (RFC3339)
 	Timestamp time.Time `json:"timestamp"`
 }

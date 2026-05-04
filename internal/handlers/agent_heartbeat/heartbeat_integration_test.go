@@ -108,11 +108,12 @@ func TestHeartbeat_Integration_WithVitals_StoresSnapshot(t *testing.T) {
 	router := setupTestRouter(h)
 
 	body := &api.AgentHeartbeat{
-		Timestamp:       time.Now().UTC(),
-		Status:          api.Healthy,
-		CpuUsagePercent: 55.0,
-		MemoryUsageMb:   2048.0,
-		MemoryTotalMb:   8192.0,
+		Timestamp:        time.Now().UTC(),
+		Status:           api.Healthy,
+		CpuUsagePercent:  55.0,
+		MemoryUsageMb:    2048.0,
+		MemoryTotalMb:    8192.0,
+		SystemUptimeSecs: 172800,
 	}
 
 	rr := postHeartbeat(t, router, agentID, body)
@@ -140,11 +141,12 @@ func TestHeartbeat_Integration_UpdatesAgentLastSeen(t *testing.T) {
 	router := setupTestRouter(h)
 
 	body := &api.AgentHeartbeat{
-		Timestamp:       time.Now().UTC(),
-		Status:          api.Healthy,
-		CpuUsagePercent: 10.0,
-		MemoryUsageMb:   512.0,
-		MemoryTotalMb:   4096.0,
+		Timestamp:        time.Now().UTC(),
+		Status:           api.Healthy,
+		CpuUsagePercent:  10.0,
+		MemoryUsageMb:    512.0,
+		MemoryTotalMb:    4096.0,
+		SystemUptimeSecs: 3600,
 	}
 	postHeartbeat(t, router, agentID, body)
 

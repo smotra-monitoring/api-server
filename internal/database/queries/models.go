@@ -46,13 +46,14 @@ type AgentTag struct {
 }
 
 type AgentVital struct {
-	ID         string
-	AgentID    string
-	CpuPct     sql.NullFloat64
-	MemUsedMb  sql.NullFloat64
-	MemTotalMb sql.NullFloat64
-	ReportedAt time.Time
-	ReceivedAt time.Time
+	ID               string
+	AgentID          string
+	CpuPct           sql.NullFloat64
+	MemUsedMb        sql.NullFloat64
+	MemTotalMb       sql.NullFloat64
+	SystemUptimeSecs sql.NullInt64
+	ReportedAt       time.Time
+	ReceivedAt       time.Time
 }
 
 type CheckResult struct {

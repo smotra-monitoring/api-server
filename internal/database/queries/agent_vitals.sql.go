@@ -12,7 +12,7 @@ import (
 )
 
 const getAgentVitalsHistory = `-- name: GetAgentVitalsHistory :many
-SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, reported_at, received_at
+SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, reported_at, received_at
 FROM agent_vitals
 WHERE agent_id = ?
   AND reported_at >= ?
@@ -41,6 +41,7 @@ func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsH
 			&i.CpuPct,
 			&i.MemUsedMb,
 			&i.MemTotalMb,
+			&i.SystemUptimeSecs,
 			&i.ReportedAt,
 			&i.ReceivedAt,
 		); err != nil {
@@ -58,7 +59,7 @@ func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsH
 }
 
 const getLatestAgentVitals = `-- name: GetLatestAgentVitals :one
-SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, reported_at, received_at
+SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, reported_at, received_at
 FROM agent_vitals
 WHERE agent_id = ?
 ORDER BY reported_at DESC
@@ -74,6 +75,7 @@ func (q *Queries) GetLatestAgentVitals(ctx context.Context, agentID string) (Age
 		&i.CpuPct,
 		&i.MemUsedMb,
 		&i.MemTotalMb,
+		&i.SystemUptimeSecs,
 		&i.ReportedAt,
 		&i.ReceivedAt,
 	)
@@ -87,17 +89,19 @@ INSERT INTO agent_vitals (
     cpu_pct,
     mem_used_mb,
     mem_total_mb,
+    system_uptime_secs,
     reported_at
-) VALUES (?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertAgentVitalsParams struct {
-	ID         string
-	AgentID    string
-	CpuPct     sql.NullFloat64
-	MemUsedMb  sql.NullFloat64
-	MemTotalMb sql.NullFloat64
-	ReportedAt time.Time
+	ID               string
+	AgentID          string
+	CpuPct           sql.NullFloat64
+	MemUsedMb        sql.NullFloat64
+	MemTotalMb       sql.NullFloat64
+	SystemUptimeSecs sql.NullInt64
+	ReportedAt       time.Time
 }
 
 func (q *Queries) InsertAgentVitals(ctx context.Context, arg InsertAgentVitalsParams) error {
@@ -107,6 +111,7 @@ func (q *Queries) InsertAgentVitals(ctx context.Context, arg InsertAgentVitalsPa
 		arg.CpuPct,
 		arg.MemUsedMb,
 		arg.MemTotalMb,
+		arg.SystemUptimeSecs,
 		arg.ReportedAt,
 	)
 	return err
