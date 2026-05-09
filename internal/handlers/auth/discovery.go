@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -122,32 +123,35 @@ func (r *endpointResolver) fetchDiscovery(ctx context.Context, issuerURL string)
 	}
 	r.mu.Unlock()
 
-	discoveryURL := issuerURL + "/.well-known/openid-configuration"
+	discoveryURL, err := url.JoinPath(issuerURL, "/.well-known/openid-configuration")
+	if err != nil {
+		return discoveryDoc{}, fmt.Errorf("joining discovery URL path for issuer %s: %w", issuerURL, err)
+	}
 
 	if !r.allowPrivateHosts {
 		if err := validateProviderURL(discoveryURL); err != nil {
-			return discoveryDoc{}, fmt.Errorf("SSRF check failed for discovery URL: %w", err)
+			return discoveryDoc{}, fmt.Errorf("SSRF check failed for discovery URL %s: %w", discoveryURL, err)
 		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, discoveryURL, nil)
 	if err != nil {
-		return discoveryDoc{}, err
+		return discoveryDoc{}, fmt.Errorf("creating request for discovery URL %s: %w", discoveryURL, err)
 	}
 
 	resp, err := r.client.Do(req)
 	if err != nil {
-		return discoveryDoc{}, fmt.Errorf("fetching discovery document: %w", err)
+		return discoveryDoc{}, fmt.Errorf("fetching discovery document from %s: %w", discoveryURL, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return discoveryDoc{}, fmt.Errorf("discovery document returned HTTP %d", resp.StatusCode)
+		return discoveryDoc{}, fmt.Errorf("discovery URL %s returned HTTP %d", discoveryURL, resp.StatusCode)
 	}
 
 	var doc discoveryDoc
 	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
-		return discoveryDoc{}, fmt.Errorf("decoding discovery document: %w", err)
+		return discoveryDoc{}, fmt.Errorf("decoding discovery document from %s: %w", discoveryURL, err)
 	}
 
 	r.mu.Lock()
