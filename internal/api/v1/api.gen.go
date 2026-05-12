@@ -128,7 +128,7 @@ type AgentHealthStatus string
 
 // AgentHeartbeat defines model for AgentHeartbeat.
 type AgentHeartbeat struct {
-	// CpuUsagePercent CPU utilisation percentage (0.0–100.0)
+	// CpuUsagePercent CPU utilization percentage (0.0–100.0)
 	CpuUsagePercent float32 `json:"cpu_usage_percent"`
 
 	// MemoryTotalMb Total physical memory available (MB)
