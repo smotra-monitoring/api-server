@@ -76,6 +76,11 @@ Location: `internal/handlers/`
 - `agent_register/` — `POST /v1/agent/register`
 - `agent_claim_status/` — `GET /v1/agent/{agentId}/claim-status`
 - `agent_claim/` — `POST /v1/agent/claim`
+- `agent_submit_results/` — `POST /v1/agent/{agentId}/results`
+- `agent_heartbeat/` — `POST /v1/agent/{agentId}/heartbeat`
+- `auth/` — OAuth2 relay (`GET /v1/auth/oauth2/authorize`, `GET /v1/auth/oauth2/callback`, `POST /v1/auth/oauth2/token`, `POST /v1/auth/oauth2/revoke`, `GET /v1/auth/userinfo`, `POST /v1/auth/logout`)
+
+Note: `auth/` handlers are registered through `APIHandler` but do **not** require authentication themselves — they are the mechanism by which users authenticate. They must **not** be wrapped with `AuthenticatedHandler` checks.
 
 **Handler files per package:**
 - `<name>.go` — implementation

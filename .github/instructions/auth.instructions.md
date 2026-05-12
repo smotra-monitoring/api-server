@@ -25,6 +25,7 @@ type AuthInfo struct {
     AgentID       string
     AuthType      string // "agent_api_key" or "oauth2"
     Authenticated bool
+    BearerToken   string // raw "Authorization: Bearer <token>" value (OAuth2 only; not yet validated)
 }
 ```
 
@@ -64,8 +65,40 @@ Context key: `AuthContextKey`
 - API keys: 32+ byte random, one-time plaintext delivery, SHA-256 stored
 - Rate limiting recommended for registration and polling endpoints
 
+## OAuth2 Relay Implementation
+
+The server acts as a **CORS-safe stateless relay** for OAuth2/OIDC flows. All provider credentials are held server-side — browsers never see them. Implementation is **PKCE-only**; no `client_secret` is used anywhere.
+
+Handler: `internal/handlers/auth/` — `Handler` struct with `NewHandler()` and `NewHandlerForTesting()` constructors.
+
+**`NewHandlerForTesting()`** disables SSRF validation (the `allowPrivateHosts` flag) so tests can use local HTTP test servers without triggering the IP-range block. Never use it in production code.
+
+### Endpoint Resolution
+
+The `endpointResolver` in `internal/handlers/auth/discovery.go` resolves provider endpoints:
+
+- **`type: oidc`** — fetches `{issuerURL}/.well-known/openid-configuration` and caches the result
+- **`type: static`** — uses endpoints directly from config (required for GitHub and other non-OIDC providers)
+
+Built-in provider defaults are defined in the `defaultProviders` map in `auth.go`. Server-config values override them.
+
+### SSRF Protection
+
+The `url_validator.go` file blocks requests to private/loopback IP ranges to prevent server-side request forgery through attacker-controlled provider URLs. This check is applied to all IDP endpoint URLs resolved at runtime.
+
+### OAuth2 Flow
+
+1. `GET /v1/auth/oauth2/authorize` — resolve provider, build IDP auth URL with PKCE params, return `302`
+2. `GET /v1/auth/oauth2/callback` — relay code/error back to the frontend callback URL (fixed in config — not overridable by caller)
+3. `POST /v1/auth/oauth2/token` — proxy token request to IDP, injecting `client_id` from server config
+4. `POST /v1/auth/oauth2/revoke` — proxy revocation; no-op with `warning` for providers without revocation (e.g. GitHub)
+5. `GET /v1/auth/userinfo` — proxy to IDP userinfo endpoint, forwarding `Authorization: Bearer` header
+6. `POST /v1/auth/logout` — redirect to IDP end-session if supported; `200` otherwise
+
+See [docs/features/authentication.md](../../docs/features/authentication.md) for the full configuration reference.
+
 ## Future Authentication
 
-- OAuth2 (infrastructure partially in place)
+- **OAuth2 user context extraction** — bearer tokens received by admin endpoints (`/v1/agent/claim`, etc.) are stored in `AuthInfo.BearerToken` but not yet validated. When implemented, admin endpoints will call the userinfo endpoint to establish user identity and tenant membership before processing requests.
 - JWT tokens for web interface
 - RBAC for different user types
