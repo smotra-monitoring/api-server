@@ -25,11 +25,14 @@ type Database interface {
 
 // HealthInfo contains database health information
 type HealthInfo struct {
-	Status       string        `json:"status"`
-	ResponseTime time.Duration `json:"response_time_ms"`
-	OpenConns    int           `json:"open_connections"`
-	IdleConns    int           `json:"idle_connections"`
-	Message      string        `json:"message,omitempty"`
+	Status              string        `json:"status"`
+	ResponseTime        time.Duration `json:"response_time_ms"`
+	DBOpenConns         int           `json:"db_open_connections"`
+	DBInUseConns        int           `json:"db_in_use_connections"`
+	DBIdleConns         int           `json:"db_idle_connections"`
+	DBWaitConnsCount    int64         `json:"db_wait_connections_count"`
+	DBWaitConnsDuration time.Duration `json:"db_wait_connections_duration_ms"`
+	Message             string        `json:"message,omitempty"`
 }
 
 // Config holds common database configuration

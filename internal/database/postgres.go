@@ -95,8 +95,11 @@ func (p *PostgresDB) Health(ctx context.Context) (HealthInfo, error) {
 
 	// Get connection stats
 	stats := p.db.Stats()
-	info.OpenConns = stats.OpenConnections
-	info.IdleConns = stats.Idle
+	info.DBOpenConns = stats.OpenConnections
+	info.DBInUseConns = stats.InUse
+	info.DBIdleConns = stats.Idle
+	info.DBWaitConnsCount = stats.WaitCount
+	info.DBWaitConnsDuration = stats.WaitDuration
 	info.Status = "healthy"
 	info.Message = "connected to PostgreSQL"
 

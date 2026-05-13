@@ -23,7 +23,6 @@ func (m *DBMetrics) GetMetrics() string {
 
 	var out string
 
-	// Health check
 	dbHealth, err := m.db.Health(ctx)
 	dbHealthy := 0.0
 	if err == nil {
@@ -35,44 +34,38 @@ func (m *DBMetrics) GetMetrics() string {
 	out += fmt.Sprintf("smotra_db_healthy %.0f\n", dbHealthy)
 	out += "\n"
 
-	if err == nil {
-		out += "# HELP smotra_db_response_time_ms Database response time in milliseconds\n"
-		out += "# TYPE smotra_db_response_time_ms gauge\n"
-		out += fmt.Sprintf("smotra_db_response_time_ms %.2f\n", float64(dbHealth.ResponseTime.Milliseconds()))
-		out += "\n"
-	}
-
-	// Connection pool stats (only available when underlying *sql.DB is open)
-	sqlDB := m.db.DB()
-	if sqlDB == nil {
+	if err != nil {
 		return out
 	}
 
-	stats := sqlDB.Stats()
+	out += "# HELP smotra_db_response_time_ms Database response time in milliseconds\n"
+	out += "# TYPE smotra_db_response_time_ms gauge\n"
+	out += fmt.Sprintf("smotra_db_response_time_ms %.2f\n", float64(dbHealth.ResponseTime.Milliseconds()))
+	out += "\n"
 
 	out += "# HELP smotra_db_connections_open Current number of open connections to the database\n"
 	out += "# TYPE smotra_db_connections_open gauge\n"
-	out += fmt.Sprintf("smotra_db_connections_open %d\n", stats.OpenConnections)
+	out += fmt.Sprintf("smotra_db_connections_open %d\n", dbHealth.DBOpenConns)
 	out += "\n"
 
 	out += "# HELP smotra_db_connections_in_use Number of connections currently in use\n"
 	out += "# TYPE smotra_db_connections_in_use gauge\n"
-	out += fmt.Sprintf("smotra_db_connections_in_use %d\n", stats.InUse)
+	out += fmt.Sprintf("smotra_db_connections_in_use %d\n", dbHealth.DBInUseConns)
 	out += "\n"
 
 	out += "# HELP smotra_db_connections_idle Number of idle connections\n"
 	out += "# TYPE smotra_db_connections_idle gauge\n"
-	out += fmt.Sprintf("smotra_db_connections_idle %d\n", stats.Idle)
+	out += fmt.Sprintf("smotra_db_connections_idle %d\n", dbHealth.DBIdleConns)
 	out += "\n"
 
 	out += "# HELP smotra_db_wait_count_total Total number of times a goroutine waited for a connection\n"
 	out += "# TYPE smotra_db_wait_count_total counter\n"
-	out += fmt.Sprintf("smotra_db_wait_count_total %d\n", stats.WaitCount)
+	out += fmt.Sprintf("smotra_db_wait_count_total %d\n", dbHealth.DBWaitConnsCount)
 	out += "\n"
 
 	out += "# HELP smotra_db_wait_duration_ms Total time blocked waiting for a new connection (ms)\n"
 	out += "# TYPE smotra_db_wait_duration_ms counter\n"
-	out += fmt.Sprintf("smotra_db_wait_duration_ms %d\n", stats.WaitDuration.Milliseconds())
+	out += fmt.Sprintf("smotra_db_wait_duration_ms %d\n", dbHealth.DBWaitConnsDuration.Milliseconds())
 	out += "\n"
 
 	return out

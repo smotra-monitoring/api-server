@@ -54,15 +54,17 @@ func TestDBMetrics_GetMetrics_UnhealthyDB(t *testing.T) {
 }
 
 func TestDBMetrics_GetMetrics_NilSQLDB(t *testing.T) {
-	// When DB() returns nil, pool stats are skipped but health metrics are still present.
+	// When the underlying *sql.DB is nil, Health() may still succeed (e.g. in stubs/mocks).
+	// Pool stats are emitted whenever Health() returns nil, regardless of the DB() accessor.
 	m := NewDBMetrics(&staticDB{db: nil})
 	out := m.GetMetrics()
 
 	if !strings.Contains(out, "smotra_db_healthy") {
 		t.Errorf("expected smotra_db_healthy even with nil sqlDB, got:\n%s", out)
 	}
-	if strings.Contains(out, "smotra_db_connections_open") {
-		t.Errorf("expected no pool stats when sqlDB is nil, got:\n%s", out)
+	// Pool stats are always present when Health() succeeds (values may be zero).
+	if !strings.Contains(out, "smotra_db_connections_open") {
+		t.Errorf("expected pool stats when Health() succeeds, got:\n%s", out)
 	}
 }
 
