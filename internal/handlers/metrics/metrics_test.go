@@ -271,3 +271,56 @@ func abs(x int) int {
 	}
 	return x
 }
+
+// ─── RegisterMetricsProvider ──────────────────────────────────────────────────
+
+type stubMetricsProvider struct {
+	output string
+}
+
+func (s *stubMetricsProvider) GetMetrics() string {
+	return s.output
+}
+
+func TestRegisterMetricsProvider_OutputIncludedInPrometheus(t *testing.T) {
+	logger, _ := testutil.NewTestLogger()
+	db := testutil.NewMockDatabase()
+	handler := NewHandler(logger, db, "1.0.0")
+
+	stub := &stubMetricsProvider{
+		output: "# HELP custom_counter Custom test counter\n# TYPE custom_counter counter\ncustom_counter 42\n",
+	}
+	handler.RegisterMetricsProvider(stub)
+
+	resp, err := handler.PrometheusMetrics(context.Background(), struct{}{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
+	if !strings.Contains(output, "custom_counter 42") {
+		t.Errorf("expected provider metrics in output, got:\n%s", output)
+	}
+}
+
+func TestRegisterMetricsProvider_MultipleProviders(t *testing.T) {
+	logger, _ := testutil.NewTestLogger()
+	db := testutil.NewMockDatabase()
+	handler := NewHandler(logger, db, "1.0.0")
+
+	handler.RegisterMetricsProvider(&stubMetricsProvider{output: "provider_a 1\n"})
+	handler.RegisterMetricsProvider(&stubMetricsProvider{output: "provider_b 2\n"})
+
+	resp, err := handler.PrometheusMetrics(context.Background(), struct{}{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
+	if !strings.Contains(output, "provider_a 1") {
+		t.Errorf("expected provider_a in output")
+	}
+	if !strings.Contains(output, "provider_b 2") {
+		t.Errorf("expected provider_b in output")
+	}
+}
