@@ -102,7 +102,7 @@ Codebase must include unit tests and integration tests. CI/CD pipelines automate
 
 Documentation is organized in the docs/ folder:
 - **docs/README.md** - This is the GitHub repository homepage (no README.md in root folder)
-- **docs/GUIDE.md** - Comprehensive server setup and development documentation
+- **docs/features/GUIDE.md** - Comprehensive server setup and development documentation
 - **docs/TESTING.md** - Testing strategy and how to run tests
 - **docs/ROADMAP.md** - Planned features and improvements for future releases
 
@@ -150,4 +150,4 @@ When implementing significant new features or workflows, they must be documented
    - Breaking changes
    - Deprecation notices
 
-**Important**: Keep docs/README.md concise as it serves as the GitHub repository homepage. There should be no README.md file in the project root. Detailed documentation belongs in docs/GUIDE.md.
+**Important**: Keep docs/README.md concise as it serves as the GitHub repository homepage. There should be no README.md file in the project root. Detailed documentation belongs in docs/features/GUIDE.md.

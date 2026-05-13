@@ -74,6 +74,24 @@ This change will also require change in OpenAPI `TracerouteCheck.result.total_ti
   - [x] Prometheus metrics for submission attempts, success, failure, accepted, duplicates
   - [x] Authentication: agent must authenticate with matching agent ID
   - [x] Unit tests (6) and integration tests (6)
+  - [x] Benchmark tests (`submit_results_bench_test.go`)
+- [x] Agent heartbeat endpoint (POST /agent/{agentId}/heartbeat)
+  - [x] Stores CPU/memory vitals snapshot on every heartbeat
+  - [x] Updates `last_seen_at` on the agent record
+  - [x] Prometheus metrics (attempts, success, failure, vitals stored)
+  - [x] Authentication: agent must authenticate with matching agent ID
+  - [x] Unit tests and integration tests
+- [x] OAuth2 / OIDC relay implementation
+  - [x] GET /v1/auth/oauth2/authorize — PKCE authorization redirect
+  - [x] GET /v1/auth/oauth2/callback — relay code/error to frontend
+  - [x] POST /v1/auth/oauth2/token — proxy token exchange (injects client_id)
+  - [x] POST /v1/auth/oauth2/revoke — proxy token revocation
+  - [x] GET /v1/auth/userinfo — proxy userinfo request
+  - [x] POST /v1/auth/logout — redirect to IDP end-session
+  - [x] OIDC discovery for type=oidc providers
+  - [x] Static endpoint config for type=static providers (GitHub)
+  - [x] SSRF protection via IP-range validation
+  - [x] Unit tests for all endpoints
 
 ### Current Work
 - [ ] Web UI for agent claiming workflow
@@ -101,7 +119,6 @@ This change will also require change in OpenAPI `TracerouteCheck.result.total_ti
 - [ ] Documentation for agent deployment process
 
 ### Medium Term
-- [ ] OAuth2 integration
 - [ ] Metrics collection from agents
 - [ ] Alert configuration and notification system
 - [ ] Web dashboard (frontend)

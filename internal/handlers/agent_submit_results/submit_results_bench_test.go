@@ -62,8 +62,27 @@ func benchDB(b *testing.B) (database.Database, uuid.UUID, string) {
 
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	benchExec(b, db.DB(),
-		`INSERT INTO endpoints (id, agent_id, hostname, resolved_ip, enabled) VALUES (?, ?, ?, ?, 1)`,
-		endpointID, agentID.String(), "bench.example.com", "10.0.0.1")
+		`INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		endpointID, sectionID, "bench.example.com")
+
+	// Set up topology so the agent is permitted to submit results for the endpoint.
+	tagID := uuid.Must(uuid.NewV7()).String()
+	benchExec(b, db.DB(),
+		`INSERT INTO tags (id, section_id, name, scope) VALUES (?, ?, 'bench-tag', 'global')`,
+		tagID, sectionID)
+	benchExec(b, db.DB(), `INSERT INTO agent_tags (agent_id, tag_id) VALUES (?, ?)`, agentID.String(), tagID)
+	benchExec(b, db.DB(), `INSERT INTO endpoint_tags (endpoint_id, tag_id) VALUES (?, ?)`, endpointID, tagID)
+
+	topologyID := uuid.Must(uuid.NewV7()).String()
+	benchExec(b, db.DB(),
+		`INSERT INTO topologies (id, section_id, name, type, enabled) VALUES (?, ?, 'bench-topo', 'full-mesh', 1)`,
+		topologyID, sectionID)
+	benchExec(b, db.DB(),
+		`INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, 'monitor')`,
+		topologyID, tagID)
+	benchExec(b, db.DB(),
+		`INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, 'target')`,
+		topologyID, tagID)
 
 	return db, agentID, endpointID
 }

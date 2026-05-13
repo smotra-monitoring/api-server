@@ -54,7 +54,37 @@ The project includes comprehensive unit tests and integration tests for all majo
    - Integration tests with real HTTP server and authentication
    - Tests for configuration retrieval with tags and endpoints
 
-9. **internal/testutil** - Test utilities and helpers
+9. **internal/handlers/agent_register** - Agent self-registration
+   - Unit tests for registration request validation and response format
+   - Integration tests for complete registration flow with SQLite
+
+10. **internal/handlers/agent_claim** - Administrator claiming of pending agents
+    - Unit tests for token validation and agent creation
+    - Integration tests for full claim workflow
+
+11. **internal/handlers/agent_claim_status** - Agent claim status polling
+    - Unit tests for pending/claimed/delivered state transitions
+    - Integration tests including one-time API key delivery
+
+12. **internal/handlers/agent_heartbeat** - Agent heartbeat and vitals submission
+    - Unit tests with mock database
+    - Integration tests with real HTTP server and authentication
+    - Tests for `last_seen_at` update and vitals storage
+
+13. **internal/handlers/agent_submit_results** - Monitoring results batch ingestion
+    - Unit tests for all check types (ping, httpget, tcpconnect, udpconnect, traceroute, plugin)
+    - Integration tests with real database and authentication
+    - **Benchmark tests** (`submit_results_bench_test.go`) for database write performance
+    - Tests for idempotent deduplication via client-assigned UUIDv7 IDs
+
+14. **internal/handlers/auth** - OAuth2 relay endpoints
+    - Unit tests for provider resolution, PKCE parameter construction, and redirect building
+    - Tests use `NewHandlerForTesting()` to bypass SSRF validation
+
+15. **internal/handlers** (top-level) - Route separation
+    - `routes_separation_integration_test.go` verifies health endpoints are only at root (never under `/v1`) and API endpoints are only under `/v1`
+
+16. **internal/testutil** - Test utilities and helpers
    - Mock database implementation
    - Test configuration helpers
    - Test database setup utilities
@@ -244,10 +274,24 @@ SQLite integration tests use temporary databases. If you see "database locked" e
 2. Only one connection is used in WAL mode
 3. Tests use `t.Cleanup()` for proper cleanup
 
+## Benchmark Tests
+
+Benchmark tests measure handler throughput under load. Run them with:
+
+```bash
+# Run benchmarks for submit_results handler
+go test -bench=. -benchmem ./internal/handlers/agent_submit_results/...
+
+# Run all benchmarks in the project
+go test -bench=. -benchmem ./...
+```
+
+Benchmarks are located alongside the handler they test (e.g. `submit_results_bench_test.go`) and do **not** use the `integration` build tag — they run in any environment.
+
 ## Future Improvements
 
 - [ ] Add PostgreSQL integration tests
-- [ ] Add benchmark tests for performance-critical code
+- [x] Add benchmark tests for performance-critical code (`submit_results_bench_test.go`)
 - [ ] Increase coverage for edge cases
 - [ ] Add mutation testing
 - [ ] Add property-based testing for complex logic
