@@ -60,6 +60,8 @@ autolabeler:
   - label: 'documentation'
     title:
       - '/doc/i'
+    files:
+      - "*.md"
   - label: 'code refinement'
     title:
       - '/refine/i'
@@ -74,3 +76,7 @@ autolabeler:
 template: |
   # Changelog ...
   $CHANGES
+
+  Contributors: $CONTRIBUTORS
+  Repo owner: $OWNER
+  
