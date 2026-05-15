@@ -4,12 +4,9 @@ import (
 	"context"
 	"fmt"
 	"runtime"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
-	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/logger"
 )
 
@@ -21,32 +18,17 @@ type MetricsProvider interface {
 // Handler handles metrics endpoint
 type Handler struct {
 	logger     *logger.Logger
-	db         database.Database
 	startTime  time.Time
 	appVersion string
-
-	// Metrics counters
-	httpRequestsTotal   atomic.Uint64
-	httpRequestsSuccess atomic.Uint64
-	httpRequestsFailure atomic.Uint64
-
-	// Database metrics
-	dbQueriesTotal   atomic.Uint64
-	dbQueriesSuccess atomic.Uint64
-	dbQueriesFailure atomic.Uint64
-
-	// Agent metrics (will be populated from database)
-	agentMetrics sync.Map
 
 	// External metrics providers
 	metricsProviders []MetricsProvider
 }
 
 // NewHandler creates a new metrics handler
-func NewHandler(logger *logger.Logger, db database.Database, appVersion string) *Handler {
+func NewHandler(logger *logger.Logger, appVersion string) *Handler {
 	return &Handler{
 		logger:           logger.WithComponent("metrics"),
-		db:               db,
 		startTime:        time.Now(),
 		appVersion:       appVersion,
 		metricsProviders: []MetricsProvider{},
@@ -58,33 +40,13 @@ func (h *Handler) RegisterMetricsProvider(provider MetricsProvider) {
 	h.metricsProviders = append(h.metricsProviders, provider)
 }
 
-// IncrementHTTPRequests increments HTTP request counters
-func (h *Handler) IncrementHTTPRequests(success bool) {
-	h.httpRequestsTotal.Add(1)
-	if success {
-		h.httpRequestsSuccess.Add(1)
-	} else {
-		h.httpRequestsFailure.Add(1)
-	}
-}
-
-// IncrementDBQueries increments database query counters
-func (h *Handler) IncrementDBQueries(success bool) {
-	h.dbQueriesTotal.Add(1)
-	if success {
-		h.dbQueriesSuccess.Add(1)
-	} else {
-		h.dbQueriesFailure.Add(1)
-	}
-}
-
 // PrometheusMetrics implements the /metrics endpoint
 func (h *Handler) PrometheusMetrics(ctx context.Context, request healthAPI.PrometheusMetricsRequestObject) (healthAPI.PrometheusMetricsResponseObject, error) {
-	metrics := h.buildPrometheusMetrics(ctx)
+	metrics := h.buildPrometheusMetrics()
 	return healthAPI.PrometheusMetrics200TextResponse(metrics), nil
 }
 
-func (h *Handler) buildPrometheusMetrics(ctx context.Context) string {
+func (h *Handler) buildPrometheusMetrics() string {
 	var output string
 
 	// Server info
@@ -99,62 +61,6 @@ func (h *Handler) buildPrometheusMetrics(ctx context.Context) string {
 	output += "# TYPE smotra_uptime_seconds counter\n"
 	output += fmt.Sprintf("smotra_uptime_seconds %.2f\n", uptime)
 	output += "\n"
-
-	// HTTP metrics
-	output += "# HELP smotra_http_requests_total Total number of HTTP requests\n"
-	output += "# TYPE smotra_http_requests_total counter\n"
-	output += fmt.Sprintf("smotra_http_requests_total %d\n", h.httpRequestsTotal.Load())
-	output += "\n"
-
-	output += "# HELP smotra_http_requests_success_total Total number of successful HTTP requests\n"
-	output += "# TYPE smotra_http_requests_success_total counter\n"
-	output += fmt.Sprintf("smotra_http_requests_success_total %d\n", h.httpRequestsSuccess.Load())
-	output += "\n"
-
-	output += "# HELP smotra_http_requests_failure_total Total number of failed HTTP requests\n"
-	output += "# TYPE smotra_http_requests_failure_total counter\n"
-	output += fmt.Sprintf("smotra_http_requests_failure_total %d\n", h.httpRequestsFailure.Load())
-	output += "\n"
-
-	// Database metrics
-	output += "# HELP smotra_db_queries_total Total number of database queries\n"
-	output += "# TYPE smotra_db_queries_total counter\n"
-	output += fmt.Sprintf("smotra_db_queries_total %d\n", h.dbQueriesTotal.Load())
-	output += "\n"
-
-	output += "# HELP smotra_db_queries_success_total Total number of successful database queries\n"
-	output += "# TYPE smotra_db_queries_success_total counter\n"
-	output += fmt.Sprintf("smotra_db_queries_success_total %d\n", h.dbQueriesSuccess.Load())
-	output += "\n"
-
-	output += "# HELP smotra_db_queries_failure_total Total number of failed database queries\n"
-	output += "# TYPE smotra_db_queries_failure_total counter\n"
-	output += fmt.Sprintf("smotra_db_queries_failure_total %d\n", h.dbQueriesFailure.Load())
-	output += "\n"
-
-	// Database health check
-	if h.db != nil {
-		dbCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-
-		dbHealth, err := h.db.Health(dbCtx)
-		dbHealthy := 0.0
-		if err == nil {
-			dbHealthy = 1.0
-		}
-
-		output += "# HELP smotra_db_healthy Database health status (1 = healthy, 0 = unhealthy)\n"
-		output += "# TYPE smotra_db_healthy gauge\n"
-		output += fmt.Sprintf("smotra_db_healthy %.0f\n", dbHealthy)
-		output += "\n"
-
-		if err == nil {
-			output += "# HELP smotra_db_response_time_ms Database response time in milliseconds\n"
-			output += "# TYPE smotra_db_response_time_ms gauge\n"
-			output += fmt.Sprintf("smotra_db_response_time_ms %.2f\n", float64(dbHealth.ResponseTime.Milliseconds()))
-			output += "\n"
-		}
-	}
 
 	// Go runtime metrics
 	var m runtime.MemStats

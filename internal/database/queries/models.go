@@ -10,16 +10,18 @@ import (
 )
 
 type Agent struct {
-	ID            string
-	SectionID     string
-	Name          string
-	ApiKeyHash    string
-	BaseConfig    string
-	ConfigVersion int64
-	AgentVersion  sql.NullString
-	LastSeenAt    sql.NullTime
-	UpdatedAt     time.Time
-	CreatedAt     time.Time
+	ID                    string
+	SectionID             string
+	Name                  string
+	ApiKeyHash            string
+	BaseConfig            string
+	ConfigVersion         int64
+	AgentVersion          sql.NullString
+	IpAddressesJson       string
+	LastSeenAt            sql.NullTime
+	LastResultSubmittedAt sql.NullTime
+	UpdatedAt             time.Time
+	CreatedAt             time.Time
 }
 
 type AgentClaim struct {
@@ -27,6 +29,7 @@ type AgentClaim struct {
 	ClaimTokenHash      string
 	Hostname            string
 	AgentVersion        string
+	IpAddressesJson     string
 	ClaimTokenExpiresAt time.Time
 	PollCount           int64
 	LastSeenAt          time.Time
@@ -40,6 +43,17 @@ type AgentClaim struct {
 type AgentTag struct {
 	AgentID string
 	TagID   string
+}
+
+type AgentVital struct {
+	ID               string
+	AgentID          string
+	CpuPct           sql.NullFloat64
+	MemUsedMb        sql.NullFloat64
+	MemTotalMb       sql.NullFloat64
+	SystemUptimeSecs sql.NullInt64
+	ReportedAt       time.Time
+	ReceivedAt       time.Time
 }
 
 type CheckResult struct {
@@ -111,13 +125,15 @@ type CheckResultsUdpConnect struct {
 }
 
 type Endpoint struct {
-	ID        string
-	AgentID   string
-	Address   string
-	Port      sql.NullInt64
-	Enabled   int64
-	UpdatedAt time.Time
-	CreatedAt time.Time
+	ID            string
+	SectionID     string
+	Address       string
+	Port          sql.NullInt64
+	Enabled       int64
+	IsAgent       int64
+	LinkedAgentID sql.NullString
+	UpdatedAt     time.Time
+	CreatedAt     time.Time
 }
 
 type EndpointTag struct {
@@ -142,6 +158,22 @@ type Tenant struct {
 	ID        string
 	Name      string
 	CreatedAt time.Time
+}
+
+type Topology struct {
+	ID        string
+	SectionID string
+	Name      string
+	Type      string
+	Enabled   int64
+	UpdatedAt time.Time
+	CreatedAt time.Time
+}
+
+type TopologyMember struct {
+	TopologyID string
+	TagID      string
+	Role       string
 }
 
 type User struct {

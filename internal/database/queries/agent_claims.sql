@@ -14,13 +14,15 @@ INSERT INTO agent_claims (
     claim_token_hash,
     hostname,
     agent_version,
+    ip_addresses_json,
     claim_token_expires_at,
     last_seen_at
-) VALUES (?, ?, ?, ?, ?, datetime('now'))
+) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
 ON CONFLICT(id) DO UPDATE SET
     last_seen_at = datetime('now'),
     hostname = COALESCE(excluded.hostname, hostname),
-    agent_version = COALESCE(excluded.agent_version, agent_version)
+    agent_version = COALESCE(excluded.agent_version, agent_version),
+    ip_addresses_json = COALESCE(excluded.ip_addresses_json, ip_addresses_json)
 WHERE claimed_at IS NULL  -- Only update if not yet claimed
 RETURNING id;
 

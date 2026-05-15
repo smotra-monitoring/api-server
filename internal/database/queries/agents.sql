@@ -16,8 +16,9 @@ INSERT INTO agents (
     name,
     api_key_hash,
     base_config,
-    agent_version
-) VALUES (?, ?, ?, ?, ?, ?)
+    agent_version,
+    ip_addresses_json
+) VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING id;
 
 -- name: GetAgentTags :many
@@ -30,9 +31,6 @@ UPDATE agents
 SET config_version = ?, base_config = ?
 WHERE id = ?;
 
--- name: GetAgentEndpoints :many
-SELECT id, address, port, enabled FROM endpoints WHERE agent_id = ?;
-
 -- name: GetEndpointTags :many
 SELECT t.name FROM endpoint_tags et
 JOIN tags t ON et.tag_id = t.id
@@ -43,3 +41,6 @@ SELECT id, api_key_hash FROM agents WHERE id = ?;
 
 -- name: UpdateAgentLastSeen :exec
 UPDATE agents SET last_seen_at = ? WHERE id = ?;
+
+-- name: UpdateAgentLastResultSubmittedAt :exec
+UPDATE agents SET last_result_submitted_at = ? WHERE id = ?;

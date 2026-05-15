@@ -7,10 +7,86 @@ package queries
 
 import (
 	"context"
+	"database/sql"
 )
 
+const createAgentEndpoint = `-- name: CreateAgentEndpoint :one
+INSERT INTO endpoints (id, section_id, address, is_agent, linked_agent_id)
+VALUES (?, ?, ?, 1, ?)
+RETURNING id
+`
+
+type CreateAgentEndpointParams struct {
+	ID            string
+	SectionID     string
+	Address       string
+	LinkedAgentID sql.NullString
+}
+
+// Creates an endpoint that represents one of our own agents (auto-registered on claim).
+func (q *Queries) CreateAgentEndpoint(ctx context.Context, arg CreateAgentEndpointParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, createAgentEndpoint,
+		arg.ID,
+		arg.SectionID,
+		arg.Address,
+		arg.LinkedAgentID,
+	)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const createEndpoint = `-- name: CreateEndpoint :one
+INSERT INTO endpoints (id, section_id, address, port, enabled)
+VALUES (?, ?, ?, ?, ?)
+RETURNING id
+`
+
+type CreateEndpointParams struct {
+	ID        string
+	SectionID string
+	Address   string
+	Port      sql.NullInt64
+	Enabled   int64
+}
+
+// Creates a standalone (non-agent) endpoint in a section.
+func (q *Queries) CreateEndpoint(ctx context.Context, arg CreateEndpointParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, createEndpoint,
+		arg.ID,
+		arg.SectionID,
+		arg.Address,
+		arg.Port,
+		arg.Enabled,
+	)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const deleteEndpoint = `-- name: DeleteEndpoint :exec
+DELETE FROM endpoints WHERE id = ?
+`
+
+func (q *Queries) DeleteEndpoint(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteEndpoint, id)
+	return err
+}
+
 const getEndpointByIDAndAgentID = `-- name: GetEndpointByIDAndAgentID :one
-SELECT id FROM endpoints WHERE id = ? AND agent_id = ? LIMIT 1
+SELECT e.id FROM endpoints e
+WHERE e.id = ?
+  AND e.enabled = 1
+  AND EXISTS (
+    SELECT 1
+    FROM topology_members tm_t
+    JOIN endpoint_tags et      ON et.tag_id = tm_t.tag_id AND et.endpoint_id = e.id
+    JOIN topologies t          ON t.id = tm_t.topology_id AND t.enabled = 1
+    JOIN topology_members tm_m ON tm_m.topology_id = t.id AND tm_m.role = 'monitor'
+    JOIN agent_tags at         ON at.tag_id = tm_m.tag_id AND at.agent_id = ?
+    WHERE tm_t.role = 'target'
+  )
+LIMIT 1
 `
 
 type GetEndpointByIDAndAgentIDParams struct {
@@ -18,9 +94,130 @@ type GetEndpointByIDAndAgentIDParams struct {
 	AgentID string
 }
 
+// Validates that an agent is permitted to submit check results for a given endpoint.
+// Permission is granted when the endpoint and the agent share a common active topology
+// where the endpoint carries the 'target' role and the agent carries the 'monitor' role.
 func (q *Queries) GetEndpointByIDAndAgentID(ctx context.Context, arg GetEndpointByIDAndAgentIDParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, getEndpointByIDAndAgentID, arg.ID, arg.AgentID)
 	var id string
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getEndpointsForAgent = `-- name: GetEndpointsForAgent :many
+SELECT DISTINCT e.id, e.address, e.port, e.enabled
+FROM endpoints e
+JOIN endpoint_tags   et    ON et.endpoint_id = e.id
+JOIN topology_members tm_t ON tm_t.tag_id = et.tag_id AND tm_t.role = 'target'
+JOIN topologies      t     ON t.id = tm_t.topology_id AND t.enabled = 1
+JOIN topology_members tm_m ON tm_m.topology_id = t.id AND tm_m.role = 'monitor'
+JOIN agent_tags      at    ON at.tag_id = tm_m.tag_id AND at.agent_id = ?1
+WHERE e.enabled = 1
+  AND e.section_id = (SELECT section_id FROM agents WHERE id = ?1)
+  AND NOT (e.is_agent = 1 AND e.linked_agent_id = ?1)
+`
+
+type GetEndpointsForAgentRow struct {
+	ID      string
+	Address string
+	Port    sql.NullInt64
+	Enabled int64
+}
+
+// Resolves the full set of endpoints an agent should monitor based on active topology memberships.
+// An endpoint is included when:
+//  1. It is in the same section as the agent (section guard).
+//  2. One of its tags appears in topology_members with role='target'.
+//  3. The same topology has a member with role='monitor' whose tag is assigned to the agent.
+//  4. That topology is enabled.
+//  5. The endpoint is not the agent's own self-registered endpoint (prevents self-monitoring).
+func (q *Queries) GetEndpointsForAgent(ctx context.Context, agentID string) ([]GetEndpointsForAgentRow, error) {
+	rows, err := q.db.QueryContext(ctx, getEndpointsForAgent, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetEndpointsForAgentRow
+	for rows.Next() {
+		var i GetEndpointsForAgentRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Address,
+			&i.Port,
+			&i.Enabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEndpointsBySection = `-- name: ListEndpointsBySection :many
+SELECT id, section_id, address, port, enabled, is_agent, linked_agent_id, updated_at, created_at
+FROM endpoints
+WHERE section_id = ?
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListEndpointsBySection(ctx context.Context, sectionID string) ([]Endpoint, error) {
+	rows, err := q.db.QueryContext(ctx, listEndpointsBySection, sectionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Endpoint
+	for rows.Next() {
+		var i Endpoint
+		if err := rows.Scan(
+			&i.ID,
+			&i.SectionID,
+			&i.Address,
+			&i.Port,
+			&i.Enabled,
+			&i.IsAgent,
+			&i.LinkedAgentID,
+			&i.UpdatedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateEndpoint = `-- name: UpdateEndpoint :exec
+UPDATE endpoints
+SET address = ?, port = ?, enabled = ?
+WHERE id = ?
+`
+
+type UpdateEndpointParams struct {
+	Address string
+	Port    sql.NullInt64
+	Enabled int64
+	ID      string
+}
+
+func (q *Queries) UpdateEndpoint(ctx context.Context, arg UpdateEndpointParams) error {
+	_, err := q.db.ExecContext(ctx, updateEndpoint,
+		arg.Address,
+		arg.Port,
+		arg.Enabled,
+		arg.ID,
+	)
+	return err
 }

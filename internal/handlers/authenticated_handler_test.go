@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -16,7 +17,7 @@ func TestAuthenticatedHandler_GetAgentConfiguration_NoAuth(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
 	cfg := testutil.DefaultTestConfig()
-	metricsHandler := NewMetricsHandler(log, mockDB, "test")
+	metricsHandler := NewMetricsHandler(log, "test")
 	_ = NewHealthHandler(log, mockDB, cfg, "test", metricsHandler)
 	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
 
@@ -51,7 +52,7 @@ func TestAuthenticatedHandler_GetAgentConfiguration_WrongAgent(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
 	cfg := testutil.DefaultTestConfig()
-	metricsHandler := NewMetricsHandler(log, mockDB, "test")
+	metricsHandler := NewMetricsHandler(log, "test")
 	_ = NewHealthHandler(log, mockDB, cfg, "test", metricsHandler)
 	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
 
@@ -90,7 +91,7 @@ func TestCombinedHandler_HealthCheck_NoAuthRequired(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
 	cfg := testutil.DefaultTestConfig()
-	metricsHandler := NewMetricsHandler(log, mockDB, "test")
+	metricsHandler := NewMetricsHandler(log, "test")
 	handler := NewHealthHandler(log, mockDB, cfg, "test", metricsHandler)
 
 	ctx := context.Background() // No authentication in context
@@ -113,7 +114,7 @@ func TestCombinedHandler_PrometheusMetrics_NoAuthRequired(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
 	cfg := testutil.DefaultTestConfig()
-	metricsHandler := NewMetricsHandler(log, mockDB, "test")
+	metricsHandler := NewMetricsHandler(log, "test")
 	healthHandler := NewHealthHandler(log, mockDB, cfg, "test", metricsHandler)
 
 	ctx := context.Background() // No authentication in context
@@ -129,5 +130,231 @@ func TestCombinedHandler_PrometheusMetrics_NoAuthRequired(t *testing.T) {
 	_, ok := resp.(healthAPI.PrometheusMetrics200TextResponse)
 	if !ok {
 		t.Errorf("Expected PrometheusMetrics200TextResponse, got %T", resp)
+	}
+}
+
+func TestAuthenticatedHandler_GetMetrics_NoAuth(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	agentID, _ := uuid.Parse("019bdeb2-50dc-794e-808b-cf47526b867f")
+
+	// Trigger no-auth path
+	_, _ = handler.GetAgentConfiguration(context.Background(), api.GetAgentConfigurationRequestObject{AgentId: agentID})
+
+	out := handler.GetMetrics()
+	if !strings.Contains(out, "smotra_auth_attempts_total 1") {
+		t.Errorf("Expected smotra_auth_attempts_total 1 in metrics, got:\n%s", out)
+	}
+	if !strings.Contains(out, "smotra_auth_no_auth_total 1") {
+		t.Errorf("Expected smotra_auth_no_auth_total 1 in metrics, got:\n%s", out)
+	}
+	if !strings.Contains(out, "smotra_auth_success_total 0") {
+		t.Errorf("Expected smotra_auth_success_total 0 in metrics, got:\n%s", out)
+	}
+}
+
+func TestAuthenticatedHandler_GetMetrics_InvalidAuth(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	agentID, _ := uuid.Parse("019bdeb2-50dc-794e-808b-cf47526b867f")
+
+	// Trigger invalid auth path (Authenticated=false)
+	authInfo := &middleware.AuthInfo{AgentID: agentID.String(), AuthType: "agent_api_key", Authenticated: false}
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, authInfo)
+	_, _ = handler.GetAgentConfiguration(ctx, api.GetAgentConfigurationRequestObject{AgentId: agentID})
+
+	out := handler.GetMetrics()
+	if !strings.Contains(out, "smotra_auth_attempts_total 1") {
+		t.Errorf("Expected smotra_auth_attempts_total 1 in metrics, got:\n%s", out)
+	}
+	if !strings.Contains(out, "smotra_auth_invalid_total 1") {
+		t.Errorf("Expected smotra_auth_invalid_total 1 in metrics, got:\n%s", out)
+	}
+}
+
+func TestAuthenticatedHandler_GetMetrics_AgentIDMismatch(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	authenticatedAgentID := "019bdeb2-50dc-794e-808b-cf47526b867f"
+	requestedUUID, _ := uuid.Parse("019bdeb2-0000-0000-0000-000000000000")
+
+	authInfo := &middleware.AuthInfo{AgentID: authenticatedAgentID, AuthType: "agent_api_key", Authenticated: true}
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, authInfo)
+	_, _ = handler.GetAgentConfiguration(ctx, api.GetAgentConfigurationRequestObject{AgentId: requestedUUID})
+
+	out := handler.GetMetrics()
+	if !strings.Contains(out, "smotra_auth_attempts_total 1") {
+		t.Errorf("Expected smotra_auth_attempts_total 1 in metrics, got:\n%s", out)
+	}
+	if !strings.Contains(out, "smotra_auth_agent_id_mismatch_total 1") {
+		t.Errorf("Expected smotra_auth_agent_id_mismatch_total 1 in metrics, got:\n%s", out)
+	}
+}
+
+func TestAuthenticatedHandler_GetMetrics_PrometheusFormat(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	out := handler.GetMetrics()
+
+	expectedLines := []string{
+		"# HELP smotra_auth_attempts_total",
+		"# TYPE smotra_auth_attempts_total counter",
+		"# HELP smotra_auth_no_auth_total",
+		"# TYPE smotra_auth_no_auth_total counter",
+		"# HELP smotra_auth_invalid_total",
+		"# TYPE smotra_auth_invalid_total counter",
+		"# HELP smotra_auth_agent_id_mismatch_total",
+		"# TYPE smotra_auth_agent_id_mismatch_total counter",
+		"# HELP smotra_auth_success_total",
+		"# TYPE smotra_auth_success_total counter",
+	}
+	for _, line := range expectedLines {
+		if !strings.Contains(out, line) {
+			t.Errorf("Expected %q in metrics output, got:\n%s", line, out)
+		}
+	}
+}
+
+// ─── SubmitAgentResults auth checks ──────────────────────────────────────────
+
+func TestAuthenticatedHandler_SubmitAgentResults_NoAuth(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	agentID, _ := uuid.Parse("019bdeb2-50dc-794e-808b-cf47526b867f")
+
+	resp, err := handler.SubmitAgentResults(context.Background(), api.SubmitAgentResultsRequestObject{
+		AgentId: agentID,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.SubmitAgentResults401JSONResponse); !ok {
+		t.Errorf("expected 401 for missing auth, got %T", resp)
+	}
+}
+
+func TestAuthenticatedHandler_SubmitAgentResults_InvalidAuth(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	agentID, _ := uuid.Parse("019bdeb2-50dc-794e-808b-cf47526b867f")
+	authInfo := &middleware.AuthInfo{AgentID: agentID.String(), AuthType: "agent_api_key", Authenticated: false}
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, authInfo)
+
+	resp, err := handler.SubmitAgentResults(ctx, api.SubmitAgentResultsRequestObject{AgentId: agentID})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.SubmitAgentResults401JSONResponse); !ok {
+		t.Errorf("expected 401 for invalid auth, got %T", resp)
+	}
+}
+
+func TestAuthenticatedHandler_SubmitAgentResults_AgentIDMismatch(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	authenticatedAgentID := "019bdeb2-50dc-794e-808b-cf47526b867f"
+	requestedAgentID, _ := uuid.Parse("019bdeb2-0000-0000-0000-000000000000")
+
+	authInfo := &middleware.AuthInfo{AgentID: authenticatedAgentID, AuthType: "agent_api_key", Authenticated: true}
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, authInfo)
+
+	resp, err := handler.SubmitAgentResults(ctx, api.SubmitAgentResultsRequestObject{AgentId: requestedAgentID})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.SubmitAgentResults503JSONResponse); !ok {
+		t.Errorf("expected 503 for agent ID mismatch, got %T", resp)
+	}
+}
+
+// ─── SendAgentHeartbeat auth checks ──────────────────────────────────────────
+
+func TestAuthenticatedHandler_SendAgentHeartbeat_NoAuth(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	agentID, _ := uuid.Parse("019bdeb2-50dc-794e-808b-cf47526b867f")
+
+	resp, err := handler.SendAgentHeartbeat(context.Background(), api.SendAgentHeartbeatRequestObject{
+		AgentId: agentID,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.SendAgentHeartbeat401JSONResponse); !ok {
+		t.Errorf("expected 401 for missing auth, got %T", resp)
+	}
+}
+
+func TestAuthenticatedHandler_SendAgentHeartbeat_InvalidAuth(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	agentID, _ := uuid.Parse("019bdeb2-50dc-794e-808b-cf47526b867f")
+	authInfo := &middleware.AuthInfo{AgentID: agentID.String(), AuthType: "agent_api_key", Authenticated: false}
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, authInfo)
+
+	resp, err := handler.SendAgentHeartbeat(ctx, api.SendAgentHeartbeatRequestObject{AgentId: agentID})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.SendAgentHeartbeat401JSONResponse); !ok {
+		t.Errorf("expected 401 for invalid auth, got %T", resp)
+	}
+}
+
+func TestAuthenticatedHandler_SendAgentHeartbeat_AgentIDMismatch(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	authenticatedAgentID := "019bdeb2-50dc-794e-808b-cf47526b867f"
+	requestedAgentID, _ := uuid.Parse("019bdeb2-0000-0000-0000-000000000000")
+
+	authInfo := &middleware.AuthInfo{AgentID: authenticatedAgentID, AuthType: "agent_api_key", Authenticated: true}
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, authInfo)
+
+	resp, err := handler.SendAgentHeartbeat(ctx, api.SendAgentHeartbeatRequestObject{AgentId: requestedAgentID})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.SendAgentHeartbeat503JSONResponse); !ok {
+		t.Errorf("expected 503 for agent ID mismatch, got %T", resp)
 	}
 }

@@ -625,3 +625,47 @@ func TestOauth2Authorize_OIDCProvider_UsesDiscoveryEndpoints(t *testing.T) {
 		t.Errorf("expected discovery to be called once (cached), got %d calls", discoveryCallCount)
 	}
 }
+
+// ─── GetMetrics ───────────────────────────────────────────────────────────────
+
+func TestAuthHandler_GetMetrics_ContainsAllCounters(t *testing.T) {
+	h := newTestHandler(t, "http://idp.test")
+
+	out := h.GetMetrics()
+
+	expectedCounters := []string{
+		"auth_authorize_total",
+		"auth_callback_total",
+		"auth_token_total",
+		"auth_revoke_total",
+		"auth_userinfo_total",
+		"auth_logout_total",
+		"auth_unknown_provider_total",
+		"auth_idp_error_total",
+	}
+	for _, counter := range expectedCounters {
+		if !strings.Contains(out, counter) {
+			t.Errorf("expected counter %q in GetMetrics output", counter)
+		}
+	}
+}
+
+func TestAuthHandler_GetMetrics_CountersIncrementCorrectly(t *testing.T) {
+	h := newTestHandler(t, "http://idp.test")
+
+	// Trigger one authorize request to increment the authorize counter.
+	_, _ = h.Oauth2Authorize(context.Background(), api.Oauth2AuthorizeRequestObject{
+		Params: api.Oauth2AuthorizeParams{
+			Provider:            "teststatic",
+			Scope:               "openid",
+			State:               "s",
+			CodeChallenge:       "c",
+			CodeChallengeMethod: api.S256,
+		},
+	})
+
+	out := h.GetMetrics()
+	if !strings.Contains(out, "auth_authorize_total 1") {
+		t.Errorf("expected auth_authorize_total 1 in GetMetrics output:\n%s", out)
+	}
+}

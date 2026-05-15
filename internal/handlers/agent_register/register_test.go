@@ -72,6 +72,9 @@ func TestHandler_ValidateRequest_ValidData(t *testing.T) {
 		ClaimTokenHash: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
 		Hostname:       "test-host",
 		AgentVersion:   "1.0.0",
+		IpAddresses: []api.AgentNetworkInterface{
+			{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+		},
 	}
 
 	err := handler.validateRequest(req)
@@ -91,6 +94,9 @@ func TestHandler_ValidateRequest_EmptyAgentID(t *testing.T) {
 		ClaimTokenHash: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
 		Hostname:       "test-host",
 		AgentVersion:   "1.0.0",
+		IpAddresses: []api.AgentNetworkInterface{
+			{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+		},
 	}
 
 	err := handler.validateRequest(req)
@@ -124,6 +130,9 @@ func TestHandler_ValidateRequest_InvalidClaimTokenHash(t *testing.T) {
 				ClaimTokenHash: tt.hash,
 				Hostname:       "test-host",
 				AgentVersion:   "1.0.0",
+				IpAddresses: []api.AgentNetworkInterface{
+					{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+				},
 			}
 			err := handler.validateRequest(req)
 			if err == nil {
@@ -145,6 +154,9 @@ func TestHandler_ValidateRequest_MissingHostname(t *testing.T) {
 		ClaimTokenHash: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
 		Hostname:       "",
 		AgentVersion:   "1.0.0",
+		IpAddresses: []api.AgentNetworkInterface{
+			{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+		},
 	}
 
 	err := handler.validateRequest(req)
@@ -165,11 +177,105 @@ func TestHandler_ValidateRequest_MissingVersion(t *testing.T) {
 		ClaimTokenHash: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
 		Hostname:       "test-host",
 		AgentVersion:   "",
+		IpAddresses: []api.AgentNetworkInterface{
+			{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+		},
 	}
 
 	err := handler.validateRequest(req)
 	if err == nil {
 		t.Error("Expected validation to fail for missing agent version")
+	}
+}
+
+func TestHandler_ValidateRequest_IpAddresses(t *testing.T) {
+	log := logger.Default()
+	db := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	handler := NewHandler(log, db, cfg)
+
+	agentID := uuid.Must(uuid.NewV7())
+	validHash := "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
+
+	tests := []struct {
+		name        string
+		ipAddresses []api.AgentNetworkInterface
+		wantErr     bool
+	}{
+		{
+			name:        "empty list",
+			ipAddresses: []api.AgentNetworkInterface{},
+			wantErr:     true,
+		},
+		{
+			name:        "nil list",
+			ipAddresses: nil,
+			wantErr:     true,
+		},
+		{
+			name: "no recommended entry",
+			ipAddresses: []api.AgentNetworkInterface{
+				{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: false},
+			},
+			wantErr: false,
+		},
+		{
+			name: "multiple recommended entries",
+			ipAddresses: []api.AgentNetworkInterface{
+				{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+				{Ip: "10.0.0.5", Iface: "eth1", Family: api.Ipv4, Recommended: true},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid IP address",
+			ipAddresses: []api.AgentNetworkInterface{
+				{Ip: "not-an-ip", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty iface name",
+			ipAddresses: []api.AgentNetworkInterface{
+				{Ip: "192.168.1.10", Iface: "", Family: api.Ipv4, Recommended: true},
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid single entry",
+			ipAddresses: []api.AgentNetworkInterface{
+				{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid multiple entries one recommended",
+			ipAddresses: []api.AgentNetworkInterface{
+				{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+				{Ip: "10.0.0.5", Iface: "eth1", Family: api.Ipv4, Recommended: false},
+				{Ip: "2001:db8::1", Iface: "eth0", Family: api.Ipv6, Recommended: false},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &api.AgentSelfRegistration{
+				AgentId:        agentID,
+				ClaimTokenHash: validHash,
+				Hostname:       "test-host",
+				AgentVersion:   "1.0.0",
+				IpAddresses:    tt.ipAddresses,
+			}
+			err := handler.validateRequest(req)
+			if tt.wantErr && err == nil {
+				t.Error("Expected validation error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("Expected no validation error, got: %v", err)
+			}
+		})
 	}
 }
 

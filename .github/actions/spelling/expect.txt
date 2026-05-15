@@ -1,5 +1,6 @@
 AAD
 apps
+benchmem
 blocklist
 Bulima
 Bulma
@@ -20,8 +21,8 @@ gotestsum
 Grafana
 greenlit
 healthz
-IDPs
 httpget
+IDPs
 implementet
 isready
 justfile
@@ -41,6 +42,7 @@ oapi
 oauth
 oidc
 openapi
+overridable
 PKCE
 postgre
 reqwest
@@ -57,9 +59,9 @@ testutil
 Tful
 tokio
 traceroute
-userinfo
 udpconnect
-UUIDv
+userinfo
+uuidv
 versioned
 versioning
 wontfix

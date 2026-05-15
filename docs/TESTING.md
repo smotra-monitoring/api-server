@@ -22,12 +22,14 @@ The project includes comprehensive unit tests and integration tests for all majo
 3. **internal/database** - Database abstraction layer
    - Unit tests for factory pattern and configuration
    - Integration tests for SQLite operations (Open, Close, Ping, Health, Transactions)
+   - Unit tests for `DBMetrics`: health status, connection pool stats format, unhealthy-db path, nil `*sql.DB` guard
    - Coverage: 52.4% (with integration tests)
 
 4. **internal/middleware** - HTTP middleware
    - Unit tests for Logger, Recovery, RequestID, and CORS middleware
    - Unit tests for Agent API key authentication (`auth.go`)
    - Integration tests for authentication flow with database
+   - Unit tests for `HTTPMetrics`: request counting by status code, implicit-200 path, Prometheus output format
    - Tests for responseWriter wrapper
    - Tests for chained middleware execution
    - Coverage: 100%
@@ -45,16 +47,47 @@ The project includes comprehensive unit tests and integration tests for all majo
    - Tests for error responses (401, 403)
 
 7. **internal/handlers/metrics** - Prometheus metrics endpoint
-   - Unit tests for metrics tracking
-   - Integration tests for metrics endpoint
-   - Tests for concurrent metric updates
+   - Unit tests for `MetricsProvider` registration and output aggregation
+   - Unit tests for unhealthy-DB path (via registered `DBMetrics` provider)
+   - Integration tests verifying provider-supplied metrics appear in `/metrics` output
+   - Concurrency test for concurrent provider registration
 
 8. **internal/handlers/agent_configuration** - Agent configuration endpoint
    - Unit tests with mock database
    - Integration tests with real HTTP server and authentication
    - Tests for configuration retrieval with tags and endpoints
 
-9. **internal/testutil** - Test utilities and helpers
+9. **internal/handlers/agent_register** - Agent self-registration
+   - Unit tests for registration request validation and response format
+   - Integration tests for complete registration flow with SQLite
+
+10. **internal/handlers/agent_claim** - Administrator claiming of pending agents
+    - Unit tests for token validation and agent creation
+    - Integration tests for full claim workflow
+
+11. **internal/handlers/agent_claim_status** - Agent claim status polling
+    - Unit tests for pending/claimed/delivered state transitions
+    - Integration tests including one-time API key delivery
+
+12. **internal/handlers/agent_heartbeat** - Agent heartbeat and vitals submission
+    - Unit tests with mock database
+    - Integration tests with real HTTP server and authentication
+    - Tests for `last_seen_at` update and vitals storage
+
+13. **internal/handlers/agent_submit_results** - Monitoring results batch ingestion
+    - Unit tests for all check types (ping, httpget, tcpconnect, udpconnect, traceroute, plugin)
+    - Integration tests with real database and authentication
+    - **Benchmark tests** (`submit_results_bench_test.go`) for database write performance
+    - Tests for idempotent deduplication via client-assigned UUIDv7 IDs
+
+14. **internal/handlers/auth** - OAuth2 relay endpoints
+    - Unit tests for provider resolution, PKCE parameter construction, and redirect building
+    - Tests use `NewHandlerForTesting()` to bypass SSRF validation
+
+15. **internal/handlers** (top-level) - Route separation
+    - `routes_separation_integration_test.go` verifies health endpoints are only at root (never under `/v1`) and API endpoints are only under `/v1`
+
+16. **internal/testutil** - Test utilities and helpers
    - Mock database implementation
    - Test configuration helpers
    - Test database setup utilities
@@ -244,10 +277,24 @@ SQLite integration tests use temporary databases. If you see "database locked" e
 2. Only one connection is used in WAL mode
 3. Tests use `t.Cleanup()` for proper cleanup
 
+## Benchmark Tests
+
+Benchmark tests measure handler throughput under load. Run them with:
+
+```bash
+# Run benchmarks for submit_results handler
+go test -bench=. -benchmem ./internal/handlers/agent_submit_results/...
+
+# Run all benchmarks in the project
+go test -bench=. -benchmem ./...
+```
+
+Benchmarks are located alongside the handler they test (e.g. `submit_results_bench_test.go`) and do **not** use the `integration` build tag — they run in any environment.
+
 ## Future Improvements
 
 - [ ] Add PostgreSQL integration tests
-- [ ] Add benchmark tests for performance-critical code
+- [x] Add benchmark tests for performance-critical code (`submit_results_bench_test.go`)
 - [ ] Increase coverage for edge cases
 - [ ] Add mutation testing
 - [ ] Add property-based testing for complex logic

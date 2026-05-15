@@ -65,6 +65,10 @@ func (t *testServerImpl) SubmitAgentResults(ctx context.Context, request api.Sub
 	return nil, nil
 }
 
+func (t *testServerImpl) SendAgentHeartbeat(ctx context.Context, request api.SendAgentHeartbeatRequestObject) (api.SendAgentHeartbeatResponseObject, error) {
+	return nil, nil
+}
+
 func setupTestRouter(handler *Handler) *chi.Mux {
 	testImpl := &testServerImpl{Handler: handler}
 	r := chi.NewRouter()
@@ -140,23 +144,23 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 	}
 
 	// Create tags for the agent
-	tag1ID := uuid.NewString()
-	if _, err := db.DB().ExecContext(ctx, "INSERT INTO tags (id, section_id, name, scope) VALUES (?, ?, ?, ?)", tag1ID, sectionID, "production", "agent"); err != nil {
+	agentTag1ID := uuid.NewString()
+	if _, err := db.DB().ExecContext(ctx, "INSERT INTO tags (id, section_id, name, scope) VALUES (?, ?, ?, ?)", agentTag1ID, sectionID, "production", "agent"); err != nil {
 		t.Fatalf("Failed to create tag: %v", err)
 	}
 
-	if _, err := db.DB().ExecContext(ctx, "INSERT INTO agent_tags (agent_id, tag_id) VALUES (?, ?)", agentID, tag1ID); err != nil {
+	if _, err := db.DB().ExecContext(ctx, "INSERT INTO agent_tags (agent_id, tag_id) VALUES (?, ?)", agentID, agentTag1ID); err != nil {
 		t.Fatalf("Failed to link agent tag: %v", err)
 	}
 
-	// Create endpoints for the agent
+	// Create endpoints for the section (not per-agent)
 	endpoint1ID := uuid.NewString()
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO endpoints (id, agent_id, address, enabled) VALUES (?, ?, ?, ?)", endpoint1ID, agentID, "192.168.1.1", 1); err != nil {
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, ?)", endpoint1ID, sectionID, "192.168.1.1", 1); err != nil {
 		t.Fatalf("Failed to create endpoint: %v", err)
 	}
 
 	endpoint2ID := uuid.NewString()
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO endpoints (id, agent_id, address, enabled) VALUES (?, ?, ?, ?)", endpoint2ID, agentID, "8.8.8.8", 1); err != nil {
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, ?)", endpoint2ID, sectionID, "8.8.8.8", 1); err != nil {
 		t.Fatalf("Failed to create endpoint: %v", err)
 	}
 
@@ -168,6 +172,23 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 
 	if _, err = db.DB().ExecContext(ctx, "INSERT INTO endpoint_tags (endpoint_id, tag_id) VALUES (?, ?)", endpoint1ID, endpointTag1ID); err != nil {
 		t.Fatalf("Failed to link endpoint tag: %v", err)
+	}
+
+	// Link the same endpoint tag to endpoint2 so both are resolved via topology
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO endpoint_tags (endpoint_id, tag_id) VALUES (?, ?)", endpoint2ID, endpointTag1ID); err != nil {
+		t.Fatalf("Failed to link endpoint2 tag: %v", err)
+	}
+
+	// Create a topology: agents tagged 'production' monitor endpoints tagged 'critical'
+	topologyID := uuid.NewString()
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topologies (id, section_id, name, type, enabled) VALUES (?, ?, ?, ?, ?)", topologyID, sectionID, "Test Topology", "full-mesh", 1); err != nil {
+		t.Fatalf("Failed to create topology: %v", err)
+	}
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, ?)", topologyID, agentTag1ID, "monitor"); err != nil {
+		t.Fatalf("Failed to add agent topology member: %v", err)
+	}
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, ?)", topologyID, endpointTag1ID, "target"); err != nil {
+		t.Fatalf("Failed to add endpoint topology member: %v", err)
 	}
 
 	// Setup router and server
@@ -201,8 +222,8 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 			t.Errorf("Expected agent name 'Test Agent', got %s", config.AgentName)
 		}
 
-		if config.Version != 5 {
-			t.Errorf("Expected version 5, got %d", config.Version)
+		if config.Version != 9 {
+			t.Errorf("Expected version 9, got %d", config.Version)
 		}
 
 		// Verify tags
@@ -288,6 +309,14 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 
 		if !strings.Contains(metrics, "get_configuration_failure") {
 			t.Errorf("Expected get_configuration_failure metric, got %s", metrics)
+		}
+
+		if !strings.Contains(metrics, "topology_resolutions_total") {
+			t.Errorf("Expected topology_resolutions_total metric, got %s", metrics)
+		}
+
+		if !strings.Contains(metrics, "topology_endpoints_resolved_total") {
+			t.Errorf("Expected topology_endpoints_resolved_total metric, got %s", metrics)
 		}
 	})
 }

@@ -66,7 +66,7 @@ func (q *Queries) CreateAgentClaim(ctx context.Context, arg CreateAgentClaimPara
 }
 
 const getAgentClaim = `-- name: GetAgentClaim :one
-SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
+SELECT id, claim_token_hash, hostname, agent_version, ip_addresses_json, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
 WHERE id = ? LIMIT 1
 `
 
@@ -78,6 +78,7 @@ func (q *Queries) GetAgentClaim(ctx context.Context, id string) (AgentClaim, err
 		&i.ClaimTokenHash,
 		&i.Hostname,
 		&i.AgentVersion,
+		&i.IpAddressesJson,
 		&i.ClaimTokenExpiresAt,
 		&i.PollCount,
 		&i.LastSeenAt,
@@ -91,7 +92,7 @@ func (q *Queries) GetAgentClaim(ctx context.Context, id string) (AgentClaim, err
 }
 
 const getAgentClaimForClaiming = `-- name: GetAgentClaimForClaiming :one
-SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
+SELECT id, claim_token_hash, hostname, agent_version, ip_addresses_json, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
 WHERE id = ?
   AND claim_token_hash = ?
   AND claim_token_expires_at > datetime('now')
@@ -113,6 +114,7 @@ func (q *Queries) GetAgentClaimForClaiming(ctx context.Context, arg GetAgentClai
 		&i.ClaimTokenHash,
 		&i.Hostname,
 		&i.AgentVersion,
+		&i.IpAddressesJson,
 		&i.ClaimTokenExpiresAt,
 		&i.PollCount,
 		&i.LastSeenAt,
@@ -164,7 +166,7 @@ func (q *Queries) IncrementAgentClaimPollCount(ctx context.Context, id string) e
 }
 
 const listPendingDeliveries = `-- name: ListPendingDeliveries :many
-SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
+SELECT id, claim_token_hash, hostname, agent_version, ip_addresses_json, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
 WHERE claimed_at IS NOT NULL
   AND api_key_delivered = 0
 ORDER BY claimed_at ASC
@@ -184,6 +186,7 @@ func (q *Queries) ListPendingDeliveries(ctx context.Context) ([]AgentClaim, erro
 			&i.ClaimTokenHash,
 			&i.Hostname,
 			&i.AgentVersion,
+			&i.IpAddressesJson,
 			&i.ClaimTokenExpiresAt,
 			&i.PollCount,
 			&i.LastSeenAt,
@@ -208,7 +211,7 @@ func (q *Queries) ListPendingDeliveries(ctx context.Context) ([]AgentClaim, erro
 
 const listUnclaimedAgents = `-- name: ListUnclaimedAgents :many
 
-SELECT id, claim_token_hash, hostname, agent_version, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
+SELECT id, claim_token_hash, hostname, agent_version, ip_addresses_json, claim_token_expires_at, poll_count, last_seen_at, created_at, claimed_at, claimed_by_user_id, api_key_plaintext, api_key_delivered FROM agent_claims
 WHERE claimed_at IS NULL
   AND claim_token_expires_at > datetime('now')
 ORDER BY created_at DESC
@@ -229,6 +232,7 @@ func (q *Queries) ListUnclaimedAgents(ctx context.Context) ([]AgentClaim, error)
 			&i.ClaimTokenHash,
 			&i.Hostname,
 			&i.AgentVersion,
+			&i.IpAddressesJson,
 			&i.ClaimTokenExpiresAt,
 			&i.PollCount,
 			&i.LastSeenAt,
@@ -288,13 +292,15 @@ INSERT INTO agent_claims (
     claim_token_hash,
     hostname,
     agent_version,
+    ip_addresses_json,
     claim_token_expires_at,
     last_seen_at
-) VALUES (?, ?, ?, ?, ?, datetime('now'))
+) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
 ON CONFLICT(id) DO UPDATE SET
     last_seen_at = datetime('now'),
     hostname = COALESCE(excluded.hostname, hostname),
-    agent_version = COALESCE(excluded.agent_version, agent_version)
+    agent_version = COALESCE(excluded.agent_version, agent_version),
+    ip_addresses_json = COALESCE(excluded.ip_addresses_json, ip_addresses_json)
 WHERE claimed_at IS NULL  -- Only update if not yet claimed
 RETURNING id
 `
@@ -304,6 +310,7 @@ type UpsertAgentClaimParams struct {
 	ClaimTokenHash      string
 	Hostname            string
 	AgentVersion        string
+	IpAddressesJson     string
 	ClaimTokenExpiresAt time.Time
 }
 
@@ -313,6 +320,7 @@ func (q *Queries) UpsertAgentClaim(ctx context.Context, arg UpsertAgentClaimPara
 		arg.ClaimTokenHash,
 		arg.Hostname,
 		arg.AgentVersion,
+		arg.IpAddressesJson,
 		arg.ClaimTokenExpiresAt,
 	)
 	var id string

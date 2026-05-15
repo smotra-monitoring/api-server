@@ -53,7 +53,7 @@ The server implements a secure three-phase workflow for agent onboarding:
 2. **Administrator Claiming** - Admin reviews and claims pending agents via web UI
 3. **API Key Delivery** - Agent polls for claim status and receives API key one-time
 
-See the [detailed guide](GUIDE.md#4-agent-claiming-workflow) for complete examples.
+See the [detailed guide](features/GUIDE.md#4-agent-claiming-workflow) for complete examples.
 
 ## Configuration
 
@@ -78,7 +78,7 @@ logging:
   format: json
 ```
 
-For detailed configuration options, see the [Configuration Guide](GUIDE.md#configuration).
+For detailed configuration options, see the [Configuration Guide](features/GUIDE.md#configuration).
 
 ## Development
 
@@ -130,6 +130,14 @@ The API is defined using OpenAPI 3.0 specification maintained in the [smotra-mon
 - `POST /v1/agent/register` - Agent self-registration
 - `GET /v1/agents/{agentId}/claim-status` - Agent claim status polling
 - `POST /v1/agents/claim` - Administrator claims agent
+- `POST /v1/agent/{agentId}/results` - Submit monitoring results (authenticated)
+- `POST /v1/agent/{agentId}/heartbeat` - Agent heartbeat / vitals (authenticated)
+- `GET /v1/auth/oauth2/authorize` - OAuth2 authorization redirect
+- `GET /v1/auth/oauth2/callback` - OAuth2 IDP callback relay
+- `POST /v1/auth/oauth2/token` - Token exchange proxy
+- `POST /v1/auth/oauth2/revoke` - Token revocation proxy
+- `GET /v1/auth/userinfo` - Userinfo proxy
+- `POST /v1/auth/logout` - IDP end-session redirect
 
 ## Testing
 
@@ -171,9 +179,12 @@ go build -ldflags "-X main.version=1.0.0" -o bin/smotra-server cmd/server/main.g
 
 ## Documentation
 
-- [GUIDE.md](GUIDE.md) - Comprehensive setup and development guide
+- [features/GUIDE.md](features/GUIDE.md) - Comprehensive setup and development guide
 - [TESTING.md](TESTING.md) - Testing strategy and examples
 - [ROADMAP.md](ROADMAP.md) - Planned features and improvements
+- [features/authentication.md](features/authentication.md) - OAuth2/OIDC configuration reference
+- [features/agent-claiming.md](features/agent-claiming.md) - Agent claiming workflow deep-dive
+- [features/monitoring-results.md](features/monitoring-results.md) - Results submission and heartbeat reference
 
 ## Contributing
 This is an open-source project, and we deeply value the community's interest. However, due to the high volume of automated and machine-generated code currently being submitted, we are significantly narrowing our intake process to maintain code quality and project stability.
@@ -196,7 +207,7 @@ If you’ve found a bug or have a great idea:
 
 - **Follow the Workflow:** Once approved, you may fork the repo, work in a feature branch, and submit your PR (with tests!) for final review.
 
-See the [User Guide](GUIDE.md) for testing requirements and code standards.
+See the [User Guide](features/GUIDE.md) for testing requirements and code standards.
 
 ## License
 
@@ -205,7 +216,7 @@ Source available with restrictions on SaaS usage without a commercial license. S
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/smotra-monitoring/server/issues)
-- **Documentation**: See [GUIDE.md](GUIDE.md) for detailed documentation
+- **Documentation**: See [features/GUIDE.md](features/GUIDE.md) for detailed documentation
 
 ---
 

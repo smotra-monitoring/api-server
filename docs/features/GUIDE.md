@@ -109,7 +109,55 @@ curl -X POST http://localhost:8080/agents/claim \
   }'
 ```
 
-### 5. Using PostgreSQL (Production)
+### 5. Submit Monitoring Results
+
+Once an agent has a valid API key it can submit monitoring results in batches. Each result must have a client-assigned UUIDv7 ID — the server uses it for idempotent deduplication (submitting the same ID twice inserts the row only once).
+
+```bash
+curl -X POST http://localhost:8080/v1/agent/019c1234-5678-7abc-def0-123456789abc/results \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-API-Key: sk_live_..." \
+  -d '{
+    "results": [
+      {
+        "id": "019d0000-0001-7000-8000-000000000001",
+        "endpointId": "019c9999-1111-7000-8000-000000000001",
+        "timestamp": "2026-05-12T10:00:00Z",
+        "checkType": "ping",
+        "result": {
+          "successLatencies": [12.3, 11.8, 13.1],
+          "packetsSent": 3,
+          "packetsReceived": 3,
+          "errors": []
+        }
+      }
+    ]
+  }'
+```
+
+Supported `checkType` values: `ping`, `httpget`, `tcpconnect`, `udpconnect`, `traceroute`, `plugin`.
+
+See [monitoring-results.md](monitoring-results.md) for the full request/response schema.
+
+### 6. Agent Heartbeat
+
+Agents send a heartbeat at regular intervals to report system vitals. The server updates `last_seen_at` and stores a vitals snapshot for every heartbeat.
+
+```bash
+curl -X POST http://localhost:8080/v1/agent/019c1234-5678-7abc-def0-123456789abc/heartbeat \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-API-Key: sk_live_..." \
+  -d '{
+    "cpuUsagePercent": 12.5,
+    "memoryUsagePercent": 45.2,
+    "agentVersion": "1.0.0",
+    "uptimeSeconds": 86400
+  }'
+```
+
+Returns `204 No Content` on success.
+
+### 7. Using PostgreSQL (Production)
 
 Edit your `config.yaml` file:
 

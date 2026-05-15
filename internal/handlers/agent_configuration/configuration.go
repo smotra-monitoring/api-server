@@ -24,6 +24,11 @@ type Handler struct {
 	getConfigurationTotal   atomic.Uint64
 	getConfigurationSuccess atomic.Uint64
 	getConfigurationFailure atomic.Uint64
+
+	// Topology resolution metrics
+	topologyResolutionsTotal    atomic.Uint64
+	topologyEndpointsResolved   atomic.Uint64
+	topologyResolutionsEmpty    atomic.Uint64
 }
 
 // NewHandler creates a new configuration handler
@@ -88,12 +93,18 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 		agentTagsPtr = &agentTags
 	}
 
-	// Get agent endpoints
-	endpointRows, err := q.GetAgentEndpoints(ctx, agentID)
+	// Get agent endpoints resolved via topology membership
+	endpointRows, err := q.GetEndpointsForAgent(ctx, agentID)
+	h.topologyResolutionsTotal.Add(1)
 	if err != nil {
 		h.getConfigurationFailure.Add(1)
-		h.logger.Error("Failed to get agent endpoints", "error", err, "agent_id", agentID)
+		h.logger.Error("Failed to get agent endpoints via topology", "error", err, "agent_id", agentID)
 		return nil, fmt.Errorf("failed to get agent endpoints: %w", err)
+	}
+	if len(endpointRows) == 0 {
+		h.topologyResolutionsEmpty.Add(1)
+	} else {
+		h.topologyEndpointsResolved.Add(uint64(len(endpointRows)))
 	}
 
 	// Build endpoints with their tags
@@ -184,6 +195,21 @@ func (h *Handler) GetMetrics() string {
 	metrics += "# HELP smotra_agent_configuration_get_configuration_failure_total Failed get configuration requests\n"
 	metrics += "# TYPE smotra_agent_configuration_get_configuration_failure_total counter\n"
 	metrics += fmt.Sprintf("smotra_agent_configuration_get_configuration_failure_total %d\n", h.getConfigurationFailure.Load())
+	metrics += "\n"
+
+	metrics += "# HELP smotra_agent_configuration_topology_resolutions_total Total topology resolution calls\n"
+	metrics += "# TYPE smotra_agent_configuration_topology_resolutions_total counter\n"
+	metrics += fmt.Sprintf("smotra_agent_configuration_topology_resolutions_total %d\n", h.topologyResolutionsTotal.Load())
+	metrics += "\n"
+
+	metrics += "# HELP smotra_agent_configuration_topology_endpoints_resolved_total Cumulative endpoints resolved across all configuration requests\n"
+	metrics += "# TYPE smotra_agent_configuration_topology_endpoints_resolved_total counter\n"
+	metrics += fmt.Sprintf("smotra_agent_configuration_topology_endpoints_resolved_total %d\n", h.topologyEndpointsResolved.Load())
+	metrics += "\n"
+
+	metrics += "# HELP smotra_agent_configuration_topology_resolutions_empty_total Configuration requests where the agent had no topology assignment\n"
+	metrics += "# TYPE smotra_agent_configuration_topology_resolutions_empty_total counter\n"
+	metrics += fmt.Sprintf("smotra_agent_configuration_topology_resolutions_empty_total %d\n", h.topologyResolutionsEmpty.Load())
 	metrics += "\n"
 
 	metrics += "\n"

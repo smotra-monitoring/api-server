@@ -237,6 +237,18 @@ func (h *Handler) Handle(ctx context.Context, req api.SubmitAgentResultsRequestO
 		)
 	}
 
+	// Update agent's last_result_submitted_at on every result batch
+	if err := q.UpdateAgentLastResultSubmittedAt(ctx, queries.UpdateAgentLastResultSubmittedAtParams{
+		LastResultSubmittedAt: sql.NullTime{Time: receivedAt, Valid: true},
+		ID:                    urlAgentID,
+	}); err != nil {
+		// Non-fatal: results are stored; log and continue
+		h.logger.WarnContext(ctx, "Failed to update agent last_result_submitted_at",
+			slog.String("agent_id", urlAgentID),
+			slog.String("error", err.Error()),
+		)
+	}
+
 	// TODO: alert triggering — evaluate thresholds for each accepted result
 	// and send notifications (Discord, email) when thresholds are breached.
 	h.logger.DebugContext(ctx, "Alert evaluation stub — not yet implemented",

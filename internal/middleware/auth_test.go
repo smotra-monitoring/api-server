@@ -2,10 +2,12 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
@@ -248,5 +250,89 @@ func TestRequireAuth_WithAuth(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+// ─── RequireAuthForTests: present but not authenticated ───────────────────────
+
+func TestRequireAuth_PresentButNotAuthenticated_Returns401(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+
+	mw := RequireAuthForTests(log)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called when auth is invalid")
+	})
+
+	// AuthInfo present but Authenticated=false
+	authInfo := &AuthInfo{
+		AgentID:       "019bdeb2-50dc-794e-808b-cf47526b867f",
+		AuthType:      "agent_api_key",
+		Authenticated: false,
+	}
+	ctx := context.WithValue(context.Background(), AuthContextKey, authInfo)
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("/agent/%s/configuration", authInfo.AgentID), nil)
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	mw(handler).ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+// ─── getRequestIDFromHeader ───────────────────────────────────────────────────
+
+func TestGetRequestIDFromHeader_Empty_ReturnsNil(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	req := httptest.NewRequest("GET", "/", nil)
+	result := getRequestIDFromHeader(req, log)
+	if result != nil {
+		t.Errorf("expected nil for missing header, got %v", result)
+	}
+}
+
+func TestGetRequestIDFromHeader_ValidUUID_ReturnsUUID(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	req := httptest.NewRequest("GET", "/", nil)
+	validID := uuid.MustParse("019bdeb2-50dc-794e-808b-cf47526b867f")
+	req.Header.Set("X-Request-ID", validID.String())
+
+	result := getRequestIDFromHeader(req, log)
+	if result == nil {
+		t.Fatal("expected non-nil UUID, got nil")
+	}
+	if *result != validID {
+		t.Errorf("expected %v, got %v", validID, *result)
+	}
+}
+
+func TestGetRequestIDFromHeader_InvalidUUID_ReturnsNil(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("X-Request-ID", "not-a-valid-uuid")
+
+	result := getRequestIDFromHeader(req, log)
+	if result != nil {
+		t.Errorf("expected nil for invalid UUID, got %v", result)
+	}
+}
+
+// ─── HashAPIKeyForTests ───────────────────────────────────────────────────────
+
+func TestHashAPIKeyForTests_MatchesInternalHash(t *testing.T) {
+	key := "my-secret-api-key"
+	result1 := HashAPIKeyForTests(key)
+	result2 := HashAPIKeyForTests(key)
+	if result1 != result2 {
+		t.Error("HashAPIKeyForTests is not deterministic")
+	}
+	if result1 == "" {
+		t.Error("HashAPIKeyForTests returned empty string")
+	}
+	if result1 != hashAPIKey(key) {
+		t.Errorf("HashAPIKeyForTests(%q) = %q, hashAPIKey(%q) = %q", key, result1, key, hashAPIKey(key))
 	}
 }

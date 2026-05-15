@@ -70,6 +70,10 @@ func (t *testServerImpl) SubmitAgentResults(ctx context.Context, request api.Sub
 	return nil, nil
 }
 
+func (t *testServerImpl) SendAgentHeartbeat(ctx context.Context, request api.SendAgentHeartbeatRequestObject) (api.SendAgentHeartbeatResponseObject, error) {
+	return nil, nil
+}
+
 func setupTestRouter(handler *Handler) *chi.Mux {
 	testImpl := &testServerImpl{Handler: handler}
 	r := chi.NewRouter()
@@ -101,6 +105,10 @@ func TestRegisterAgentSelf_Integration_Success(t *testing.T) {
 		ClaimTokenHash: claimTokenHashStr,
 		Hostname:       "test-agent-host",
 		AgentVersion:   "1.0.0",
+		IpAddresses: []api.AgentNetworkInterface{
+			{Ip: "10.0.0.5", Iface: "eth1", Family: api.Ipv4, Recommended: false},
+			{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+		},
 	}
 
 	reqJSON, _ := json.Marshal(reqBody)
@@ -145,6 +153,32 @@ func TestRegisterAgentSelf_Integration_Success(t *testing.T) {
 	if claim.AgentVersion != "1.0.0" {
 		t.Errorf("Expected version '1.0.0', got '%s'", claim.AgentVersion)
 	}
+
+	if claim.IpAddressesJson == "" || claim.IpAddressesJson == "[]" {
+		t.Errorf("Expected non-empty ip_addresses_json, got '%s'", claim.IpAddressesJson)
+	}
+
+	var storedIPs []api.AgentNetworkInterface
+	if err := json.Unmarshal([]byte(claim.IpAddressesJson), &storedIPs); err != nil {
+		t.Fatalf("ip_addresses_json is not valid JSON: %v", err)
+	}
+
+	if len(storedIPs) != 2 {
+		t.Errorf("Expected 2 stored IPs, got %d", len(storedIPs))
+	}
+
+	recommendedCount := 0
+	for _, ip := range storedIPs {
+		if ip.Recommended {
+			recommendedCount++
+			if ip.Ip != "192.168.1.10" {
+				t.Errorf("Expected recommended IP '192.168.1.10', got '%s'", ip.Ip)
+			}
+		}
+	}
+	if recommendedCount != 1 {
+		t.Errorf("Expected exactly 1 recommended IP, got %d", recommendedCount)
+	}
 }
 
 func TestRegisterAgentSelf_Integration_Idempotent(t *testing.T) {
@@ -169,6 +203,9 @@ func TestRegisterAgentSelf_Integration_Idempotent(t *testing.T) {
 		ClaimTokenHash: claimTokenHashStr,
 		Hostname:       "test-agent-host",
 		AgentVersion:   "1.0.0",
+		IpAddresses: []api.AgentNetworkInterface{
+			{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+		},
 	}
 
 	// First registration
@@ -247,6 +284,9 @@ func TestRegisterAgentSelf_Integration_AlreadyClaimed(t *testing.T) {
 		ClaimTokenHash: claimTokenHashStr,
 		Hostname:       "test-agent-host",
 		AgentVersion:   "1.0.0",
+		IpAddresses: []api.AgentNetworkInterface{
+			{Ip: "192.168.1.10", Iface: "eth0", Family: api.Ipv4, Recommended: true},
+		},
 	}
 	{
 		reqJSON, _ := json.Marshal(reqBody)

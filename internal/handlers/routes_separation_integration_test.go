@@ -35,7 +35,7 @@ func TestRoutesSeparation(t *testing.T) {
 	r.Use(middleware.OAuth2Auth(log))
 
 	// Create shared metrics handler
-	metricsHandler := NewMetricsHandler(log, db, "test")
+	metricsHandler := NewMetricsHandler(log, "test")
 
 	// Register Health handler at root level
 	healthHandler := NewHealthHandler(log, db, cfg, "test", metricsHandler)
@@ -176,7 +176,7 @@ func TestRouteSeparation_NoConflicts(t *testing.T) {
 	r.Use(middleware.AgentAPIKeyAuth(log, db))
 	r.Use(middleware.OAuth2Auth(log))
 
-	metricsHandler := NewMetricsHandler(log, db, "test")
+	metricsHandler := NewMetricsHandler(log, "test")
 
 	// Register both handler groups
 	healthHandler := NewHealthHandler(log, db, cfg, "test", metricsHandler)
@@ -228,7 +228,7 @@ func TestHealthEndpoints_OnlyAtRoot(t *testing.T) {
 	cfg := testutil.DefaultTestConfig()
 
 	r := chi.NewRouter()
-	metricsHandler := NewMetricsHandler(log, db, "test")
+	metricsHandler := NewMetricsHandler(log, "test")
 
 	// Only register health handler
 	healthHandler := NewHealthHandler(log, db, cfg, "test", metricsHandler)

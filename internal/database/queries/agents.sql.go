@@ -44,18 +44,20 @@ INSERT INTO agents (
     name,
     api_key_hash,
     base_config,
-    agent_version
-) VALUES (?, ?, ?, ?, ?, ?)
+    agent_version,
+    ip_addresses_json
+) VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING id
 `
 
 type CreateAgentFromClaimParams struct {
-	ID           string
-	SectionID    string
-	Name         string
-	ApiKeyHash   string
-	BaseConfig   string
-	AgentVersion sql.NullString
+	ID              string
+	SectionID       string
+	Name            string
+	ApiKeyHash      string
+	BaseConfig      string
+	AgentVersion    sql.NullString
+	IpAddressesJson string
 }
 
 // Creates an agent after successful claim
@@ -68,6 +70,7 @@ func (q *Queries) CreateAgentFromClaim(ctx context.Context, arg CreateAgentFromC
 		arg.ApiKeyHash,
 		arg.BaseConfig,
 		arg.AgentVersion,
+		arg.IpAddressesJson,
 	)
 	var id string
 	err := row.Scan(&id)
@@ -96,45 +99,6 @@ func (q *Queries) GetAgentConfigurationBase(ctx context.Context, id string) (Get
 		&i.BaseConfig,
 	)
 	return i, err
-}
-
-const getAgentEndpoints = `-- name: GetAgentEndpoints :many
-SELECT id, address, port, enabled FROM endpoints WHERE agent_id = ?
-`
-
-type GetAgentEndpointsRow struct {
-	ID      string
-	Address string
-	Port    sql.NullInt64
-	Enabled int64
-}
-
-func (q *Queries) GetAgentEndpoints(ctx context.Context, agentID string) ([]GetAgentEndpointsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getAgentEndpoints, agentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetAgentEndpointsRow
-	for rows.Next() {
-		var i GetAgentEndpointsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Address,
-			&i.Port,
-			&i.Enabled,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getAgentTags = `-- name: GetAgentTags :many
@@ -209,6 +173,20 @@ type UpdateAgentConfigurationParams struct {
 
 func (q *Queries) UpdateAgentConfiguration(ctx context.Context, arg UpdateAgentConfigurationParams) error {
 	_, err := q.db.ExecContext(ctx, updateAgentConfiguration, arg.ConfigVersion, arg.BaseConfig, arg.ID)
+	return err
+}
+
+const updateAgentLastResultSubmittedAt = `-- name: UpdateAgentLastResultSubmittedAt :exec
+UPDATE agents SET last_result_submitted_at = ? WHERE id = ?
+`
+
+type UpdateAgentLastResultSubmittedAtParams struct {
+	LastResultSubmittedAt sql.NullTime
+	ID                    string
+}
+
+func (q *Queries) UpdateAgentLastResultSubmittedAt(ctx context.Context, arg UpdateAgentLastResultSubmittedAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateAgentLastResultSubmittedAt, arg.LastResultSubmittedAt, arg.ID)
 	return err
 }
 

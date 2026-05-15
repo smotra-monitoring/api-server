@@ -7,15 +7,15 @@ import (
 	"time"
 
 	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
+	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
 
 func TestNewHandler(t *testing.T) {
 	logger, _ := testutil.NewTestLogger()
-	db := testutil.NewMockDatabase()
 	appVersion := "1.0.0-test"
 
-	handler := NewHandler(logger, db, appVersion)
+	handler := NewHandler(logger, appVersion)
 
 	if handler == nil {
 		t.Fatal("handler is nil")
@@ -28,99 +28,19 @@ func TestNewHandler(t *testing.T) {
 	if handler.logger == nil {
 		t.Error("logger is nil")
 	}
-
-	if handler.db == nil {
-		t.Error("db is nil")
-	}
-}
-
-func TestIncrementHTTPRequests(t *testing.T) {
-	logger, _ := testutil.NewTestLogger()
-	db := testutil.NewMockDatabase()
-	handler := NewHandler(logger, db, "1.0.0")
-
-	// Test successful requests
-	handler.IncrementHTTPRequests(true)
-	handler.IncrementHTTPRequests(true)
-	handler.IncrementHTTPRequests(true)
-
-	if handler.httpRequestsTotal.Load() != 3 {
-		t.Errorf("expected total requests 3, got %d", handler.httpRequestsTotal.Load())
-	}
-
-	if handler.httpRequestsSuccess.Load() != 3 {
-		t.Errorf("expected successful requests 3, got %d", handler.httpRequestsSuccess.Load())
-	}
-
-	if handler.httpRequestsFailure.Load() != 0 {
-		t.Errorf("expected failed requests 0, got %d", handler.httpRequestsFailure.Load())
-	}
-
-	// Test failed requests
-	handler.IncrementHTTPRequests(false)
-	handler.IncrementHTTPRequests(false)
-
-	if handler.httpRequestsTotal.Load() != 5 {
-		t.Errorf("expected total requests 5, got %d", handler.httpRequestsTotal.Load())
-	}
-
-	if handler.httpRequestsSuccess.Load() != 3 {
-		t.Errorf("expected successful requests 3, got %d", handler.httpRequestsSuccess.Load())
-	}
-
-	if handler.httpRequestsFailure.Load() != 2 {
-		t.Errorf("expected failed requests 2, got %d", handler.httpRequestsFailure.Load())
-	}
-}
-
-func TestIncrementDBQueries(t *testing.T) {
-	logger, _ := testutil.NewTestLogger()
-	db := testutil.NewMockDatabase()
-	handler := NewHandler(logger, db, "1.0.0")
-
-	// Test successful queries
-	handler.IncrementDBQueries(true)
-	handler.IncrementDBQueries(true)
-
-	if handler.dbQueriesTotal.Load() != 2 {
-		t.Errorf("expected total queries 2, got %d", handler.dbQueriesTotal.Load())
-	}
-
-	if handler.dbQueriesSuccess.Load() != 2 {
-		t.Errorf("expected successful queries 2, got %d", handler.dbQueriesSuccess.Load())
-	}
-
-	if handler.dbQueriesFailure.Load() != 0 {
-		t.Errorf("expected failed queries 0, got %d", handler.dbQueriesFailure.Load())
-	}
-
-	// Test failed queries
-	handler.IncrementDBQueries(false)
-
-	if handler.dbQueriesTotal.Load() != 3 {
-		t.Errorf("expected total queries 3, got %d", handler.dbQueriesTotal.Load())
-	}
-
-	if handler.dbQueriesSuccess.Load() != 2 {
-		t.Errorf("expected successful queries 2, got %d", handler.dbQueriesSuccess.Load())
-	}
-
-	if handler.dbQueriesFailure.Load() != 1 {
-		t.Errorf("expected failed queries 1, got %d", handler.dbQueriesFailure.Load())
-	}
 }
 
 func TestPrometheusMetrics(t *testing.T) {
 	logger, _ := testutil.NewTestLogger()
-	db := testutil.NewMockDatabase()
-	handler := NewHandler(logger, db, "1.0.0-test")
+	handler := NewHandler(logger, "1.0.0-test")
 
-	// Set some metrics
-	handler.IncrementHTTPRequests(true)
-	handler.IncrementHTTPRequests(true)
-	handler.IncrementHTTPRequests(false)
-	handler.IncrementDBQueries(true)
-	handler.IncrementDBQueries(false)
+	// Register stub providers to simulate HTTP and DB metrics
+	handler.RegisterMetricsProvider(&stubMetricsProvider{
+		output: "# HELP smotra_http_requests_total Total HTTP requests\n# TYPE smotra_http_requests_total counter\nsmotra_http_requests_total 3\n\n",
+	})
+	handler.RegisterMetricsProvider(&stubMetricsProvider{
+		output: "# HELP smotra_db_connections_open Open DB connections\n# TYPE smotra_db_connections_open gauge\nsmotra_db_connections_open 1\n\n",
+	})
 
 	// Sleep a bit to get uptime > 0
 	time.Sleep(10 * time.Millisecond)
@@ -134,67 +54,37 @@ func TestPrometheusMetrics(t *testing.T) {
 
 	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
 
-	// Verify required metrics are present
+	// Verify required core metrics are present
 	requiredMetrics := []string{
 		"smotra_info",
 		"smotra_uptime_seconds",
-		"smotra_http_requests_total",
-		"smotra_http_requests_success_total",
-		"smotra_http_requests_failure_total",
-		"smotra_db_queries_total",
-		"smotra_db_queries_success_total",
-		"smotra_db_queries_failure_total",
-		"smotra_db_healthy",
 		"smotra_go_goroutines",
 		"smotra_go_memory_alloc_bytes",
 		"smotra_agents_registered_total",
+		// provider-supplied metrics
+		"smotra_http_requests_total 3",
+		"smotra_db_connections_open 1",
 	}
 
 	for _, metric := range requiredMetrics {
 		if !strings.Contains(output, metric) {
-			t.Errorf("expected metric %s not found in output", metric)
+			t.Errorf("expected metric %q not found in output", metric)
 		}
-	}
-
-	// Verify metric values
-	if !strings.Contains(output, "smotra_http_requests_total 3") {
-		t.Error("expected http_requests_total to be 3")
-	}
-
-	if !strings.Contains(output, "smotra_http_requests_success_total 2") {
-		t.Error("expected http_requests_success_total to be 2")
-	}
-
-	if !strings.Contains(output, "smotra_http_requests_failure_total 1") {
-		t.Error("expected http_requests_failure_total to be 1")
-	}
-
-	if !strings.Contains(output, "smotra_db_queries_total 2") {
-		t.Error("expected db_queries_total to be 2")
 	}
 
 	if !strings.Contains(output, `version="1.0.0-test"`) {
 		t.Error("expected version label to be 1.0.0-test")
 	}
-
-	// Verify HELP and TYPE comments
-	if !strings.Contains(output, "# HELP smotra_http_requests_total") {
-		t.Error("expected HELP comment for http_requests_total")
-	}
-
-	if !strings.Contains(output, "# TYPE smotra_http_requests_total counter") {
-		t.Error("expected TYPE comment for http_requests_total")
-	}
 }
 
 func TestPrometheusMetricsWithUnhealthyDB(t *testing.T) {
 	logger, _ := testutil.NewTestLogger()
-	db := testutil.NewMockDatabase()
+	handler := NewHandler(logger, "1.0.0")
 
-	// Simulate database error
-	db.ShouldFail = true
-
-	handler := NewHandler(logger, db, "1.0.0")
+	// Simulate database error via DBMetrics provider
+	mockDB := testutil.NewMockDatabase()
+	mockDB.ShouldFail = true
+	handler.RegisterMetricsProvider(database.NewDBMetrics(mockDB))
 
 	ctx := context.Background()
 	resp, err := handler.PrometheusMetrics(ctx, struct{}{})
@@ -218,8 +108,7 @@ func TestPrometheusMetricsWithUnhealthyDB(t *testing.T) {
 
 func TestPrometheusMetricsFormat(t *testing.T) {
 	logger, _ := testutil.NewTestLogger()
-	db := testutil.NewMockDatabase()
-	handler := NewHandler(logger, db, "1.0.0")
+	handler := NewHandler(logger, "1.0.0")
 
 	ctx := context.Background()
 	resp, err := handler.PrometheusMetrics(ctx, struct{}{})
@@ -270,4 +159,55 @@ func abs(x int) int {
 		return -x
 	}
 	return x
+}
+
+// ─── RegisterMetricsProvider ──────────────────────────────────────────────────
+
+type stubMetricsProvider struct {
+	output string
+}
+
+func (s *stubMetricsProvider) GetMetrics() string {
+	return s.output
+}
+
+func TestRegisterMetricsProvider_OutputIncludedInPrometheus(t *testing.T) {
+	logger, _ := testutil.NewTestLogger()
+	handler := NewHandler(logger, "1.0.0")
+
+	stub := &stubMetricsProvider{
+		output: "# HELP custom_counter Custom test counter\n# TYPE custom_counter counter\ncustom_counter 42\n",
+	}
+	handler.RegisterMetricsProvider(stub)
+
+	resp, err := handler.PrometheusMetrics(context.Background(), struct{}{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
+	if !strings.Contains(output, "custom_counter 42") {
+		t.Errorf("expected provider metrics in output, got:\n%s", output)
+	}
+}
+
+func TestRegisterMetricsProvider_MultipleProviders(t *testing.T) {
+	logger, _ := testutil.NewTestLogger()
+	handler := NewHandler(logger, "1.0.0")
+
+	handler.RegisterMetricsProvider(&stubMetricsProvider{output: "provider_a 1\n"})
+	handler.RegisterMetricsProvider(&stubMetricsProvider{output: "provider_b 2\n"})
+
+	resp, err := handler.PrometheusMetrics(context.Background(), struct{}{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
+	if !strings.Contains(output, "provider_a 1") {
+		t.Errorf("expected provider_a in output")
+	}
+	if !strings.Contains(output, "provider_b 2") {
+		t.Errorf("expected provider_b in output")
+	}
 }
