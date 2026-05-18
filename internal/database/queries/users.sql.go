@@ -7,6 +7,7 @@ package queries
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -51,7 +52,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id string) error {
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, tenant_id, oauth_provider, oauth_subject, display_name, last_login_at, created_at, updated_at FROM users
+SELECT id, tenant_id, oauth_provider, oauth_subject, display_name, email, avatar_url, last_login_at, created_at, updated_at FROM users
 WHERE id = ? LIMIT 1
 `
 
@@ -64,6 +65,8 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.OauthProvider,
 		&i.OauthSubject,
 		&i.DisplayName,
+		&i.Email,
+		&i.AvatarUrl,
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -72,7 +75,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 }
 
 const getUserByOAuth = `-- name: GetUserByOAuth :one
-SELECT id, tenant_id, oauth_provider, oauth_subject, display_name, last_login_at, created_at, updated_at FROM users
+SELECT id, tenant_id, oauth_provider, oauth_subject, display_name, email, avatar_url, last_login_at, created_at, updated_at FROM users
 WHERE oauth_provider = ? AND oauth_subject = ?
 LIMIT 1
 `
@@ -91,6 +94,8 @@ func (q *Queries) GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) 
 		&i.OauthProvider,
 		&i.OauthSubject,
 		&i.DisplayName,
+		&i.Email,
+		&i.AvatarUrl,
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -99,7 +104,7 @@ func (q *Queries) GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) 
 }
 
 const listUsersByTenant = `-- name: ListUsersByTenant :many
-SELECT id, tenant_id, oauth_provider, oauth_subject, display_name, last_login_at, created_at, updated_at FROM users
+SELECT id, tenant_id, oauth_provider, oauth_subject, display_name, email, avatar_url, last_login_at, created_at, updated_at FROM users
 WHERE tenant_id = ?
 ORDER BY created_at DESC
 `
@@ -119,6 +124,8 @@ func (q *Queries) ListUsersByTenant(ctx context.Context, tenantID string) ([]Use
 			&i.OauthProvider,
 			&i.OauthSubject,
 			&i.DisplayName,
+			&i.Email,
+			&i.AvatarUrl,
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -163,6 +170,25 @@ func (q *Queries) UpdateUserLastLogin(ctx context.Context, id string) error {
 	return err
 }
 
+const upsertTenant = `-- name: UpsertTenant :one
+INSERT INTO tenants (id, name)
+VALUES (?, ?)
+ON CONFLICT(name) DO UPDATE SET name = excluded.name
+RETURNING id
+`
+
+type UpsertTenantParams struct {
+	ID   string
+	Name string
+}
+
+func (q *Queries) UpsertTenant(ctx context.Context, arg UpsertTenantParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, upsertTenant, arg.ID, arg.Name)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const upsertUserByOAuth = `-- name: UpsertUserByOAuth :one
 INSERT INTO users (
     id,
@@ -170,12 +196,16 @@ INSERT INTO users (
     oauth_provider,
     oauth_subject,
     display_name,
+    email,
+    avatar_url,
     last_login_at
-) VALUES (?, ?, ?, ?, ?, datetime('now'))
+) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
 ON CONFLICT(oauth_provider, oauth_subject) DO UPDATE SET
     display_name = COALESCE(excluded.display_name, display_name),
+    email        = COALESCE(excluded.email, email),
+    avatar_url   = COALESCE(excluded.avatar_url, avatar_url),
     last_login_at = datetime('now'),
-    updated_at = datetime('now')
+    updated_at   = datetime('now')
 RETURNING id
 `
 
@@ -185,9 +215,11 @@ type UpsertUserByOAuthParams struct {
 	OauthProvider string
 	OauthSubject  string
 	DisplayName   string
+	Email         sql.NullString
+	AvatarUrl     sql.NullString
 }
 
-// Creates or updates user on OAuth login
+// Creates or updates user on OAuth login. tenant_id is only used on INSERT (ignored on conflict).
 func (q *Queries) UpsertUserByOAuth(ctx context.Context, arg UpsertUserByOAuthParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserByOAuth,
 		arg.ID,
@@ -195,6 +227,8 @@ func (q *Queries) UpsertUserByOAuth(ctx context.Context, arg UpsertUserByOAuthPa
 		arg.OauthProvider,
 		arg.OauthSubject,
 		arg.DisplayName,
+		arg.Email,
+		arg.AvatarUrl,
 	)
 	var id string
 	err := row.Scan(&id)

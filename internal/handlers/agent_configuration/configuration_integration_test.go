@@ -41,6 +41,10 @@ func (t *testServerImpl) Logout(ctx context.Context, request api.LogoutRequestOb
 	return nil, nil
 }
 
+func (t *testServerImpl) AuthRefresh(ctx context.Context, req api.AuthRefreshRequestObject) (api.AuthRefreshResponseObject, error) {
+	return nil, nil
+}
+
 func (t *testServerImpl) Oauth2Authorize(ctx context.Context, request api.Oauth2AuthorizeRequestObject) (api.Oauth2AuthorizeResponseObject, error) {
 	return nil, nil
 }

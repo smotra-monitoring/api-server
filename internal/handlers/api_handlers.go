@@ -54,7 +54,7 @@ func NewAPIHandler(logger *logger.Logger, db database.Database, cfg *config.Conf
 	registerHandler := agent_register.NewHandler(logger, db, cfg)
 	claimStatusHandler := agent_claim_status.NewHandler(logger, db, cfg)
 	claimHandler := agent_claim.NewHandler(logger, db)
-	authHandler := auth.NewHandler(logger, &cfg.Auth)
+	authHandler := auth.NewHandler(logger, &cfg.Auth, &cfg.Server, db)
 	submitResultsHandler := agent_submit_results.NewHandler(logger, db)
 	heartbeatHandler := agent_heartbeat.NewHandler(logger, db)
 
@@ -136,4 +136,8 @@ func (h *APIHandler) GetUserInfo(ctx context.Context, request api.GetUserInfoReq
 
 func (h *APIHandler) Logout(ctx context.Context, request api.LogoutRequestObject) (api.LogoutResponseObject, error) {
 	return h.auth.Logout(ctx, request)
+}
+
+func (h *APIHandler) AuthRefresh(ctx context.Context, request api.AuthRefreshRequestObject) (api.AuthRefreshResponseObject, error) {
+	return h.auth.AuthRefresh(ctx, request)
 }

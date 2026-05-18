@@ -27,16 +27,32 @@ const (
 
 // AuthInfo contains authentication information
 type AuthInfo struct {
-	AgentID       string
+	// Common fields
 	AuthType      string // "agent_api_key" or "oauth2"
 	Authenticated bool
-	BearerToken   string // raw "Authorization: Bearer <token>" value (OAuth2 only; not yet validated)
+
+	// Agent-specific fields (empty for OAuth2)
+	AgentID string
+
+	// OAuth2-specific fields (empty for agent_api_key)
+	UserID    string // OAuth2 only: resolved user ID
+	SessionID string // OAuth2 only: session ID
+	Provider  string // OAuth2 only: IDP provider name
 }
 
 // AgentAPIKeyAuth returns a middleware that authenticates using agent API keys
 func AgentAPIKeyAuth(log *logger.Logger, db database.Database) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+			// Check if authentication is already successful from another method
+			if authInfo := r.Context().Value(AuthContextKey); authInfo != nil {
+				if info, ok := authInfo.(*AuthInfo); ok && info.Authenticated {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
 			// Extract API key from X-Agent-API-Key header
 			apiKey := r.Header.Get("X-Agent-API-Key")
 
@@ -54,14 +70,6 @@ func AgentAPIKeyAuth(log *logger.Logger, db database.Database) func(next http.Ha
 			if agentID == "" {
 				next.ServeHTTP(w, r)
 				return
-			}
-
-			// Check if authentication is already successful from another method
-			if authInfo := r.Context().Value(AuthContextKey); authInfo != nil {
-				if info, ok := authInfo.(*AuthInfo); ok && info.Authenticated {
-					next.ServeHTTP(w, r)
-					return
-				}
 			}
 
 			// Verify API key
@@ -85,11 +93,12 @@ func AgentAPIKeyAuth(log *logger.Logger, db database.Database) func(next http.Ha
 	}
 }
 
-// OAuth2Auth returns a middleware that handles OAuth2 authentication (stub)
-func OAuth2Auth(log *logger.Logger) func(next http.Handler) http.Handler {
+// OAuth2Auth returns a middleware that authenticates requests using server-managed opaque session tokens.
+func OAuth2Auth(log *logger.Logger, db database.Database) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Check if authentication is already successful
+
+			// Check if authentication is already successful from another method
 			if authInfo := r.Context().Value(AuthContextKey); authInfo != nil {
 				if info, ok := authInfo.(*AuthInfo); ok && info.Authenticated {
 					next.ServeHTTP(w, r)
@@ -97,26 +106,43 @@ func OAuth2Auth(log *logger.Logger) func(next http.Handler) http.Handler {
 				}
 			}
 
-			// Extract Bearer token from Authorization header
 			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
+			if !strings.HasPrefix(authHeader, "Bearer ") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			if token == "" {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// Check if it's a Bearer token; store it for downstream handlers (e.g. GetUserInfo).
-			// Authenticated is left false — the token is not validated here.
-			if strings.HasPrefix(authHeader, "Bearer ") {
-				authInfo := &AuthInfo{
-					AuthType:    "oauth2",
-					BearerToken: authHeader,
-				}
-				ctx := context.WithValue(r.Context(), AuthContextKey, authInfo)
-				next.ServeHTTP(w, r.WithContext(ctx))
+			tokenHash := hashAPIKey(token) // reuse SHA-256 helper
+			q := queries.New(db.DB())
+			session, err := q.GetSessionByTokenHash(r.Context(), tokenHash)
+			if err != nil {
+				// Token not found, expired, or revoked — fall through unauthenticated.
+				next.ServeHTTP(w, r)
 				return
 			}
 
-			next.ServeHTTP(w, r)
+			authInfo := &AuthInfo{
+				AuthType:      "oauth2",
+				Authenticated: true,
+				UserID:        session.UserID,
+				SessionID:     session.ID,
+				Provider:      session.Oauth2Provider,
+			}
+			ctx := context.WithValue(r.Context(), AuthContextKey, authInfo)
+
+			// Update last_used_at asynchronously (non-blocking).
+			go func() {
+				if updateErr := q.UpdateSessionLastUsed(context.Background(), session.ID); updateErr != nil {
+					log.Warn("failed to update session last_used_at", "session_id", session.ID, "error", updateErr)
+				}
+			}()
+
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

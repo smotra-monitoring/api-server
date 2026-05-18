@@ -65,6 +65,10 @@ func (s *testServerImpl) Logout(ctx context.Context, req api.LogoutRequestObject
 	return nil, nil
 }
 
+func (s *testServerImpl) AuthRefresh(ctx context.Context, req api.AuthRefreshRequestObject) (api.AuthRefreshResponseObject, error) {
+	return nil, nil
+}
+
 func (s *testServerImpl) SendAgentHeartbeat(ctx context.Context, req api.SendAgentHeartbeatRequestObject) (api.SendAgentHeartbeatResponseObject, error) {
 	return nil, nil
 }

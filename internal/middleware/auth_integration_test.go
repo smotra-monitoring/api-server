@@ -241,7 +241,7 @@ func TestAuthenticationChain_Integration(t *testing.T) {
 	})
 
 	requireAuth := RequireAuthForTests(log)(finalHandler)
-	oauth := OAuth2Auth(log)(requireAuth)
+	oauth := OAuth2Auth(log, db)(requireAuth)
 	chain := AgentAPIKeyAuth(log, db)(oauth)
 
 	// Test: Valid API key passes through entire chain

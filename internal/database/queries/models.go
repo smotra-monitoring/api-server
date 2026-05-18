@@ -141,10 +141,39 @@ type EndpointTag struct {
 	TagID      string
 }
 
+type Oauth2PendingState struct {
+	ID        string
+	State     string
+	Provider  string
+	AuthCode  sql.NullString
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
 type Section struct {
 	ID       string
 	TenantID string
 	Name     string
+}
+
+type Session struct {
+	ID                       string
+	UserID                   string
+	TokenHash                string
+	CreatedAt                time.Time
+	ExpiresAt                time.Time
+	AbsoluteExpiresAt        time.Time
+	LastUsedAt               time.Time
+	Revoked                  int64
+	Oauth2Provider           string
+	Oauth2AccessToken        string
+	Oauth2RefreshToken       sql.NullString
+	Oauth2TokenExpiry        sql.NullTime
+	Oauth2IDToken            sql.NullString
+	Oauth2Scope              sql.NullString
+	Oauth2TokenType          string
+	Oauth2TokenRefreshCount  int64
+	Oauth2TokenRefreshLastAt sql.NullTime
 }
 
 type Tag struct {
@@ -182,6 +211,8 @@ type User struct {
 	OauthProvider string
 	OauthSubject  string
 	DisplayName   string
+	Email         sql.NullString
+	AvatarUrl     sql.NullString
 	LastLoginAt   sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time

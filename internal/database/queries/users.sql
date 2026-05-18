@@ -1,3 +1,9 @@
+-- name: UpsertTenant :one
+INSERT INTO tenants (id, name)
+VALUES (?, ?)
+ON CONFLICT(name) DO UPDATE SET name = excluded.name
+RETURNING id;
+
 -- name: CreateUser :one
 INSERT INTO users (
     id,
@@ -18,19 +24,23 @@ WHERE oauth_provider = ? AND oauth_subject = ?
 LIMIT 1;
 
 -- name: UpsertUserByOAuth :one
--- Creates or updates user on OAuth login
+-- Creates or updates user on OAuth login. tenant_id is only used on INSERT (ignored on conflict).
 INSERT INTO users (
     id,
     tenant_id,
     oauth_provider,
     oauth_subject,
     display_name,
+    email,
+    avatar_url,
     last_login_at
-) VALUES (?, ?, ?, ?, ?, datetime('now'))
+) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
 ON CONFLICT(oauth_provider, oauth_subject) DO UPDATE SET
     display_name = COALESCE(excluded.display_name, display_name),
+    email        = COALESCE(excluded.email, email),
+    avatar_url   = COALESCE(excluded.avatar_url, avatar_url),
     last_login_at = datetime('now'),
-    updated_at = datetime('now')
+    updated_at   = datetime('now')
 RETURNING id;
 
 -- name: UpdateUserDisplayName :exec

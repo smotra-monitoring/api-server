@@ -86,7 +86,7 @@ func main() {
 	// Authentication middleware - only attempts authentication, doesn't require it
 	// This allows public endpoints to work while authenticated endpoints can check the context
 	r.Use(middleware.AgentAPIKeyAuth(log, db))
-	r.Use(middleware.OAuth2Auth(log))
+	r.Use(middleware.OAuth2Auth(log, db))
 
 	// Create shared metrics handler
 	metricsHandler := handlers.NewMetricsHandler(log, db, appVersion)

@@ -149,8 +149,9 @@ func TestAgentAPIKeyAuth_WithAPIKeyButNoAgentInPath(t *testing.T) {
 
 func TestOAuth2Auth_NoBearerToken(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
 
-	middleware := OAuth2Auth(log)
+	middleware := OAuth2Auth(log, mockDB)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -167,10 +168,14 @@ func TestOAuth2Auth_NoBearerToken(t *testing.T) {
 	}
 }
 
-func TestOAuth2Auth_WithBearerToken(t *testing.T) {
+// TestOAuth2Auth_UnknownToken verifies that an unrecognized Bearer token results
+// in the request being passed through unauthenticated (no 401 — the handler decides).
+func TestOAuth2Auth_UnknownToken(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	// Use a real SQLite DB so GetSessionByTokenHash returns "not found" cleanly.
+	db := testutil.SetupTestSQLiteDB(t)
 
-	middleware := OAuth2Auth(log)
+	mw := OAuth2Auth(log, db)
 
 	var capturedCtx context.Context
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -179,27 +184,18 @@ func TestOAuth2Auth_WithBearerToken(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("GET", "/agent/019bdeb2-50dc-794e-808b-cf47526b867f/configuration", nil)
-	req.Header.Set("Authorization", "Bearer token123")
+	req.Header.Set("Authorization", "Bearer st_test_unknown")
 	w := httptest.NewRecorder()
 
-	middleware(handler).ServeHTTP(w, req)
+	mw(handler).ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 
-	authInfo, ok := capturedCtx.Value(AuthContextKey).(*AuthInfo)
-	if !ok || authInfo == nil {
-		t.Fatal("Expected AuthInfo in context, got none")
-	}
-	if authInfo.AuthType != "oauth2" {
-		t.Errorf("Expected AuthType=oauth2, got %q", authInfo.AuthType)
-	}
-	if authInfo.BearerToken != "Bearer token123" {
-		t.Errorf("Expected BearerToken='Bearer token123', got %q", authInfo.BearerToken)
-	}
-	if authInfo.Authenticated {
-		t.Error("Expected Authenticated=false (token not validated)")
+	// AuthInfo should not be set (or Authenticated=false) for an unknown token.
+	if info, ok := capturedCtx.Value(AuthContextKey).(*AuthInfo); ok && info != nil && info.Authenticated {
+		t.Error("Expected Authenticated=false for an unknown token")
 	}
 }
 
