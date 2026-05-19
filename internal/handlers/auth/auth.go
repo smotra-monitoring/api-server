@@ -274,12 +274,14 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 	h.tokenTotal.Add(1)
 
 	if req.Body == nil {
+		h.log.WarnContext(ctx, "token request missing body")
 		return api.Oauth2Token400JSONResponse{BadRequestJSONResponse: api.BadRequestJSONResponse{
 			Error: "bad_request", Message: "Request body is required",
 		}}, nil
 	}
 
 	if req.Body.Code == "" || req.Body.RedirectUri == "" || req.Body.CodeVerifier == "" {
+		h.log.WarnContext(ctx, "token request missing required fields", slog.String("code", req.Body.Code), slog.String("redirect_uri", req.Body.RedirectUri), slog.String("code_verifier", req.Body.CodeVerifier))
 		return api.Oauth2Token400JSONResponse{BadRequestJSONResponse: api.BadRequestJSONResponse{
 			Error: "bad_request", Message: "code, redirect_uri, and code_verifier are required",
 		}}, nil
@@ -289,7 +291,7 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 	q := queries.New(h.db.DB())
 	pending, err := q.GetPendingStateByAuthCode(ctx, sql.NullString{String: req.Body.Code, Valid: true})
 	if err != nil {
-		h.log.WarnContext(ctx, "pending state not found for auth code")
+		h.log.WarnContext(ctx, "pending state not found for auth code", slog.String("code", req.Body.Code))
 		return api.Oauth2Token401JSONResponse{UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
 			Error: "invalid_grant", Message: "Authorization code not found or expired",
 		}}, nil
