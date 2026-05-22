@@ -320,7 +320,7 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", cfg.ClientID)
 	form.Set("code", req.Body.Code)
-	form.Set("redirect_uri", req.Body.RedirectUri)
+	form.Set("redirect_uri", h.authConfig.ServerCallbackURL)
 	form.Set("code_verifier", req.Body.CodeVerifier)
 
 	idpResp, err := h.postForm(ctx, endpoints.TokenEndpoint, form)
