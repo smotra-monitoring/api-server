@@ -425,10 +425,10 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 	}
 
 	now := time.Now().UTC()
-	expiresAt := now.Add(7 * 24 * time.Hour)
-	absoluteExpiresAt := now.Add(90 * 24 * time.Hour)
-	if expiresAt.After(absoluteExpiresAt) {
-		expiresAt = absoluteExpiresAt
+	slidingExpiresAt := now.Add(7 * 24 * time.Hour)
+	expiresAt := now.Add(90 * 24 * time.Hour)
+	if slidingExpiresAt.After(expiresAt) {
+		slidingExpiresAt = expiresAt
 	}
 
 	var idpTokenExpiry sql.NullTime
@@ -440,8 +440,8 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 		ID:                 uuid.Must(uuid.NewV7()).String(),
 		UserID:             userID,
 		TokenHash:          tokenHash,
+		SlidingExpiresAt:   slidingExpiresAt,
 		ExpiresAt:          expiresAt,
-		AbsoluteExpiresAt:  absoluteExpiresAt,
 		Oauth2Provider:     providerName,
 		Oauth2AccessToken:  idpTok.AccessToken,
 		Oauth2RefreshToken: sql.NullString{String: idpTok.RefreshToken, Valid: idpTok.RefreshToken != ""},
@@ -460,8 +460,8 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 	h.log.InfoContext(ctx, "session created", slog.String("user_id", userID), slog.String("provider", providerName))
 
 	return api.Oauth2Token200JSONResponse(api.TokenResponse{
-		OpaqueToken:       plaintext,
-		AbsoluteExpiresAt: absoluteExpiresAt,
+		OpaqueToken: plaintext,
+		ExpiresAt:   expiresAt,
 	}), nil
 }
 
@@ -604,10 +604,10 @@ func (h *Handler) AuthRefresh(ctx context.Context, _ api.AuthRefreshRequestObjec
 	}
 
 	now := time.Now().UTC()
-	newExpiresAt := now.Add(7 * 24 * time.Hour)
-	absoluteExpiresAt := now.Add(90 * 24 * time.Hour)
-	if newExpiresAt.After(absoluteExpiresAt) {
-		newExpiresAt = absoluteExpiresAt
+	newSlidingExpiresAt := now.Add(7 * 24 * time.Hour)
+	expiresAt := now.Add(90 * 24 * time.Hour)
+	if newSlidingExpiresAt.After(expiresAt) {
+		newSlidingExpiresAt = expiresAt
 	}
 
 	// Create new session inheriting IDP tokens from old session.
@@ -615,8 +615,8 @@ func (h *Handler) AuthRefresh(ctx context.Context, _ api.AuthRefreshRequestObjec
 		ID:                 uuid.Must(uuid.NewV7()).String(),
 		UserID:             oldSession.UserID,
 		TokenHash:          tokenHash,
-		ExpiresAt:          newExpiresAt,
-		AbsoluteExpiresAt:  absoluteExpiresAt,
+		SlidingExpiresAt:   newSlidingExpiresAt,
+		ExpiresAt:          expiresAt,
 		Oauth2Provider:     oldSession.Oauth2Provider,
 		Oauth2AccessToken:  oldSession.Oauth2AccessToken,
 		Oauth2RefreshToken: oldSession.Oauth2RefreshToken,
@@ -638,8 +638,8 @@ func (h *Handler) AuthRefresh(ctx context.Context, _ api.AuthRefreshRequestObjec
 	h.log.InfoContext(ctx, "session refreshed", slog.String("user_id", oldSession.UserID))
 
 	return api.AuthRefresh200JSONResponse(api.TokenResponse{
-		OpaqueToken:       plaintext,
-		AbsoluteExpiresAt: absoluteExpiresAt,
+		OpaqueToken: plaintext,
+		ExpiresAt:   expiresAt,
 	}), nil
 }
 

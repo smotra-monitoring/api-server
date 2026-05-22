@@ -478,10 +478,10 @@ type TcpConnectResult struct {
 
 // TokenResponse defines model for TokenResponse.
 type TokenResponse struct {
-	// AbsoluteExpiresAt Hard expiry time (ISO 8601). The session will never be valid after
+	// ExpiresAt Hard expiry time (ISO 8601). The session will never be valid after
 	// this timestamp regardless of activity. Use this to schedule a
 	// proactive re-login in the client (e.g. at the midpoint).
-	AbsoluteExpiresAt time.Time `json:"absolute_expires_at"`
+	ExpiresAt time.Time `json:"expires_at"`
 
 	// OpaqueToken Server-managed opaque session token. Use as a Bearer token in the
 	// Authorization header for all subsequent requests.

@@ -161,8 +161,8 @@ type Session struct {
 	UserID                   string
 	TokenHash                string
 	CreatedAt                time.Time
+	SlidingExpiresAt         time.Time
 	ExpiresAt                time.Time
-	AbsoluteExpiresAt        time.Time
 	LastUsedAt               time.Time
 	Revoked                  int64
 	Oauth2Provider           string

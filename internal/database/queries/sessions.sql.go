@@ -16,8 +16,8 @@ INSERT INTO sessions (
     id,
     user_id,
     token_hash,
+    sliding_expires_at,
     expires_at,
-    absolute_expires_at,
     oauth2_provider,
     oauth2_access_token,
     oauth2_refresh_token,
@@ -26,15 +26,15 @@ INSERT INTO sessions (
     oauth2_scope,
     oauth2_token_type
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, user_id, token_hash, created_at, expires_at, absolute_expires_at, last_used_at, revoked, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at
+RETURNING id, user_id, token_hash, created_at, sliding_expires_at, expires_at, last_used_at, revoked, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at
 `
 
 type CreateSessionParams struct {
 	ID                 string
 	UserID             string
 	TokenHash          string
+	SlidingExpiresAt   time.Time
 	ExpiresAt          time.Time
-	AbsoluteExpiresAt  time.Time
 	Oauth2Provider     string
 	Oauth2AccessToken  string
 	Oauth2RefreshToken sql.NullString
@@ -49,8 +49,8 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		arg.ID,
 		arg.UserID,
 		arg.TokenHash,
+		arg.SlidingExpiresAt,
 		arg.ExpiresAt,
-		arg.AbsoluteExpiresAt,
 		arg.Oauth2Provider,
 		arg.Oauth2AccessToken,
 		arg.Oauth2RefreshToken,
@@ -65,8 +65,8 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.UserID,
 		&i.TokenHash,
 		&i.CreatedAt,
+		&i.SlidingExpiresAt,
 		&i.ExpiresAt,
-		&i.AbsoluteExpiresAt,
 		&i.LastUsedAt,
 		&i.Revoked,
 		&i.Oauth2Provider,
@@ -83,7 +83,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 }
 
 const getSessionByID = `-- name: GetSessionByID :one
-SELECT id, user_id, token_hash, created_at, expires_at, absolute_expires_at, last_used_at, revoked, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at FROM sessions
+SELECT id, user_id, token_hash, created_at, sliding_expires_at, expires_at, last_used_at, revoked, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at FROM sessions
 WHERE id = ?
 LIMIT 1
 `
@@ -96,8 +96,8 @@ func (q *Queries) GetSessionByID(ctx context.Context, id string) (Session, error
 		&i.UserID,
 		&i.TokenHash,
 		&i.CreatedAt,
+		&i.SlidingExpiresAt,
 		&i.ExpiresAt,
-		&i.AbsoluteExpiresAt,
 		&i.LastUsedAt,
 		&i.Revoked,
 		&i.Oauth2Provider,
@@ -114,11 +114,11 @@ func (q *Queries) GetSessionByID(ctx context.Context, id string) (Session, error
 }
 
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
-SELECT id, user_id, token_hash, created_at, expires_at, absolute_expires_at, last_used_at, revoked, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at FROM sessions
+SELECT id, user_id, token_hash, created_at, sliding_expires_at, expires_at, last_used_at, revoked, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at FROM sessions
 WHERE token_hash = ?
   AND revoked = 0
+  AND sliding_expires_at > datetime('now')
   AND expires_at > datetime('now')
-  AND absolute_expires_at > datetime('now')
 LIMIT 1
 `
 
@@ -132,8 +132,8 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 		&i.UserID,
 		&i.TokenHash,
 		&i.CreatedAt,
+		&i.SlidingExpiresAt,
 		&i.ExpiresAt,
-		&i.AbsoluteExpiresAt,
 		&i.LastUsedAt,
 		&i.Revoked,
 		&i.Oauth2Provider,
@@ -179,7 +179,7 @@ SET oauth2_access_token          = ?,
     oauth2_id_token              = ?,
     oauth2_token_refresh_count   = oauth2_token_refresh_count + 1,
     oauth2_token_refresh_last_at = datetime('now'),
-    expires_at                   = min(datetime('now', '+7 days'), absolute_expires_at)
+    sliding_expires_at           = min(datetime('now', '+7 days'), expires_at)
 WHERE id = ?
 `
 
@@ -192,7 +192,7 @@ type UpdateSessionOAuth2TokensParams struct {
 }
 
 // Updates IDP tokens after a transparent refresh.
-// Slides expires_at forward by 7 days, capped at absolute_expires_at.
+// Slides sliding_expires_at forward by 7 days, capped at expires_at (hard cap).
 func (q *Queries) UpdateSessionOAuth2Tokens(ctx context.Context, arg UpdateSessionOAuth2TokensParams) error {
 	_, err := q.db.ExecContext(ctx, updateSessionOAuth2Tokens,
 		arg.Oauth2AccessToken,

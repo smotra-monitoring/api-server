@@ -3,8 +3,8 @@ INSERT INTO sessions (
     id,
     user_id,
     token_hash,
+    sliding_expires_at,
     expires_at,
-    absolute_expires_at,
     oauth2_provider,
     oauth2_access_token,
     oauth2_refresh_token,
@@ -21,8 +21,8 @@ RETURNING *;
 SELECT * FROM sessions
 WHERE token_hash = ?
   AND revoked = 0
+  AND sliding_expires_at > datetime('now')
   AND expires_at > datetime('now')
-  AND absolute_expires_at > datetime('now')
 LIMIT 1;
 
 -- name: GetSessionByID :one
@@ -42,7 +42,7 @@ WHERE id = ?;
 
 -- name: UpdateSessionOAuth2Tokens :exec
 -- Updates IDP tokens after a transparent refresh.
--- Slides expires_at forward by 7 days, capped at absolute_expires_at.
+-- Slides sliding_expires_at forward by 7 days, capped at expires_at (hard cap).
 UPDATE sessions
 SET oauth2_access_token          = ?,
     oauth2_refresh_token         = ?,
@@ -50,5 +50,5 @@ SET oauth2_access_token          = ?,
     oauth2_id_token              = ?,
     oauth2_token_refresh_count   = oauth2_token_refresh_count + 1,
     oauth2_token_refresh_last_at = datetime('now'),
-    expires_at                   = min(datetime('now', '+7 days'), absolute_expires_at)
+    sliding_expires_at           = min(datetime('now', '+7 days'), expires_at)
 WHERE id = ?;
