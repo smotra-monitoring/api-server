@@ -60,7 +60,7 @@ func TestAuthenticatedHandler_Integration(t *testing.T) {
 	}
 
 	cfg := testutil.DefaultTestConfig()
-	metricsHandler := NewMetricsHandler(log, db, "test")
+	metricsHandler := NewMetricsHandler(log, "test")
 	healthHandler := NewHealthHandler(log, db, cfg, "test", metricsHandler)
 	handler := NewAuthenticatedHandler(log, db, cfg, "test", metricsHandler)
 

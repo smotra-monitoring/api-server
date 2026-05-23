@@ -28,9 +28,9 @@ type AuthenticatedHandler struct {
 }
 
 // NewAuthenticatedHandler creates a new authenticated handler wrapper
-func NewAuthenticatedHandler(logger *logger.Logger, db database.Database, cfg *config.Config, apiVersion string, metricsHandler *metrics.Handler) *AuthenticatedHandler {
+func NewAuthenticatedHandler(logger *logger.Logger, db database.Database, cfg *config.Config, appVersion string, metricsHandler *metrics.Handler) *AuthenticatedHandler {
 	h := &AuthenticatedHandler{
-		APIHandler: NewAPIHandler(logger, db, cfg, apiVersion, metricsHandler),
+		APIHandler: NewAPIHandler(logger, db, cfg, appVersion, metricsHandler),
 		logger:     logger,
 		db:         db,
 	}

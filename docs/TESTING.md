@@ -22,12 +22,14 @@ The project includes comprehensive unit tests and integration tests for all majo
 3. **internal/database** - Database abstraction layer
    - Unit tests for factory pattern and configuration
    - Integration tests for SQLite operations (Open, Close, Ping, Health, Transactions)
+   - Unit tests for `DBMetrics`: health status, connection pool stats format, unhealthy-db path, nil `*sql.DB` guard
    - Coverage: 52.4% (with integration tests)
 
 4. **internal/middleware** - HTTP middleware
    - Unit tests for Logger, Recovery, RequestID, and CORS middleware
    - Unit tests for Agent API key authentication (`auth.go`)
    - Integration tests for authentication flow with database
+   - Unit tests for `HTTPMetrics`: request counting by status code, implicit-200 path, Prometheus output format
    - Tests for responseWriter wrapper
    - Tests for chained middleware execution
    - Coverage: 100%
@@ -45,9 +47,10 @@ The project includes comprehensive unit tests and integration tests for all majo
    - Tests for error responses (401, 403)
 
 7. **internal/handlers/metrics** - Prometheus metrics endpoint
-   - Unit tests for metrics tracking
-   - Integration tests for metrics endpoint
-   - Tests for concurrent metric updates
+   - Unit tests for `MetricsProvider` registration and output aggregation
+   - Unit tests for unhealthy-DB path (via registered `DBMetrics` provider)
+   - Integration tests verifying provider-supplied metrics appear in `/metrics` output
+   - Concurrency test for concurrent provider registration
 
 8. **internal/handlers/agent_configuration** - Agent configuration endpoint
    - Unit tests with mock database

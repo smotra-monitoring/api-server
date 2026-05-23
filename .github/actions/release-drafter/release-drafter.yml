@@ -60,6 +60,8 @@ autolabeler:
   - label: 'documentation'
     title:
       - '/doc/i'
+    files:
+      - "*.md"
   - label: 'code refinement'
     title:
       - '/refine/i'
@@ -71,6 +73,15 @@ autolabeler:
   - label: 'security'
     title:
       - '/security/i'
+  - label: 'github-actions'
+    title:
+      - '/github.actions/i'
+    files:
+      - ".github/**"
 template: |
   # Changelog ...
   $CHANGES
+
+  Contributors: $CONTRIBUTORS
+  Repo owner: $OWNER
+  

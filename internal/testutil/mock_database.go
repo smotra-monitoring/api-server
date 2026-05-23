@@ -77,11 +77,14 @@ func (m *MockDatabase) Health(ctx context.Context) (database.HealthInfo, error) 
 	}
 
 	info := database.HealthInfo{
-		Status:       m.HealthStatus,
-		ResponseTime: 10 * time.Millisecond,
-		OpenConns:    5,
-		IdleConns:    3,
-		Message:      "mock database",
+		Status:              m.HealthStatus,
+		ResponseTime:        10 * time.Millisecond,
+		DBOpenConns:         5,
+		DBInUseConns:        2,
+		DBIdleConns:         3,
+		DBWaitConnsCount:    0,
+		DBWaitConnsDuration: 0,
+		Message:             "mock database",
 	}
 
 	if m.ShouldFail {

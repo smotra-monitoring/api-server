@@ -24,8 +24,8 @@ import (
 )
 
 // NewMetricsHandler creates a new metrics handler
-func NewMetricsHandler(logger *logger.Logger, db database.Database, appVersion string) *metrics.Handler {
-	return metrics.NewHandler(logger, db, appVersion)
+func NewMetricsHandler(logger *logger.Logger, appVersion string) *metrics.Handler {
+	return metrics.NewHandler(logger, appVersion)
 }
 
 // HealthHandler combines all handler implementations

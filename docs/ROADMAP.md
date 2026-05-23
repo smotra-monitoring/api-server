@@ -35,6 +35,7 @@ This change will also require change in OpenAPI `TracerouteCheck.result.total_ti
 - [x] SQLite and PostgreSQL database support with interface abstraction
 - [x] Health check endpoints (health, ready, live)
 - [x] Prometheus metrics endpoint
+- [x] Refactored HTTP and DB metrics to `MetricsProvider` interface — `HTTPMetrics` middleware counts requests by status code, `DBMetrics` exposes `sql.DB.Stats()` pool metrics and db health; `db` dependency removed from `metrics.Handler`
 - [x] Structured logging with slog
 - [x] Configuration management (YAML/JSON)
 - [x] Middleware (logging, request ID, recovery, CORS)
@@ -106,7 +107,7 @@ This change will also require change in OpenAPI `TracerouteCheck.result.total_ti
 - [ ] After implementing OAuth2: In claim_integration_test.go. Find "TODO:....." and uncomment code lines to enable "user checks".
 
 - [ ] Update copilot-instructions.md to add metrics to any new entities that might require it
-- [ ] Add metrics for agent_register, agent_claim_status, agent_claim. The way to go is to use RegisterMetricsProvider.
+- [x] Add metrics for agent_register, agent_claim_status, agent_claim. The way to go is to use RegisterMetricsProvider.
 
 - [ ] Implement rate-limiting for endpoints that are using security schema AgentApiKey
 
