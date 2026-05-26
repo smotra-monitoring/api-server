@@ -28,22 +28,27 @@ import (
 // merged with (and overridden by) values supplied in the server config.
 var defaultProviders = map[string]config.OAuthProviderConfig{
 	"okta": {
-		Type: config.OAuthProviderTypeOIDC,
+		Scopes: []string{"openid", "profile", "email"}, // default scopes for Okta; can be overridden in config
+		Type:   config.OAuthProviderTypeOIDC,
 		// IssuerURL must be set in config (tenant-specific)
 	},
 	"auth0": {
-		Type: config.OAuthProviderTypeOIDC,
+		Scopes: []string{"openid", "profile", "email"}, // default scopes for Auth0; can be overridden in config
+		Type:   config.OAuthProviderTypeOIDC,
 		// IssuerURL must be set in config (tenant-specific, e.g. https://your-tenant.auth0.com)
 	},
 	"azure": {
-		Type: config.OAuthProviderTypeOIDC,
+		Scopes: []string{"openid", "profile", "email"}, // default scopes for Azure; can be overridden in config
+		Type:   config.OAuthProviderTypeOIDC,
 		// IssuerURL must be set in config (tenant-specific, e.g. https://login.microsoftonline.com/{tenant}/v2.0)
 	},
 	"google": {
+		Scopes:    []string{"openid", "profile", "email"}, // default scopes for Google; can be overridden in config
 		Type:      config.OAuthProviderTypeOIDC,
 		IssuerURL: "https://accounts.google.com",
 	},
 	"github": {
+		Scopes:                []string{"read:user", "user:email"}, // default scopes for GitHub; can be overridden in config
 		Type:                  config.OAuthProviderTypeStatic,
 		AuthorizationEndpoint: "https://github.com/login/oauth/authorize",
 		TokenEndpoint:         "https://github.com/login/oauth/access_token",
@@ -197,7 +202,7 @@ func (h *Handler) Oauth2Authorize(ctx context.Context, req api.Oauth2AuthorizeRe
 	params.Set("response_type", "code")
 	params.Set("client_id", cfg.ClientID)
 	params.Set("redirect_uri", h.authConfig.ServerCallbackURL)
-	params.Set("scope", req.Params.Scope)
+	params.Set("scope", strings.Join(cfg.Scopes, " "))
 	params.Set("state", req.Params.State)
 	params.Set("code_challenge", req.Params.CodeChallenge)
 	params.Set("code_challenge_method", string(req.Params.CodeChallengeMethod))
@@ -381,12 +386,12 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 		}
 	}
 	if sub == "" {
-		h.log.WarnContext(ctx, "could not extract subject from IdP token",
+		h.log.WarnContext(ctx, "Could not determine user identity from neither IdP token nor userinfo endpoint",
 			slog.String("provider", providerName),
 			slog.String("id_token (JWT)", idpTok.IDToken),
 		)
 		return api.Oauth2Token401JSONResponse{UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-			Error: "invalid_token", Message: "Could not determine user identity from IdP token",
+			Error: "invalid_token", Message: "Could not determine user identity from neither IdP token nor userinfo endpoint",
 		}}, nil
 	}
 
@@ -832,6 +837,7 @@ func (h *Handler) fetchUserInfoFromIDP(ctx context.Context, accessToken, userInf
 			avatarURL = v
 		}
 	}
+
 	return sub, displayName, email, avatarURL, nil
 }
 

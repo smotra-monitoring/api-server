@@ -77,6 +77,8 @@ type OAuthProviderConfig struct {
 	// ClientID is the OAuth2 application client ID registered with the provider.
 	ClientID string `json:"client_id" yaml:"client_id"`
 
+	Scopes []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
+
 	// Endpoint overrides. For type=static these are required.
 	// For type=oidc they override the values from the discovery document.
 	AuthorizationEndpoint string `json:"authorization_endpoint,omitempty" yaml:"authorization_endpoint,omitempty"`
