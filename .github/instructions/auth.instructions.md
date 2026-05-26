@@ -6,37 +6,121 @@ applyTo: "internal/middleware/**,internal/handlers/**"
 
 ## Overview
 
-Authentication is handled through middleware and authenticated handler wrappers:
-- `internal/middleware/auth.go` — Agent API key middleware
-- `internal/handlers/authenticated_handler.go` — Wrapper for protected endpoints
+Authentication is a **two-tier system**:
 
-## Authentication Flow
+1. **Middleware** (`internal/middleware/auth.go`) — populates `AuthInfo` into the request context
+2. **Wrapper** (`internal/handlers/authenticated_handler.go`) — enforces auth requirements before delegating to the actual handler
 
-1. Agent passes API key via `X-Agent-API-Key` header
-2. Middleware validates key against SHA-256 hash stored in DB using constant-time comparison
-3. On success, `AuthInfo` is injected into the request context
-4. Protected endpoints use `AuthenticatedHandler` wrapper to verify authentication
-5. Authenticated agent ID must match the requested agent ID in the URL
+**Rule: Auth checks MUST live in `AuthenticatedHandler` wrappers — never inside handler bodies.**
+Handler bodies can safely cast `ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)` without nil/ok guards because the wrapper guarantees a valid, authenticated `AuthInfo` is present.
 
-## Authentication Context
+## AuthInfo Struct
 
 ```go
 type AuthInfo struct {
-    AgentID       string
+    // Common fields
     AuthType      string // "agent_api_key" or "oauth2"
     Authenticated bool
-    BearerToken   string // raw "Authorization: Bearer <token>" value (OAuth2 only; not yet validated)
+
+    // Agent-specific fields (empty for OAuth2)
+    AgentID string
+
+    // OAuth2-specific fields (empty for agent_api_key)
+    UserID    string // resolved user ID from session
+    SessionID string // server-managed session ID
+    Provider  string // IDP provider name (e.g. "google", "github")
 }
 ```
 
-Context key: `AuthContextKey`
+Context key: `middleware.AuthContextKey`
 
-## API Key Security
+---
 
-- Stored as SHA-256 hash only — plaintext never persisted after delivery
-- Comparison via `crypto/subtle.ConstantTimeCompare` to prevent timing attacks
-- Keys are never logged or exposed in responses
-- DB column: `api_key_hash`
+## Two Authentication Types
+
+### 1. Agent API Key (`AuthType == "agent_api_key"`)
+
+- Header: `X-Agent-API-Key`
+- Middleware: `middleware.AgentAPIKeyAuth(log, db)`
+- Stored as SHA-256 hash only; compared via `crypto/subtle.ConstantTimeCompare`
+- Keys are never logged or returned in responses after initial delivery
+
+**Wrapper pattern for agent endpoints** — check `Authenticated`, then verify `AgentID` matches the URL parameter:
+
+```go
+func (h *AuthenticatedHandler) MyAgentEndpoint(ctx context.Context, request api.MyRequestObject) (api.MyResponseObject, error) {
+    h.authAttemptsTotal.Add(1)
+
+    authInfo := ctx.Value(middleware.AuthContextKey)
+    if authInfo == nil {
+        h.authNoAuthTotal.Add(1)
+        return api.MyEndpoint401JSONResponse{...}, nil
+    }
+    ctxInfo, ok := authInfo.(*middleware.AuthInfo)
+    if !ok || !ctxInfo.Authenticated {
+        h.authInvalidTotal.Add(1)
+        return api.MyEndpoint401JSONResponse{...}, nil
+    }
+    if ctxInfo.AgentID != request.AgentId.String() {
+        h.authAgentIDMismatchTotal.Add(1)
+        return api.MyEndpoint503JSONResponse{...}, nil // return 503 not 403 to avoid agent ID enumeration
+    }
+
+    h.authSuccessTotal.Add(1)
+    return h.APIHandler.MyAgentEndpoint(ctx, request)
+}
+```
+
+### 2. OAuth2 Session (`AuthType == "oauth2"`)
+
+- Header: `Authorization: Bearer <opaque_token>`
+- Middleware: `middleware.OAuth2Auth(log, db)`
+- Opaque tokens are SHA-256 hashed at rest in the `sessions` table
+- Session expiry: sliding 7-day window, 90-day absolute maximum
+
+**Wrapper pattern for OAuth2 user endpoints** — check `Authenticated` and `AuthType == "oauth2"`:
+
+```go
+func (h *AuthenticatedHandler) MyUserEndpoint(ctx context.Context, request api.MyRequestObject) (api.MyResponseObject, error) {
+    h.authAttemptsTotal.Add(1)
+
+    authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+    if !ok || authInfo == nil || !authInfo.Authenticated {
+        h.authNoAuthTotal.Add(1)
+        return api.MyEndpoint401JSONResponse{...}, nil
+    }
+    if authInfo.AuthType != "oauth2" {
+        h.authInvalidTotal.Add(1)
+        return api.MyEndpoint401JSONResponse{...}, nil
+    }
+
+    h.authSuccessTotal.Add(1)
+    return h.APIHandler.MyUserEndpoint(ctx, request)
+}
+```
+
+**Inside the handler body**, auth is guaranteed — use a direct cast:
+
+```go
+func (h *Handler) MyUserEndpoint(ctx context.Context, _ api.MyRequestObject) (api.MyResponseObject, error) {
+    // Auth guaranteed by AuthenticatedHandler wrapper — direct cast is safe.
+    authInfo := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+    // Use authInfo.UserID, authInfo.SessionID, authInfo.Provider freely.
+}
+```
+
+---
+
+## Middleware Registration
+
+Both middleware functions must be registered on the chi router **before** any route handler that requires auth:
+
+```go
+r.Use(middleware.AgentAPIKeyAuth(log, db))  // for agent endpoints
+r.Use(middleware.OAuth2Auth(log, db))       // for OAuth2 user endpoints
+```
+
+---
 
 ## Agent Claiming Workflow (Three-Phase Onboarding)
 
@@ -63,19 +147,21 @@ Context key: `AuthContextKey`
 
 - Claim tokens: 64+ character random, SHA-256 hashed, time-limited
 - API keys: 32+ byte random, one-time plaintext delivery, SHA-256 stored
-- Rate limiting recommended for registration and polling endpoints
+- Opaque session tokens: `st_live_`/`st_test_` prefix + 32 bytes `crypto/rand` → hex; SHA-256 hash stored in DB
 
-## OAuth2 Relay Implementation
+---
 
-The server acts as a **CORS-safe stateless relay** for OAuth2/OIDC flows. All provider credentials are held server-side — browsers never see them. Implementation is **PKCE-only**; no `client_secret` is used anywhere.
+## OAuth2 / OIDC Flow
 
 Handler: `internal/handlers/auth/` — `Handler` struct with `NewHandler()` and `NewHandlerForTesting()` constructors.
 
-**`NewHandlerForTesting()`** disables SSRF validation (the `allowPrivateHosts` flag) so tests can use local HTTP test servers without triggering the IP-range block. Never use it in production code.
+**`NewHandlerForTesting()`** disables SSRF validation (the `allowPrivateHosts` flag) so tests can use local HTTP test servers. Never use it outside tests.
+
+The server acts as a **CORS-safe relay** — all provider credentials are server-side only. Implementation is **PKCE-only**; no `client_secret` is used anywhere.
 
 ### Endpoint Resolution
 
-The `endpointResolver` in `internal/handlers/auth/discovery.go` resolves provider endpoints:
+The `endpointResolver` in `internal/handlers/auth/discovery.go`:
 
 - **`type: oidc`** — fetches `{issuerURL}/.well-known/openid-configuration` and caches the result
 - **`type: static`** — uses endpoints directly from config (required for GitHub and other non-OIDC providers)
@@ -84,21 +170,33 @@ Built-in provider defaults are defined in the `defaultProviders` map in `auth.go
 
 ### SSRF Protection
 
-The `url_validator.go` file blocks requests to private/loopback IP ranges to prevent server-side request forgery through attacker-controlled provider URLs. This check is applied to all IDP endpoint URLs resolved at runtime.
+`url_validator.go` blocks requests to private/loopback IP ranges for all IDP endpoint URLs resolved at runtime.
 
-### OAuth2 Flow
+### OAuth2 Endpoints
 
-1. `GET /v1/auth/oauth2/authorize` — resolve provider, build IDP auth URL with PKCE params, return `302`
-2. `GET /v1/auth/oauth2/callback` — relay code/error back to the frontend callback URL (fixed in config — not overridable by caller)
-3. `POST /v1/auth/oauth2/token` — proxy token request to IDP, injecting `client_id` from server config
-4. `POST /v1/auth/oauth2/revoke` — proxy revocation; no-op with `warning` for providers without revocation (e.g. GitHub)
-5. `GET /v1/auth/userinfo` — proxy to IDP userinfo endpoint, forwarding `Authorization: Bearer` header
-6. `POST /v1/auth/logout` — redirect to IDP end-session if supported; `200` otherwise
+| Endpoint | Handler method | Requires auth |
+|---|---|---|
+| `GET /v1/auth/oauth2/authorize` | `Oauth2Authorize` | No |
+| `GET /v1/auth/oauth2/callback` | `Oauth2Callback` | No |
+| `POST /v1/auth/oauth2/token` | `Oauth2Token` | No |
+| `POST /v1/auth/oauth2/revoke` | `Oauth2Revoke` | **Yes** (oauth2) |
+| `GET /v1/auth/userinfo` | `GetUserInfo` | **Yes** (oauth2) |
+| `POST /v1/auth/refresh` | `AuthRefresh` | **Yes** (oauth2, SessionID required) |
+| `POST /v1/auth/logout` | `Logout` | **Yes** (oauth2) |
+
+### Session Management
+
+- `sessions` table: stores `token_hash`, `user_id`, `oauth2_*` IDP tokens, `expires_at`, `absolute_expires_at`
+- `oauth2_pending_states` table: temporary records for in-flight auth codes (10-minute TTL)
+- `Oauth2Token` creates a session; `AuthRefresh` rotates (revoke-old + create-new); `Logout` and `Oauth2Revoke` revoke sessions
 
 See [docs/features/authentication.md](../../docs/features/authentication.md) for the full configuration reference.
 
-## Future Authentication
+---
 
-- **OAuth2 user context extraction** — bearer tokens received by admin endpoints (`/v1/agent/claim`, etc.) are stored in `AuthInfo.BearerToken` but not yet validated. When implemented, admin endpoints will call the userinfo endpoint to establish user identity and tenant membership before processing requests.
-- JWT tokens for web interface
-- RBAC for different user types
+## Adding a New Protected Endpoint
+
+1. **Add a wrapper method** in `authenticated_handler.go` following the pattern above for the appropriate auth type (agent or oauth2).
+2. **Do NOT add auth checks** inside the handler body in `internal/handlers/auth/` or other handler packages.
+3. **Update tests**: add a test in `authenticated_handler_test.go` (or `authenticated_handler_integration_test.go`) covering the unauthenticated path via the wrapper.
+

@@ -180,6 +180,214 @@ func (h *AuthenticatedHandler) SendAgentHeartbeat(ctx context.Context, request a
 	return h.APIHandler.SendAgentHeartbeat(ctx, request)
 }
 
+// Oauth2Revoke wraps the revoke handler with authentication.
+func (h *AuthenticatedHandler) Oauth2Revoke(ctx context.Context, request api.Oauth2RevokeRequestObject) (api.Oauth2RevokeResponseObject, error) {
+	h.authAttemptsTotal.Add(1)
+
+	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+	if !ok || authInfo == nil || !authInfo.Authenticated {
+		h.authNoAuthTotal.Add(1)
+		return api.Oauth2Revoke401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.AuthType != "oauth2" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Invalid authentication type for oauth2 revoke", "auth_type", authInfo.AuthType)
+		return api.Oauth2Revoke401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.SessionID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing session ID in authentication info for oauth2 revoke")
+		return api.Oauth2Revoke401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.UserID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing user ID in authentication info for oauth2 revoke")
+		return api.Oauth2Revoke401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	h.authSuccessTotal.Add(1)
+	return h.APIHandler.Oauth2Revoke(ctx, request)
+}
+
+// AuthRefresh wraps the refresh handler with authentication.
+func (h *AuthenticatedHandler) AuthRefresh(ctx context.Context, request api.AuthRefreshRequestObject) (api.AuthRefreshResponseObject, error) {
+	h.authAttemptsTotal.Add(1)
+
+	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+	if !ok || authInfo == nil || !authInfo.Authenticated || authInfo.SessionID == "" {
+		h.authNoAuthTotal.Add(1)
+		return api.AuthRefresh401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.AuthType != "oauth2" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Invalid authentication type for refresh", "auth_type", authInfo.AuthType)
+		return api.AuthRefresh401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.SessionID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing session ID in authentication info for refresh")
+		return api.AuthRefresh401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.UserID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing user ID in authentication info for refresh")
+		return api.AuthRefresh401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	h.authSuccessTotal.Add(1)
+	return h.APIHandler.AuthRefresh(ctx, request)
+}
+
+// Logout wraps the logout handler with authentication.
+func (h *AuthenticatedHandler) Logout(ctx context.Context, request api.LogoutRequestObject) (api.LogoutResponseObject, error) {
+	h.authAttemptsTotal.Add(1)
+
+	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+	if !ok || authInfo == nil || !authInfo.Authenticated {
+		h.authNoAuthTotal.Add(1)
+		return api.Logout401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.AuthType != "oauth2" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Invalid authentication type for logout", "auth_type", authInfo.AuthType)
+		return api.Logout401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.SessionID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing session ID in authentication info for logout")
+		return api.Logout401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.UserID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing user ID in authentication info for logout")
+		return api.Logout401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	h.authSuccessTotal.Add(1)
+	return h.APIHandler.Logout(ctx, request)
+}
+
+// GetUserInfo wraps the userinfo handler with authentication.
+func (h *AuthenticatedHandler) GetUserInfo(ctx context.Context, request api.GetUserInfoRequestObject) (api.GetUserInfoResponseObject, error) {
+	h.authAttemptsTotal.Add(1)
+
+	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+	if !ok || authInfo == nil || !authInfo.Authenticated {
+		h.authNoAuthTotal.Add(1)
+		return api.GetUserInfo401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.AuthType != "oauth2" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Invalid authentication type for userinfo", "auth_type", authInfo.AuthType)
+		return api.GetUserInfo401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.SessionID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing session ID in authentication info for userinfo")
+		return api.GetUserInfo401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.UserID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing user ID in authentication info for userinfo")
+		return api.GetUserInfo401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	h.authSuccessTotal.Add(1)
+	return h.APIHandler.GetUserInfo(ctx, request)
+}
+
 // GetMetrics returns current authentication metrics in Prometheus format
 func (h *AuthenticatedHandler) GetMetrics() string {
 	out := ""

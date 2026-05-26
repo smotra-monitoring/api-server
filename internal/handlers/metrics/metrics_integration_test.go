@@ -70,7 +70,7 @@ func TestPrometheusMetricsConcurrency_Integration(t *testing.T) {
 
 	// Simulate concurrent provider registrations
 	done := make(chan bool)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1000; i++ {
 		go func() {
 			handler.RegisterMetricsProvider(&stubMetricsProvider{output: "concurrent_metric 1\n"})
 			done <- true
@@ -78,7 +78,7 @@ func TestPrometheusMetricsConcurrency_Integration(t *testing.T) {
 	}
 
 	// Wait for all goroutines
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1000; i++ {
 		<-done
 	}
 
@@ -91,9 +91,9 @@ func TestPrometheusMetricsConcurrency_Integration(t *testing.T) {
 
 	output := string(resp.(healthAPI.PrometheusMetrics200TextResponse))
 
-	// All 10 providers should have contributed
+	// All 1000 providers should have contributed
 	count := strings.Count(output, "concurrent_metric 1")
-	if count != 10 {
-		t.Errorf("expected concurrent_metric to appear 10 times, got %d\noutput: %s", count, output)
+	if count != 1000 {
+		t.Errorf("expected concurrent_metric to appear 1000 times, got %d\noutput: %s", count, output)
 	}
 }

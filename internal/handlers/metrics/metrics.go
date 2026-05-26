@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
@@ -22,6 +23,7 @@ type Handler struct {
 	appVersion string
 
 	// External metrics providers
+	mu               sync.RWMutex
 	metricsProviders []MetricsProvider
 }
 
@@ -37,6 +39,8 @@ func NewHandler(logger *logger.Logger, appVersion string) *Handler {
 
 // RegisterMetricsProvider registers a metrics provider
 func (h *Handler) RegisterMetricsProvider(provider MetricsProvider) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.metricsProviders = append(h.metricsProviders, provider)
 }
 
@@ -109,7 +113,11 @@ func (h *Handler) buildPrometheusMetrics() string {
 	output += "\n"
 
 	// Configuration handler metrics
-	for _, provider := range h.metricsProviders {
+	h.mu.RLock()
+	providers := make([]MetricsProvider, len(h.metricsProviders))
+	copy(providers, h.metricsProviders)
+	h.mu.RUnlock()
+	for _, provider := range providers {
 		output += provider.GetMetrics()
 	}
 

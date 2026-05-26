@@ -22,6 +22,10 @@ auth:
     frontend_callback_url: http://localhost:3000/auth/callback
     server_callback_url: http://localhost:8080/v1/auth/oauth2/callback
     providers:
+        auth0:
+            type: oidc
+            client_id: ZPsNwOIn7DiPHEjhbfy8zkXDj1hl0BD6
+            issuer_url: https://dev-7ffv2mlfow4w0de7.us.auth0.com/
         # Example: configure GitHub for local dev
         # github:
         #     type: static
@@ -37,3 +41,5 @@ agent:
     claim_poll_initial_interval_secs: 5
     claim_poll_increment_secs: 5
     claim_poll_max_interval_secs: 30
+cors:
+    origin: http://localhost:3000

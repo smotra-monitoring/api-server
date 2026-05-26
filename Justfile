@@ -77,6 +77,12 @@ test-benchmark:
     @echo "Running benchmarks..."
     go test -bench=. -benchmem ./...
 
+# DB operations
+init-db:
+    @echo "Initializing database..."
+    migrate -source file://data/db/dev/migrations -database sqlite3://data/smotra.db up
+    @echo "Database initialized"
+
 # Clean build artifacts
 clean:
     @echo "Cleaning..."

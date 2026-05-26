@@ -33,3 +33,5 @@ agent:
     claim_poll_initial_interval_secs: 5
     claim_poll_increment_secs: 5
     claim_poll_max_interval_secs: 30
+cors:
+    origin: https://www.smotra.net

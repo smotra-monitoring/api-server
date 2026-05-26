@@ -90,16 +90,9 @@ const (
 	S256 Oauth2AuthorizeParamsCodeChallengeMethod = "S256"
 )
 
-// Defines values for Oauth2RevokeFormdataBodyTokenTypeHint.
-const (
-	Oauth2RevokeFormdataBodyTokenTypeHintAccessToken  Oauth2RevokeFormdataBodyTokenTypeHint = "access_token"
-	Oauth2RevokeFormdataBodyTokenTypeHintRefreshToken Oauth2RevokeFormdataBodyTokenTypeHint = "refresh_token"
-)
-
 // Defines values for Oauth2TokenFormdataBodyGrantType.
 const (
-	Oauth2TokenFormdataBodyGrantTypeAuthorizationCode Oauth2TokenFormdataBodyGrantType = "authorization_code"
-	Oauth2TokenFormdataBodyGrantTypeRefreshToken      Oauth2TokenFormdataBodyGrantType = "refresh_token"
+	AuthorizationCode Oauth2TokenFormdataBodyGrantType = "authorization_code"
 )
 
 // AgentConfig defines model for AgentConfig.
@@ -485,21 +478,15 @@ type TcpConnectResult struct {
 
 // TokenResponse defines model for TokenResponse.
 type TokenResponse struct {
-	// AccessToken JWT access token
-	AccessToken string `json:"access_token"`
+	// ExpiresAt Hard expiry time (ISO 8601). The session will never be valid after
+	// this timestamp regardless of activity. Use this to schedule a
+	// proactive re-login in the client (e.g. at the midpoint).
+	ExpiresAt time.Time `json:"expires_at"`
 
-	// ExpiresIn Token lifetime in seconds
-	ExpiresIn int `json:"expires_in"`
-
-	// IdToken OpenID Connect ID token (if openid scope requested)
-	IdToken *string `json:"id_token,omitempty"`
-
-	// RefreshToken Refresh token (only for authorization_code grant)
-	RefreshToken *string `json:"refresh_token,omitempty"`
-
-	// Scope Space-separated list of granted scopes
-	Scope     *string `json:"scope,omitempty"`
-	TokenType string  `json:"token_type"`
+	// OpaqueToken Server-managed opaque session token. Use as a Bearer token in the
+	// Authorization header for all subsequent requests.
+	// Format: st_live_<hex> (production) or st_test_<hex> (dev/test).
+	OpaqueToken string `json:"opaque_token"`
 }
 
 // TracerouteCheck defines model for TracerouteCheck.
@@ -592,10 +579,6 @@ type LogoutJSONBody struct {
 	// PostLogoutRedirectUri Optional URI to redirect to after IDP logout completes.
 	// Forwarded to the IDP end-session endpoint as post_logout_redirect_uri.
 	PostLogoutRedirectUri *string `json:"post_logout_redirect_uri,omitempty"`
-
-	// Provider Identity provider name. Must match a provider configured on the server.
-	// Built-in values: okta, auth0, azure, google, github.
-	Provider string `json:"provider"`
 }
 
 // Oauth2AuthorizeParams defines parameters for Oauth2Authorize.
@@ -635,56 +618,29 @@ type Oauth2CallbackParams struct {
 	ErrorDescription *string `form:"error_description,omitempty" json:"error_description,omitempty"`
 }
 
-// Oauth2RevokeFormdataBody defines parameters for Oauth2Revoke.
-type Oauth2RevokeFormdataBody struct {
-	// Provider Identity provider name. Must match a provider configured on the server.
-	// Built-in values: okta, auth0, azure, google, github.
-	Provider string `form:"provider" json:"provider"`
-
-	// Token Token to revoke
-	Token string `form:"token" json:"token"`
-
-	// TokenTypeHint Optional hint about the token type
-	TokenTypeHint *Oauth2RevokeFormdataBodyTokenTypeHint `form:"token_type_hint,omitempty" json:"token_type_hint,omitempty"`
+// Oauth2RevokeJSONBody defines parameters for Oauth2Revoke.
+type Oauth2RevokeJSONBody struct {
+	// OpaqueToken The opaque session token to revoke (as returned by /auth/oauth2/token or /auth/refresh)
+	OpaqueToken string `json:"opaque_token"`
 }
-
-// Oauth2RevokeFormdataBodyTokenTypeHint defines parameters for Oauth2Revoke.
-type Oauth2RevokeFormdataBodyTokenTypeHint string
 
 // Oauth2TokenFormdataBody defines parameters for Oauth2Token.
 type Oauth2TokenFormdataBody struct {
-	// Code Authorization code (required for authorization_code grant)
-	Code *string `form:"code,omitempty" json:"code,omitempty"`
+	// Code Authorization code returned by the IDP callback
+	Code string `form:"code" json:"code"`
 
-	// CodeVerifier PKCE code verifier (required for authorization_code grant)
-	CodeVerifier *string `form:"code_verifier,omitempty" json:"code_verifier,omitempty"`
+	// CodeVerifier PKCE code verifier corresponding to the code_challenge sent at /authorize
+	CodeVerifier string `form:"code_verifier" json:"code_verifier"`
 
-	// GrantType OAuth2 grant type
+	// GrantType OAuth2 grant type (only authorization_code is supported here)
 	GrantType Oauth2TokenFormdataBodyGrantType `form:"grant_type" json:"grant_type"`
 
-	// Provider Identity provider name. Must match a provider configured on the server.
-	// Built-in values: okta, auth0, azure, google, github.
-	Provider string `form:"provider" json:"provider"`
-
-	// RedirectUri Must exactly match the redirect_uri used in the authorization request (required for authorization_code grant)
-	RedirectUri *string `form:"redirect_uri,omitempty" json:"redirect_uri,omitempty"`
-
-	// RefreshToken Refresh token (required for refresh_token grant)
-	RefreshToken *string `form:"refresh_token,omitempty" json:"refresh_token,omitempty"`
-
-	// Scope Optional scope restriction (refresh_token grant only)
-	Scope *string `form:"scope,omitempty" json:"scope,omitempty"`
+	// RedirectUri Must exactly match the redirect_uri used in the authorization request
+	RedirectUri string `form:"redirect_uri" json:"redirect_uri"`
 }
 
 // Oauth2TokenFormdataBodyGrantType defines parameters for Oauth2Token.
 type Oauth2TokenFormdataBodyGrantType string
-
-// GetUserInfoParams defines parameters for GetUserInfo.
-type GetUserInfoParams struct {
-	// Provider Identity provider name. Must match a provider configured on the server.
-	// Built-in values: okta, auth0, azure, google, github.
-	Provider string `form:"provider" json:"provider"`
-}
 
 // PostClaimAgentJSONRequestBody defines body for PostClaimAgent for application/json ContentType.
 type PostClaimAgentJSONRequestBody = ClaimAgentRequest
@@ -701,8 +657,8 @@ type SubmitAgentResultsJSONRequestBody = BatchMonitoringResults
 // LogoutJSONRequestBody defines body for Logout for application/json ContentType.
 type LogoutJSONRequestBody LogoutJSONBody
 
-// Oauth2RevokeFormdataRequestBody defines body for Oauth2Revoke for application/x-www-form-urlencoded ContentType.
-type Oauth2RevokeFormdataRequestBody Oauth2RevokeFormdataBody
+// Oauth2RevokeJSONRequestBody defines body for Oauth2Revoke for application/json ContentType.
+type Oauth2RevokeJSONRequestBody Oauth2RevokeJSONBody
 
 // Oauth2TokenFormdataRequestBody defines body for Oauth2Token for application/x-www-form-urlencoded ContentType.
 type Oauth2TokenFormdataRequestBody Oauth2TokenFormdataBody
@@ -945,15 +901,18 @@ type ServerInterface interface {
 	// OAuth2 callback endpoint
 	// (GET /auth/oauth2/callback)
 	Oauth2Callback(w http.ResponseWriter, r *http.Request, params Oauth2CallbackParams)
-	// Revoke access or refresh token
+	// Revoke a server-managed session token
 	// (POST /auth/oauth2/revoke)
 	Oauth2Revoke(w http.ResponseWriter, r *http.Request)
-	// Exchange authorization code or refresh token for tokens
+	// Exchange authorization code for a server-managed session token
 	// (POST /auth/oauth2/token)
 	Oauth2Token(w http.ResponseWriter, r *http.Request)
+	// Refresh a server-managed session token
+	// (POST /auth/refresh)
+	AuthRefresh(w http.ResponseWriter, r *http.Request)
 	// Get current user information
 	// (GET /auth/userinfo)
-	GetUserInfo(w http.ResponseWriter, r *http.Request, params GetUserInfoParams)
+	GetUserInfo(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -1014,21 +973,27 @@ func (_ Unimplemented) Oauth2Callback(w http.ResponseWriter, r *http.Request, pa
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Revoke access or refresh token
+// Revoke a server-managed session token
 // (POST /auth/oauth2/revoke)
 func (_ Unimplemented) Oauth2Revoke(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Exchange authorization code or refresh token for tokens
+// Exchange authorization code for a server-managed session token
 // (POST /auth/oauth2/token)
 func (_ Unimplemented) Oauth2Token(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Refresh a server-managed session token
+// (POST /auth/refresh)
+func (_ Unimplemented) AuthRefresh(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Get current user information
 // (GET /auth/userinfo)
-func (_ Unimplemented) GetUserInfo(w http.ResponseWriter, r *http.Request, params GetUserInfoParams) {
+func (_ Unimplemented) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1394,10 +1359,28 @@ func (siw *ServerInterfaceWrapper) Oauth2Token(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// AuthRefresh operation middleware
+func (siw *ServerInterfaceWrapper) AuthRefresh(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, OAuth2AuthorizationCodeScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AuthRefresh(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetUserInfo operation middleware
 func (siw *ServerInterfaceWrapper) GetUserInfo(w http.ResponseWriter, r *http.Request) {
-
-	var err error
 
 	ctx := r.Context()
 
@@ -1405,26 +1388,8 @@ func (siw *ServerInterfaceWrapper) GetUserInfo(w http.ResponseWriter, r *http.Re
 
 	r = r.WithContext(ctx)
 
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetUserInfoParams
-
-	// ------------- Required query parameter "provider" -------------
-
-	if paramValue := r.URL.Query().Get("provider"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "provider"})
-		return
-	}
-
-	err = runtime.BindQueryParameter("form", true, true, "provider", r.URL.Query(), &params.Provider)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider", Err: err})
-		return
-	}
-
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetUserInfo(w, r, params)
+		siw.Handler.GetUserInfo(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1579,6 +1544,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/auth/oauth2/token", wrapper.Oauth2Token)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/refresh", wrapper.AuthRefresh)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/auth/userinfo", wrapper.GetUserInfo)
@@ -2021,7 +1989,7 @@ func (response Oauth2Callback302Response) VisitOauth2CallbackResponse(w http.Res
 }
 
 type Oauth2RevokeRequestObject struct {
-	Body *Oauth2RevokeFormdataRequestBody
+	Body *Oauth2RevokeJSONRequestBody
 }
 
 type Oauth2RevokeResponseObject interface {
@@ -2029,7 +1997,7 @@ type Oauth2RevokeResponseObject interface {
 }
 
 type Oauth2Revoke200JSONResponse struct {
-	// Warning Present if revocation was not performed (provider limitation)
+	// Warning Present if IdP revocation was skipped (provider limitation)
 	Warning *string `json:"warning,omitempty"`
 }
 
@@ -2093,8 +2061,32 @@ func (response Oauth2Token401JSONResponse) VisitOauth2TokenResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type AuthRefreshRequestObject struct {
+}
+
+type AuthRefreshResponseObject interface {
+	VisitAuthRefreshResponse(w http.ResponseWriter) error
+}
+
+type AuthRefresh200JSONResponse TokenResponse
+
+func (response AuthRefresh200JSONResponse) VisitAuthRefreshResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AuthRefresh401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AuthRefresh401JSONResponse) VisitAuthRefreshResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetUserInfoRequestObject struct {
-	Params GetUserInfoParams
 }
 
 type GetUserInfoResponseObject interface {
@@ -2157,12 +2149,15 @@ type StrictServerInterface interface {
 	// OAuth2 callback endpoint
 	// (GET /auth/oauth2/callback)
 	Oauth2Callback(ctx context.Context, request Oauth2CallbackRequestObject) (Oauth2CallbackResponseObject, error)
-	// Revoke access or refresh token
+	// Revoke a server-managed session token
 	// (POST /auth/oauth2/revoke)
 	Oauth2Revoke(ctx context.Context, request Oauth2RevokeRequestObject) (Oauth2RevokeResponseObject, error)
-	// Exchange authorization code or refresh token for tokens
+	// Exchange authorization code for a server-managed session token
 	// (POST /auth/oauth2/token)
 	Oauth2Token(ctx context.Context, request Oauth2TokenRequestObject) (Oauth2TokenResponseObject, error)
+	// Refresh a server-managed session token
+	// (POST /auth/refresh)
+	AuthRefresh(ctx context.Context, request AuthRefreshRequestObject) (AuthRefreshResponseObject, error)
 	// Get current user information
 	// (GET /auth/userinfo)
 	GetUserInfo(ctx context.Context, request GetUserInfoRequestObject) (GetUserInfoResponseObject, error)
@@ -2464,13 +2459,9 @@ func (sh *strictHandler) Oauth2Callback(w http.ResponseWriter, r *http.Request, 
 func (sh *strictHandler) Oauth2Revoke(w http.ResponseWriter, r *http.Request) {
 	var request Oauth2RevokeRequestObject
 
-	if err := r.ParseForm(); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode formdata: %w", err))
-		return
-	}
-	var body Oauth2RevokeFormdataRequestBody
-	if err := runtime.BindForm(&body, r.Form, nil, nil); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't bind formdata: %w", err))
+	var body Oauth2RevokeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
 		return
 	}
 	request.Body = &body
@@ -2530,11 +2521,33 @@ func (sh *strictHandler) Oauth2Token(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetUserInfo operation middleware
-func (sh *strictHandler) GetUserInfo(w http.ResponseWriter, r *http.Request, params GetUserInfoParams) {
-	var request GetUserInfoRequestObject
+// AuthRefresh operation middleware
+func (sh *strictHandler) AuthRefresh(w http.ResponseWriter, r *http.Request) {
+	var request AuthRefreshRequestObject
 
-	request.Params = params
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AuthRefresh(ctx, request.(AuthRefreshRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AuthRefresh")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AuthRefreshResponseObject); ok {
+		if err := validResponse.VisitAuthRefreshResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetUserInfo operation middleware
+func (sh *strictHandler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
+	var request GetUserInfoRequestObject
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetUserInfo(ctx, request.(GetUserInfoRequestObject))

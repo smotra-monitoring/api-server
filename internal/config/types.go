@@ -16,6 +16,7 @@ type Config struct {
 	Logging        LoggingConfig            `json:"logging" yaml:"logging"`
 	Auth           AuthConfig               `json:"auth" yaml:"auth"`
 	Agent          AgentConfig              `json:"agent" yaml:"agent"`
+	CORS           CORSConfig               `json:"cors,omitempty" yaml:"cors,omitempty"`
 }
 
 // ServerConfig holds server-specific configuration
@@ -76,6 +77,8 @@ type OAuthProviderConfig struct {
 	// ClientID is the OAuth2 application client ID registered with the provider.
 	ClientID string `json:"client_id" yaml:"client_id"`
 
+	Scopes []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
+
 	// Endpoint overrides. For type=static these are required.
 	// For type=oidc they override the values from the discovery document.
 	AuthorizationEndpoint string `json:"authorization_endpoint,omitempty" yaml:"authorization_endpoint,omitempty"`
@@ -83,6 +86,13 @@ type OAuthProviderConfig struct {
 	UserInfoEndpoint      string `json:"userinfo_endpoint,omitempty" yaml:"userinfo_endpoint,omitempty"`
 	RevocationEndpoint    string `json:"revocation_endpoint,omitempty" yaml:"revocation_endpoint,omitempty"`
 	EndSessionEndpoint    string `json:"end_session_endpoint,omitempty" yaml:"end_session_endpoint,omitempty"`
+}
+
+// CORSConfig holds CORS middleware configuration
+type CORSConfig struct {
+	// Origin is the value set in the Access-Control-Allow-Origin response header.
+	// Leave empty to disable CORS headers entirely.
+	Origin string `json:"origin" yaml:"origin"`
 }
 
 // AgentConfig holds agent-related configuration
@@ -207,6 +217,7 @@ func Default() *Config {
 		Logging:      DefaultLoggingConfig(),
 		Auth:         DefaultAuthConfig(),
 		Agent:        DefaultAgentConfig(),
+		CORS:         DefaultCORSConfig(),
 	}
 
 	return &cfg
@@ -246,5 +257,11 @@ func DefaultAgentConfig() AgentConfig {
 		ClaimPollInitialIntervalSecs: 5,  // Start at 5 seconds
 		ClaimPollIncrementSecs:       5,  // Increase by 5 seconds each attempt
 		ClaimPollMaxIntervalSecs:     30, // Cap at 30 seconds
+	}
+}
+
+func DefaultCORSConfig() CORSConfig {
+	return CORSConfig{
+		Origin: "", // empty = CORS headers disabled
 	}
 }

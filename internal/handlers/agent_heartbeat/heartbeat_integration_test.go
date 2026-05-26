@@ -61,6 +61,10 @@ func (s *testServerImpl) Logout(ctx context.Context, req api.LogoutRequestObject
 	return nil, nil
 }
 
+func (s *testServerImpl) AuthRefresh(ctx context.Context, req api.AuthRefreshRequestObject) (api.AuthRefreshResponseObject, error) {
+	return nil, nil
+}
+
 func setupTestRouter(h *Handler) *chi.Mux {
 	impl := &testServerImpl{Handler: h}
 	r := chi.NewRouter()

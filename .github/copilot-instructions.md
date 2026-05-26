@@ -96,7 +96,9 @@ Codebase must include unit tests and integration tests. CI/CD pipelines automate
 **Detailed implementation rules** (auto-loaded by Copilot when editing relevant files):
 - Database access, sqlc, schema, migrations → `.github/instructions/database.instructions.md`
 - API codegen, routing, error handling, handlers → `.github/instructions/api.instructions.md`
-- Authentication, API keys, agent claiming → `.github/instructions/auth.instructions.md`
+- Authentication, API keys, agent claiming, OAuth2 session flow → `.github/instructions/auth.instructions.md`
+
+**Critical auth rule**: Auth checks always live in `AuthenticatedHandler` wrapper methods (`internal/handlers/authenticated_handler.go`). Handler bodies in `internal/handlers/auth/` and other packages must **never** contain inline auth guards — they may cast `ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)` directly since the wrapper guarantees auth.
 - Configuration management, config structs → `.github/instructions/config.instructions.md`
 - Metrics, Prometheus, observability → `.github/instructions/metrics.instructions.md`
 

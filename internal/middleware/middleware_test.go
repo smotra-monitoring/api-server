@@ -211,7 +211,7 @@ func TestRequestID_PreservesExistingID(t *testing.T) {
 }
 
 func TestCORS_SetsHeaders(t *testing.T) {
-	handler := CORS(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("http://localhost:3000")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -243,7 +243,7 @@ func TestCORS_SetsHeaders(t *testing.T) {
 }
 
 func TestCORS_OptionsRequest(t *testing.T) {
-	handler := CORS(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("http://localhost:3000")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("Handler should not be called for OPTIONS request")
 	}))
 
@@ -260,6 +260,60 @@ func TestCORS_OptionsRequest(t *testing.T) {
 	allowOrigin := rec.Header().Get("Access-Control-Allow-Origin")
 	if allowOrigin == "" {
 		t.Error("Expected Access-Control-Allow-Origin header for OPTIONS")
+	}
+}
+
+func TestCORS_OptionsRequest_EmptyOrigin(t *testing.T) {
+	handler := CORS("")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Handler should not be called for OPTIONS request")
+	}))
+
+	req := httptest.NewRequest("OPTIONS", "/test", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("Expected status 204, got %d", rec.Code)
+	}
+
+	// CORS headers should not be set
+	allowOrigin := rec.Header().Get("Access-Control-Allow-Origin")
+	if allowOrigin != "" {
+		t.Error("Expected no Access-Control-Allow-Origin header for OPTIONS with empty origin")
+	}
+}
+
+func TestCORS_SetsConfiguredOrigin(t *testing.T) {
+	const wantOrigin = "https://dashboard.smotra.net"
+	handler := CORS(wantOrigin)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	got := rec.Header().Get("Access-Control-Allow-Origin")
+	if got != wantOrigin {
+		t.Errorf("Expected Access-Control-Allow-Origin %q, got %q", wantOrigin, got)
+	}
+}
+
+func TestCORS_EmptyOrigin_NoHeaders(t *testing.T) {
+	handler := CORS("")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("Expected no Access-Control-Allow-Origin header, got %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Methods"); got != "" {
+		t.Errorf("Expected no Access-Control-Allow-Methods header, got %q", got)
 	}
 }
 
@@ -312,7 +366,7 @@ func TestMiddleware_ChainedExecution(t *testing.T) {
 	})
 
 	// Chain all middleware
-	handler := RequestID(log)(Recovery(log)(Logger(log)(CORS(finalHandler))))
+	handler := RequestID(log)(Recovery(log)(Logger(log)(CORS("http://localhost:3000")(finalHandler))))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	rec := httptest.NewRecorder()
@@ -354,7 +408,7 @@ func TestMiddleware_ChainedWithPanic(t *testing.T) {
 	})
 
 	// Chain all middleware
-	handler := RequestID(log)(Recovery(log)(Logger(log)(CORS(panicHandler))))
+	handler := RequestID(log)(Recovery(log)(Logger(log)(CORS("http://localhost:3000")(panicHandler))))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	rec := httptest.NewRecorder()

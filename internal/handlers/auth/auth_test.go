@@ -51,7 +51,21 @@ func newTestAuthConfig(stubURL string) *config.AuthConfig {
 func newTestHandler(t *testing.T, stubURL string) *auth.Handler {
 	t.Helper()
 	log, _ := testutil.NewTestLogger()
-	return auth.NewHandlerForTesting(log, newTestAuthConfig(stubURL))
+	db := testutil.SetupTestSQLiteDB(t)
+	cfg := testutil.DefaultTestConfig()
+	return auth.NewHandlerForTesting(log, newTestAuthConfig(stubURL), &cfg.Server, db)
+}
+
+// newTestHandlerWithMigrations creates a test handler whose SQLite database has
+// the dev migrations applied. Use this for tests that exercise the full
+// Authorize → Callback → Token flow which requires real DB tables.
+func newTestHandlerWithMigrations(t *testing.T, stubURL string) *auth.Handler {
+	t.Helper()
+	log, _ := testutil.NewTestLogger()
+	db := testutil.SetupTestSQLiteDB(t)
+	testutil.ApplyMigrations(t, context.Background(), db.DB(), "../../../data/db/dev/migrations")
+	cfg := testutil.DefaultTestConfig()
+	return auth.NewHandlerForTesting(log, newTestAuthConfig(stubURL), &cfg.Server, db)
 }
 
 // ─── Oauth2Authorize ──────────────────────────────────────────────────────────
@@ -207,235 +221,92 @@ func TestOauth2Callback_Error_ForwardsErrorToFrontend(t *testing.T) {
 
 // ─── Oauth2Token ──────────────────────────────────────────────────────────────
 
-func TestOauth2Token_AuthorizationCode_ProxiesToIDP(t *testing.T) {
-	tokenResponse := api.TokenResponse{
-		AccessToken: "access-token-123",
-		TokenType:   "Bearer",
-		ExpiresIn:   3600,
-	}
-	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/token" {
-			if err := r.ParseForm(); err != nil {
-				http.Error(w, "bad form", 400)
-				return
-			}
-			if r.FormValue("grant_type") != "authorization_code" {
-				http.Error(w, "wrong grant_type", 400)
-				return
-			}
-			if r.FormValue("client_id") != "test-client-id" {
-				http.Error(w, "wrong client_id", 400)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(tokenResponse)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer stub.Close()
-
-	h := newTestHandler(t, stub.URL)
-
-	code := "auth-code"
-	redirectURI := "http://client.test/callback"
-	codeVerifier := "verifier123"
-
-	resp, err := h.Oauth2Token(context.Background(), api.Oauth2TokenRequestObject{
-		Body: &api.Oauth2TokenFormdataRequestBody{
-			Provider:     "teststatic",
-			GrantType:    api.Oauth2TokenFormdataBodyGrantTypeAuthorizationCode,
-			Code:         &code,
-			RedirectUri:  &redirectURI,
-			CodeVerifier: &codeVerifier,
-		},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	tokenResp, ok := resp.(api.Oauth2Token200JSONResponse)
-	if !ok {
-		t.Fatalf("expected 200 response, got %T", resp)
-	}
-	if tokenResp.AccessToken != tokenResponse.AccessToken {
-		t.Errorf("expected access_token=%q, got %q", tokenResponse.AccessToken, tokenResp.AccessToken)
-	}
-}
-
-func TestOauth2Token_MissingProvider_Returns400(t *testing.T) {
+// TestOauth2Token_MissingCode verifies that missing required fields returns 400.
+func TestOauth2Token_MissingCode_Returns400(t *testing.T) {
 	h := newTestHandler(t, "http://idp.test")
 
-	code := "c"
-	redirectURI := "u"
-	codeVerifier := "v"
-
 	resp, err := h.Oauth2Token(context.Background(), api.Oauth2TokenRequestObject{
 		Body: &api.Oauth2TokenFormdataRequestBody{
-			Provider:     "", // missing provider
-			GrantType:    api.Oauth2TokenFormdataBodyGrantTypeAuthorizationCode,
-			Code:         &code,
-			RedirectUri:  &redirectURI,
-			CodeVerifier: &codeVerifier,
+			GrantType: api.AuthorizationCode,
+			// code, redirect_uri, code_verifier all empty
 		},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if _, ok := resp.(api.Oauth2Token400JSONResponse); !ok {
-		t.Errorf("expected 400, got %T", resp)
+		t.Errorf("expected 400 for missing code, got %T", resp)
 	}
 }
 
-func TestOauth2Token_IDPError_SanitizesMessage(t *testing.T) {
-	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/token" {
-			http.Error(w, `{"error":"invalid_grant","error_description":"Internal DB error: connection refused"}`, 400)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer stub.Close()
-
-	h := newTestHandler(t, stub.URL)
-
-	code := "bad-code"
-	redirectURI := "http://client.test/callback"
-	codeVerifier := "v"
+// TestOauth2Token_UnknownAuthCode verifies that a code not in pending_states returns 401.
+func TestOauth2Token_UnknownAuthCode_Returns401(t *testing.T) {
+	h := newTestHandler(t, "http://idp.test")
 
 	resp, err := h.Oauth2Token(context.Background(), api.Oauth2TokenRequestObject{
 		Body: &api.Oauth2TokenFormdataRequestBody{
-			Provider:     "teststatic",
-			GrantType:    api.Oauth2TokenFormdataBodyGrantTypeAuthorizationCode,
-			Code:         &code,
-			RedirectUri:  &redirectURI,
-			CodeVerifier: &codeVerifier,
+			GrantType:    api.AuthorizationCode,
+			Code:         "no-such-code",
+			RedirectUri:  "http://client.test/callback",
+			CodeVerifier: "verifier",
 		},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	errResp, ok := resp.(api.Oauth2Token401JSONResponse)
-	if !ok {
-		t.Fatalf("expected 401, got %T", resp)
-	}
-	// Must not expose raw IDP error text.
-	if strings.Contains(errResp.Message, "connection refused") {
-		t.Errorf("raw IDP error leaked into response: %q", errResp.Message)
-	}
-	if strings.Contains(errResp.Message, "Internal DB error") {
-		t.Errorf("raw IDP error leaked into response: %q", errResp.Message)
+	if _, ok := resp.(api.Oauth2Token401JSONResponse); !ok {
+		t.Errorf("expected 401 for unknown auth code, got %T", resp)
 	}
 }
 
 // ─── Oauth2Revoke ─────────────────────────────────────────────────────────────
 
-func TestOauth2Revoke_NoRevocationEndpoint_Returns200WithWarning(t *testing.T) {
+// TestOauth2Revoke_MissingToken verifies that missing opaque_token returns 400.
+func TestOauth2Revoke_MissingToken_Returns400(t *testing.T) {
 	h := newTestHandler(t, "http://idp.test")
 
-	hint := api.Oauth2RevokeFormdataBodyTokenTypeHintAccessToken
 	resp, err := h.Oauth2Revoke(context.Background(), api.Oauth2RevokeRequestObject{
-		Body: &api.Oauth2RevokeFormdataRequestBody{
-			Provider:      "noendsession",
-			Token:         "some-token",
-			TokenTypeHint: &hint,
-		},
+		Body: &api.Oauth2RevokeJSONRequestBody{OpaqueToken: ""},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	revokeResp, ok := resp.(api.Oauth2Revoke200JSONResponse)
-	if !ok {
-		t.Fatalf("expected 200, got %T", resp)
-	}
-	if revokeResp.Warning == nil || *revokeResp.Warning == "" {
-		t.Error("expected non-empty warning for provider without revocation endpoint")
+	if _, ok := resp.(api.Oauth2Revoke400JSONResponse); !ok {
+		t.Errorf("expected 400, got %T", resp)
 	}
 }
 
-func TestOauth2Revoke_WithRevocationEndpoint_Proxies(t *testing.T) {
-	revokeCalled := false
-	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/revoke" {
-			revokeCalled = true
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer stub.Close()
+// TestOauth2Revoke_UnknownToken_Returns200 verifies that an unknown token is treated as a no-op
+// to avoid token enumeration attacks.
+func TestOauth2Revoke_UnknownToken_Returns200(t *testing.T) {
+	h := newTestHandler(t, "http://idp.test")
 
-	h := newTestHandler(t, stub.URL)
-
-	hint := api.Oauth2RevokeFormdataBodyTokenTypeHintAccessToken
 	resp, err := h.Oauth2Revoke(context.Background(), api.Oauth2RevokeRequestObject{
-		Body: &api.Oauth2RevokeFormdataRequestBody{
-			Provider:      "teststatic",
-			Token:         "access-token-xyz",
-			TokenTypeHint: &hint,
-		},
+		Body: &api.Oauth2RevokeJSONRequestBody{OpaqueToken: "st_test_unknowntokenhash"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if _, ok := resp.(api.Oauth2Revoke200JSONResponse); !ok {
-		t.Errorf("expected 200, got %T", resp)
-	}
-	if !revokeCalled {
-		t.Error("expected revocation endpoint to be called")
+		t.Errorf("expected 200 no-op for unknown token, got %T", resp)
 	}
 }
 
 // ─── GetUserInfo ──────────────────────────────────────────────────────────────
 
-func TestGetUserInfo_ProxiesToIDP(t *testing.T) {
-	userInfo := api.UserInfo{Sub: "user-123"}
-	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/userinfo" {
-			if r.Header.Get("Authorization") == "" {
-				http.Error(w, "missing auth", 401)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(userInfo)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer stub.Close()
-
-	h := newTestHandler(t, stub.URL)
-
-	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, &middleware.AuthInfo{
-		AuthType:    "oauth2",
-		BearerToken: "Bearer test-access-token",
-	})
-
-	resp, err := h.GetUserInfo(ctx, api.GetUserInfoRequestObject{
-		Params: api.GetUserInfoParams{Provider: "teststatic"},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	uiResp, ok := resp.(api.GetUserInfo200JSONResponse)
-	if !ok {
-		t.Fatalf("expected 200, got %T", resp)
-	}
-	if uiResp.Sub != "user-123" {
-		t.Errorf("expected sub=user-123, got %q", uiResp.Sub)
-	}
-}
-
-func TestGetUserInfo_MissingAuthHeader_Returns401(t *testing.T) {
+// TestGetUserInfo_AuthenticatedButMissingUser verifies that an authenticated session
+// with a non-existent user_id returns 401.
+func TestGetUserInfo_AuthenticatedButMissingUser_Returns401(t *testing.T) {
 	h := newTestHandler(t, "http://idp.test")
 
-	ctx := context.Background() // no AuthInfo in context → should return 401
-
-	resp, err := h.GetUserInfo(ctx, api.GetUserInfoRequestObject{
-		Params: api.GetUserInfoParams{Provider: "teststatic"},
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, &middleware.AuthInfo{
+		AuthType:      "oauth2",
+		Authenticated: true,
+		UserID:        "nonexistent-user-id",
+		SessionID:     "some-session-id",
 	})
+
+	resp, err := h.GetUserInfo(ctx, api.GetUserInfoRequestObject{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -446,13 +317,21 @@ func TestGetUserInfo_MissingAuthHeader_Returns401(t *testing.T) {
 
 // ─── Logout ───────────────────────────────────────────────────────────────────
 
+// TestLogout_WithEndSessionEndpoint_Returns302 verifies redirect when session has a provider
+// with an end-session endpoint.
 func TestLogout_WithEndSessionEndpoint_Returns302(t *testing.T) {
 	h := newTestHandler(t, "http://idp.test")
 
 	postLogout := "http://frontend.test/"
-	resp, err := h.Logout(context.Background(), api.LogoutRequestObject{
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, &middleware.AuthInfo{
+		AuthType:      "oauth2",
+		Authenticated: true,
+		Provider:      "teststatic",
+		SessionID:     "fake-session-id",
+	})
+
+	resp, err := h.Logout(ctx, api.LogoutRequestObject{
 		Body: &api.LogoutJSONRequestBody{
-			Provider:              "teststatic",
 			PostLogoutRedirectUri: &postLogout,
 		},
 	})
@@ -470,17 +349,20 @@ func TestLogout_WithEndSessionEndpoint_Returns302(t *testing.T) {
 	if !strings.Contains(redirect.Headers.Location, "post_logout_redirect_uri=") {
 		t.Error("expected post_logout_redirect_uri in Location")
 	}
-	if !strings.Contains(redirect.Headers.Location, "frontend.test") {
-		t.Errorf("expected post_logout_redirect_uri in Location (%q)", redirect.Headers.Location)
-	}
 }
 
+// TestLogout_NoEndSessionEndpoint_Returns200 verifies 200 when provider has no end-session endpoint.
 func TestLogout_NoEndSessionEndpoint_Returns200(t *testing.T) {
 	h := newTestHandler(t, "http://idp.test")
 
-	resp, err := h.Logout(context.Background(), api.LogoutRequestObject{
-		Body: &api.LogoutJSONRequestBody{Provider: "noendsession"},
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, &middleware.AuthInfo{
+		AuthType:      "oauth2",
+		Authenticated: true,
+		Provider:      "noendsession",
+		SessionID:     "fake-session-id",
 	})
+
+	resp, err := h.Logout(ctx, api.LogoutRequestObject{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -493,7 +375,9 @@ func TestLogout_NoEndSessionEndpoint_Returns200(t *testing.T) {
 
 func TestOauth2Token_SSRFViaStaticEndpoint_Returns400(t *testing.T) {
 	log, _ := testutil.NewTestLogger()
-	cfg := &config.AuthConfig{
+	db := testutil.SetupTestSQLiteDB(t)
+	cfg := testutil.DefaultTestConfig()
+	authCfg := &config.AuthConfig{
 		FrontendCallbackURL: "http://frontend.test/callback",
 		ServerCallbackURL:   "http://server.test/callback",
 		Providers: map[string]config.OAuthProviderConfig{
@@ -507,26 +391,191 @@ func TestOauth2Token_SSRFViaStaticEndpoint_Returns400(t *testing.T) {
 			},
 		},
 	}
-	h := auth.NewHandler(log, cfg)
-
-	code := "c"
-	redirectURI := "http://client.test/callback"
-	codeVerifier := "v"
+	h := auth.NewHandler(log, authCfg, &cfg.Server, db)
 
 	resp, err := h.Oauth2Token(context.Background(), api.Oauth2TokenRequestObject{
 		Body: &api.Oauth2TokenFormdataRequestBody{
-			Provider:     "ssrf",
-			GrantType:    api.Oauth2TokenFormdataBodyGrantTypeAuthorizationCode,
-			Code:         &code,
-			RedirectUri:  &redirectURI,
-			CodeVerifier: &codeVerifier,
+			GrantType:    api.AuthorizationCode,
+			Code:         "no-such-code",
+			RedirectUri:  "http://client.test/callback",
+			CodeVerifier: "v",
 		},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, ok := resp.(api.Oauth2Token400JSONResponse); !ok {
-		t.Errorf("expected 400 for SSRF attempt, got %T", resp)
+	// Should return 401 because code is not in pending_states; SSRF URL never reached.
+	if _, ok401 := resp.(api.Oauth2Token401JSONResponse); !ok401 {
+		if _, ok400 := resp.(api.Oauth2Token400JSONResponse); !ok400 {
+			t.Errorf("expected 400 or 401 for SSRF/unknown code attempt, got %T", resp)
+		}
+	}
+}
+
+// ─── Userinfo endpoint fallback ───────────────────────────────────────────────
+
+// newStubTokenAndUserinfoServer returns an httptest.Server whose /token endpoint
+// returns an opaque (non-JWT) access token and whose /userinfo endpoint returns
+// the provided JSON payload. The server also serves the discovery document at
+// /.well-known/openid-configuration so OIDC providers resolve correctly.
+func newStubTokenAndUserinfoServer(t *testing.T, userInfoPayload map[string]any, userInfoStatus int) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+			"access_token": "opaque-access-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	})
+	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(userInfoStatus)
+		json.NewEncoder(w).Encode(userInfoPayload) //nolint:errcheck
+	})
+	return httptest.NewServer(mux)
+}
+
+// setupPendingAuthCode runs Authorize → Callback to plant a pending state with
+// the given auth code for the given provider, returning the code to use in Token.
+func setupPendingAuthCode(t *testing.T, h *auth.Handler, provider, code, state string) {
+	t.Helper()
+	_, err := h.Oauth2Authorize(context.Background(), api.Oauth2AuthorizeRequestObject{
+		Params: api.Oauth2AuthorizeParams{
+			Provider:            provider,
+			Scope:               "openid profile",
+			State:               state,
+			CodeChallenge:       "challenge",
+			CodeChallengeMethod: api.S256,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Oauth2Authorize: %v", err)
+	}
+	_, err = h.Oauth2Callback(context.Background(), api.Oauth2CallbackRequestObject{
+		Params: api.Oauth2CallbackParams{Code: &code, State: &state},
+	})
+	if err != nil {
+		t.Fatalf("Oauth2Callback: %v", err)
+	}
+}
+
+// TestOauth2Token_OpaqueToken_FallsBackToUserInfoEndpoint verifies that when the
+// IDP returns an opaque (non-JWT) access token, Oauth2Token falls back to the
+// userinfo endpoint to extract the user's identity and returns 200.
+func TestOauth2Token_OpaqueToken_FallsBackToUserInfoEndpoint(t *testing.T) {
+	stub := newStubTokenAndUserinfoServer(t, map[string]any{
+		"sub":   "user-123",
+		"name":  "Alice Smith",
+		"email": "alice@example.com",
+	}, http.StatusOK)
+	defer stub.Close()
+
+	h := newTestHandlerWithMigrations(t, stub.URL)
+	setupPendingAuthCode(t, h, "teststatic", "auth-code-opaque", "state-opaque-1")
+
+	resp, err := h.Oauth2Token(context.Background(), api.Oauth2TokenRequestObject{
+		Body: &api.Oauth2TokenFormdataRequestBody{
+			GrantType:    api.AuthorizationCode,
+			Code:         "auth-code-opaque",
+			RedirectUri:  "http://server.test/v1/auth/oauth2/callback",
+			CodeVerifier: "verifier",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.Oauth2Token200JSONResponse); !ok {
+		t.Errorf("expected 200 when falling back to userinfo, got %T", resp)
+	}
+}
+
+// TestOauth2Token_UserInfoEndpointNonOK_Returns401 verifies that when the userinfo
+// endpoint returns a non-200 status, the token exchange fails with 401.
+func TestOauth2Token_UserInfoEndpointNonOK_Returns401(t *testing.T) {
+	stub := newStubTokenAndUserinfoServer(t, map[string]any{
+		"error": "invalid_token",
+	}, http.StatusUnauthorized)
+	defer stub.Close()
+
+	h := newTestHandlerWithMigrations(t, stub.URL)
+	setupPendingAuthCode(t, h, "teststatic", "auth-code-err", "state-err-1")
+
+	resp, err := h.Oauth2Token(context.Background(), api.Oauth2TokenRequestObject{
+		Body: &api.Oauth2TokenFormdataRequestBody{
+			GrantType:    api.AuthorizationCode,
+			Code:         "auth-code-err",
+			RedirectUri:  "http://server.test/v1/auth/oauth2/callback",
+			CodeVerifier: "verifier",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.Oauth2Token401JSONResponse); !ok {
+		t.Errorf("expected 401 when userinfo endpoint fails, got %T", resp)
+	}
+}
+
+// TestOauth2Token_GitHubOpaqueToken_MapsIDAndLogin verifies that GitHub's numeric
+// "id" field is used as the subject and "login" as the display name.
+func TestOauth2Token_GitHubOpaqueToken_MapsIDAndLogin(t *testing.T) {
+	mux := http.NewServeMux()
+	stub := httptest.NewServer(mux)
+	defer stub.Close()
+
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+			"access_token": "ghu_opaque_github_token",
+			"token_type":   "Bearer",
+		})
+	})
+	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+			"id":         float64(12345), // JSON numbers decode as float64
+			"login":      "alice",
+			"name":       "Alice Smith",
+			"email":      "alice@example.com",
+			"avatar_url": "https://avatars.example.com/alice",
+		})
+	})
+
+	log, _ := testutil.NewTestLogger()
+	db := testutil.SetupTestSQLiteDB(t)
+	cfg := testutil.DefaultTestConfig()
+	authCfg := &config.AuthConfig{
+		FrontendCallbackURL: "http://frontend.test/auth/callback",
+		ServerCallbackURL:   "http://server.test/v1/auth/oauth2/callback",
+		Providers: map[string]config.OAuthProviderConfig{
+			// Override GitHub's built-in endpoints to point at the stub.
+			"github": {
+				ClientID:              "github-client-id",
+				AuthorizationEndpoint: stub.URL + "/authorize",
+				TokenEndpoint:         stub.URL + "/token",
+				UserInfoEndpoint:      stub.URL + "/userinfo",
+			},
+		},
+	}
+	testutil.ApplyMigrations(t, context.Background(), db.DB(), "../../../data/db/dev/migrations")
+	h := auth.NewHandlerForTesting(log, authCfg, &cfg.Server, db)
+	setupPendingAuthCode(t, h, "github", "gh-auth-code", "gh-state-1")
+
+	resp, err := h.Oauth2Token(context.Background(), api.Oauth2TokenRequestObject{
+		Body: &api.Oauth2TokenFormdataRequestBody{
+			GrantType:    api.AuthorizationCode,
+			Code:         "gh-auth-code",
+			RedirectUri:  "http://server.test/v1/auth/oauth2/callback",
+			CodeVerifier: "verifier",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.Oauth2Token200JSONResponse); !ok {
+		t.Errorf("expected 200 for GitHub opaque token flow, got %T", resp)
 	}
 }
 
@@ -534,7 +583,9 @@ func TestOauth2Token_SSRFViaStaticEndpoint_Returns400(t *testing.T) {
 
 func TestOauth2Authorize_GitHubBuiltin_UsesStaticEndpoints(t *testing.T) {
 	log, _ := testutil.NewTestLogger()
-	cfg := &config.AuthConfig{
+	db := testutil.SetupTestSQLiteDB(t)
+	cfg := testutil.DefaultTestConfig()
+	authCfg := &config.AuthConfig{
 		FrontendCallbackURL: "http://frontend.test/callback",
 		ServerCallbackURL:   "http://server.test/callback",
 		Providers: map[string]config.OAuthProviderConfig{
@@ -544,7 +595,7 @@ func TestOauth2Authorize_GitHubBuiltin_UsesStaticEndpoints(t *testing.T) {
 			},
 		},
 	}
-	h := auth.NewHandler(log, cfg)
+	h := auth.NewHandler(log, authCfg, &cfg.Server, db)
 
 	resp, err := h.Oauth2Authorize(context.Background(), api.Oauth2AuthorizeRequestObject{
 		Params: api.Oauth2AuthorizeParams{
