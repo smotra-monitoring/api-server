@@ -41,5 +41,6 @@ output-options:
   include-tags:
   - current
   - authentication
+  - agent
   exclude-tags:
   - health
