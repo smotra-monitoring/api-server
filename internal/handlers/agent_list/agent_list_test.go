@@ -118,4 +118,3 @@ func TestHandle_CountersIncrementOnAttempt(t *testing.T) {
 		t.Errorf("expected failures=2, got %d", h.listFailureTotal.Load())
 	}
 }
-
