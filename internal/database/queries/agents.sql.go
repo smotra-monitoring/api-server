@@ -8,7 +8,22 @@ package queries
 import (
 	"context"
 	"database/sql"
+	"time"
 )
+
+const countAgentsByTenant = `-- name: CountAgentsByTenant :one
+SELECT COUNT(*) FROM agents a
+JOIN sections s ON a.section_id = s.id
+WHERE s.tenant_id = ?
+`
+
+// Returns total count of agents belonging to all sections of a given tenant.
+func (q *Queries) CountAgentsByTenant(ctx context.Context, tenantID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAgentsByTenant, tenantID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const createAgent = `-- name: CreateAgent :one
 INSERT INTO agents (id, section_id, name, api_key_hash, base_config) VALUES 
@@ -149,6 +164,71 @@ func (q *Queries) GetEndpointTags(ctx context.Context, endpointID string) ([]str
 			return nil, err
 		}
 		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAgentsByTenant = `-- name: ListAgentsByTenant :many
+SELECT a.id, a.section_id, a.name, a.config_version, a.agent_version,
+       a.ip_addresses_json, a.last_seen_at, a.last_result_submitted_at,
+       a.updated_at, a.created_at
+FROM agents a
+JOIN sections s ON a.section_id = s.id
+WHERE s.tenant_id = ?
+ORDER BY a.created_at DESC
+LIMIT ? OFFSET ?
+`
+
+type ListAgentsByTenantParams struct {
+	TenantID string
+	Limit    int64
+	Offset   int64
+}
+
+type ListAgentsByTenantRow struct {
+	ID                    string
+	SectionID             string
+	Name                  string
+	ConfigVersion         int64
+	AgentVersion          sql.NullString
+	IpAddressesJson       string
+	LastSeenAt            sql.NullTime
+	LastResultSubmittedAt sql.NullTime
+	UpdatedAt             time.Time
+	CreatedAt             time.Time
+}
+
+// Returns paginated agents belonging to all sections of a given tenant.
+func (q *Queries) ListAgentsByTenant(ctx context.Context, arg ListAgentsByTenantParams) ([]ListAgentsByTenantRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAgentsByTenant, arg.TenantID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAgentsByTenantRow
+	for rows.Next() {
+		var i ListAgentsByTenantRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SectionID,
+			&i.Name,
+			&i.ConfigVersion,
+			&i.AgentVersion,
+			&i.IpAddressesJson,
+			&i.LastSeenAt,
+			&i.LastResultSubmittedAt,
+			&i.UpdatedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

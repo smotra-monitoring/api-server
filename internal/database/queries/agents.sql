@@ -44,3 +44,20 @@ UPDATE agents SET last_seen_at = ? WHERE id = ?;
 
 -- name: UpdateAgentLastResultSubmittedAt :exec
 UPDATE agents SET last_result_submitted_at = ? WHERE id = ?;
+
+-- name: ListAgentsByTenant :many
+-- Returns paginated agents belonging to all sections of a given tenant.
+SELECT a.id, a.section_id, a.name, a.config_version, a.agent_version,
+       a.ip_addresses_json, a.last_seen_at, a.last_result_submitted_at,
+       a.updated_at, a.created_at
+FROM agents a
+JOIN sections s ON a.section_id = s.id
+WHERE s.tenant_id = ?
+ORDER BY a.created_at DESC
+LIMIT ? OFFSET ?;
+
+-- name: CountAgentsByTenant :one
+-- Returns total count of agents belonging to all sections of a given tenant.
+SELECT COUNT(*) FROM agents a
+JOIN sections s ON a.section_id = s.id
+WHERE s.tenant_id = ?;

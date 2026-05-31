@@ -72,6 +72,9 @@ func (s *testServerImpl) AuthRefresh(ctx context.Context, req api.AuthRefreshReq
 func (s *testServerImpl) SendAgentHeartbeat(ctx context.Context, req api.SendAgentHeartbeatRequestObject) (api.SendAgentHeartbeatResponseObject, error) {
 	return nil, nil
 }
+func (s *testServerImpl) ListAgents(ctx context.Context, req api.ListAgentsRequestObject) (api.ListAgentsResponseObject, error) {
+	return nil, nil
+}
 
 func setupTestRouter(h *Handler) *chi.Mux {
 	impl := &testServerImpl{Handler: h}

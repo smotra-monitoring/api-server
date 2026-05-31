@@ -388,6 +388,49 @@ func (h *AuthenticatedHandler) GetUserInfo(ctx context.Context, request api.GetU
 	return h.APIHandler.GetUserInfo(ctx, request)
 }
 
+// ListAgents wraps the agent list handler with authentication.
+// Only OAuth2-authenticated users (web sessions) may access this endpoint.
+// Agent API keys are explicitly rejected.
+func (h *AuthenticatedHandler) ListAgents(ctx context.Context, request api.ListAgentsRequestObject) (api.ListAgentsResponseObject, error) {
+	h.authAttemptsTotal.Add(1)
+
+	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+	if !ok || authInfo == nil || !authInfo.Authenticated {
+		h.authNoAuthTotal.Add(1)
+		return api.ListAgents401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.AuthType != "oauth2" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Invalid authentication type for agent list", "auth_type", authInfo.AuthType)
+		return api.ListAgents401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.UserID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing user ID in authentication info for agent list")
+		return api.ListAgents401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	h.authSuccessTotal.Add(1)
+	return h.APIHandler.ListAgents(ctx, request)
+}
+
 // GetMetrics returns current authentication metrics in Prometheus format
 func (h *AuthenticatedHandler) GetMetrics() string {
 	out := ""

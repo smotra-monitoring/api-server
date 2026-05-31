@@ -21,6 +21,7 @@ import (
 const (
 	AgentApiKeyScopes             = "AgentApiKey.Scopes"
 	OAuth2AuthorizationCodeScopes = "OAuth2AuthorizationCode.Scopes"
+	OAuth2ClientCredentialsScopes = "OAuth2ClientCredentials.Scopes"
 )
 
 // Defines values for AgentHealthStatus.
@@ -138,6 +139,45 @@ type AgentHeartbeat struct {
 
 	// Timestamp Agent-local timestamp when the heartbeat was generated (RFC3339)
 	Timestamp time.Time `json:"timestamp"`
+}
+
+// AgentListItem defines model for AgentListItem.
+type AgentListItem struct {
+	// AgentVersion Version of the agent software, null if not yet reported
+	AgentVersion *string `json:"agentVersion"`
+
+	// ConfigVersion Current configuration version
+	ConfigVersion int `json:"configVersion"`
+
+	// CreatedAt Timestamp when the agent was registered
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Id UUID version 7 as per RFC 4122
+	Id UUIDv7 `json:"id"`
+
+	// IpAddresses Network interfaces reported by the agent
+	IpAddresses *[]AgentNetworkInterface `json:"ipAddresses,omitempty"`
+
+	// LastResultSubmittedAt Timestamp of the last monitoring result submission
+	LastResultSubmittedAt *time.Time `json:"lastResultSubmittedAt"`
+
+	// LastSeenAt Timestamp of the last heartbeat received from the agent
+	LastSeenAt *time.Time `json:"lastSeenAt"`
+
+	// Name Human-readable agent name
+	Name string `json:"name"`
+
+	// SectionId Section (organizational unit) this agent belongs to
+	SectionId string `json:"sectionId"`
+
+	// UpdatedAt Timestamp when the agent record was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// AgentListResponse defines model for AgentListResponse.
+type AgentListResponse struct {
+	Agents     []AgentListItem `json:"agents"`
+	Pagination Pagination      `json:"pagination"`
 }
 
 // AgentNetworkInterface defines model for AgentNetworkInterface.
@@ -361,6 +401,16 @@ type MonitoringResult struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+// Pagination defines model for Pagination.
+type Pagination struct {
+	HasNext     *bool `json:"has_next,omitempty"`
+	HasPrevious *bool `json:"has_previous,omitempty"`
+	Page        int   `json:"page"`
+	PageSize    int   `json:"page_size"`
+	TotalItems  int   `json:"total_items"`
+	TotalPages  int   `json:"total_pages"`
+}
+
 // PingCheck defines model for PingCheck.
 type PingCheck struct {
 	Result PingResult    `json:"result"`
@@ -573,6 +623,15 @@ type Unauthorized = Error
 
 // UnprocessableEntity defines model for UnprocessableEntity.
 type UnprocessableEntity = Error
+
+// ListAgentsParams defines parameters for ListAgents.
+type ListAgentsParams struct {
+	// Page Page number (1-based)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize Number of agents per page
+	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
 
 // LogoutJSONBody defines parameters for Logout.
 type LogoutJSONBody struct {
@@ -892,6 +951,9 @@ type ServerInterface interface {
 	// Submit batch monitoring results
 	// (POST /agent/{agentId}/results)
 	SubmitAgentResults(w http.ResponseWriter, r *http.Request, agentId AgentId)
+	// List agents
+	// (GET /agents)
+	ListAgents(w http.ResponseWriter, r *http.Request, params ListAgentsParams)
 	// User logout
 	// (POST /auth/logout)
 	Logout(w http.ResponseWriter, r *http.Request)
@@ -952,6 +1014,12 @@ func (_ Unimplemented) SendAgentHeartbeat(w http.ResponseWriter, r *http.Request
 // Submit batch monitoring results
 // (POST /agent/{agentId}/results)
 func (_ Unimplemented) SubmitAgentResults(w http.ResponseWriter, r *http.Request, agentId AgentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List agents
+// (GET /agents)
+func (_ Unimplemented) ListAgents(w http.ResponseWriter, r *http.Request, params ListAgentsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1151,6 +1219,49 @@ func (siw *ServerInterfaceWrapper) SubmitAgentResults(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SubmitAgentResults(w, r, agentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAgents operation middleware
+func (siw *ServerInterfaceWrapper) ListAgents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, OAuth2AuthorizationCodeScopes, []string{"agents:read"})
+
+	ctx = context.WithValue(ctx, OAuth2ClientCredentialsScopes, []string{"agents:read"})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAgentsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page_size", r.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page_size", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAgents(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1531,6 +1642,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/agent/{agentId}/results", wrapper.SubmitAgentResults)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/agents", wrapper.ListAgents)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/auth/logout", wrapper.Logout)
 	})
 	r.Group(func(r chi.Router) {
@@ -1884,6 +1998,43 @@ func (response SubmitAgentResults503JSONResponse) VisitSubmitAgentResultsRespons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListAgentsRequestObject struct {
+	Params ListAgentsParams
+}
+
+type ListAgentsResponseObject interface {
+	VisitListAgentsResponse(w http.ResponseWriter) error
+}
+
+type ListAgents200JSONResponse AgentListResponse
+
+func (response ListAgents200JSONResponse) VisitListAgentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListAgents401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListAgents401JSONResponse) VisitListAgentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListAgents500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListAgents500JSONResponse) VisitListAgentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type LogoutRequestObject struct {
 	Body *LogoutJSONRequestBody
 }
@@ -2140,6 +2291,9 @@ type StrictServerInterface interface {
 	// Submit batch monitoring results
 	// (POST /agent/{agentId}/results)
 	SubmitAgentResults(ctx context.Context, request SubmitAgentResultsRequestObject) (SubmitAgentResultsResponseObject, error)
+	// List agents
+	// (GET /agents)
+	ListAgents(ctx context.Context, request ListAgentsRequestObject) (ListAgentsResponseObject, error)
 	// User logout
 	// (POST /auth/logout)
 	Logout(ctx context.Context, request LogoutRequestObject) (LogoutResponseObject, error)
@@ -2365,6 +2519,32 @@ func (sh *strictHandler) SubmitAgentResults(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SubmitAgentResultsResponseObject); ok {
 		if err := validResponse.VisitSubmitAgentResultsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAgents operation middleware
+func (sh *strictHandler) ListAgents(w http.ResponseWriter, r *http.Request, params ListAgentsParams) {
+	var request ListAgentsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAgents(ctx, request.(ListAgentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAgents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAgentsResponseObject); ok {
+		if err := validResponse.VisitListAgentsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
