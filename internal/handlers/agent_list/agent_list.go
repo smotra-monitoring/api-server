@@ -130,7 +130,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ListAgentsRequestObject) (
 	}
 
 	// Build response items.
-	items := make([]api.AgentListItem, 0, len(rows))
+	items := make([]api.Agent, 0, len(rows))
 	for _, row := range rows {
 		item := h.rowToItem(row)
 		items = append(items, item)
@@ -158,8 +158,8 @@ func (h *Handler) Handle(ctx context.Context, req api.ListAgentsRequestObject) (
 }
 
 // rowToItem converts a database row to an API response item.
-func (h *Handler) rowToItem(row queries.ListAgentsByTenantRow) api.AgentListItem {
-	item := api.AgentListItem{
+func (h *Handler) rowToItem(row queries.ListAgentsByTenantRow) api.Agent {
+	item := api.Agent{
 		Id:            api.UUIDv7(uuid.MustParse(row.ID)),
 		SectionId:     row.SectionID,
 		Name:          row.Name,

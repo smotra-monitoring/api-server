@@ -96,6 +96,39 @@ const (
 	AuthorizationCode Oauth2TokenFormdataBodyGrantType = "authorization_code"
 )
 
+// Agent defines model for Agent.
+type Agent struct {
+	// AgentVersion Version of the agent software, null if not yet reported
+	AgentVersion *string `json:"agentVersion"`
+
+	// ConfigVersion Current configuration version
+	ConfigVersion int `json:"configVersion"`
+
+	// CreatedAt Timestamp when the agent was registered
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Id UUID version 7 as per RFC 4122
+	Id UUIDv7 `json:"id"`
+
+	// IpAddresses Network interfaces reported by the agent
+	IpAddresses *[]AgentNetworkInterface `json:"ipAddresses,omitempty"`
+
+	// LastResultSubmittedAt Timestamp of the last monitoring result submission
+	LastResultSubmittedAt *time.Time `json:"lastResultSubmittedAt"`
+
+	// LastSeenAt Timestamp of the last heartbeat received from the agent
+	LastSeenAt *time.Time `json:"lastSeenAt"`
+
+	// Name Human-readable agent name
+	Name string `json:"name"`
+
+	// SectionId Section (organizational unit) this agent belongs to
+	SectionId string `json:"sectionId"`
+
+	// UpdatedAt Timestamp when the agent record was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 // AgentConfig defines model for AgentConfig.
 type AgentConfig struct {
 	// AgentId UUID version 7 as per RFC 4122
@@ -141,43 +174,10 @@ type AgentHeartbeat struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// AgentListItem defines model for AgentListItem.
-type AgentListItem struct {
-	// AgentVersion Version of the agent software, null if not yet reported
-	AgentVersion *string `json:"agentVersion"`
-
-	// ConfigVersion Current configuration version
-	ConfigVersion int `json:"configVersion"`
-
-	// CreatedAt Timestamp when the agent was registered
-	CreatedAt time.Time `json:"createdAt"`
-
-	// Id UUID version 7 as per RFC 4122
-	Id UUIDv7 `json:"id"`
-
-	// IpAddresses Network interfaces reported by the agent
-	IpAddresses *[]AgentNetworkInterface `json:"ipAddresses,omitempty"`
-
-	// LastResultSubmittedAt Timestamp of the last monitoring result submission
-	LastResultSubmittedAt *time.Time `json:"lastResultSubmittedAt"`
-
-	// LastSeenAt Timestamp of the last heartbeat received from the agent
-	LastSeenAt *time.Time `json:"lastSeenAt"`
-
-	// Name Human-readable agent name
-	Name string `json:"name"`
-
-	// SectionId Section (organizational unit) this agent belongs to
-	SectionId string `json:"sectionId"`
-
-	// UpdatedAt Timestamp when the agent record was last updated
-	UpdatedAt time.Time `json:"updatedAt"`
-}
-
 // AgentListResponse defines model for AgentListResponse.
 type AgentListResponse struct {
-	Agents     []AgentListItem `json:"agents"`
-	Pagination Pagination      `json:"pagination"`
+	Agents     []Agent    `json:"agents"`
+	Pagination Pagination `json:"pagination"`
 }
 
 // AgentNetworkInterface defines model for AgentNetworkInterface.
