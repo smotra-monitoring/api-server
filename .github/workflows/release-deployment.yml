@@ -23,14 +23,14 @@ jobs:
       TZ: America/New_York
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
           lfs: true
           
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
@@ -64,7 +64,7 @@ jobs:
           go test -v ./... -tags=integration
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: server-binary
           path: bin/server
@@ -76,10 +76,10 @@ jobs:
       BUILD_REPO: ${{ github.event.repository.name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: server-binary
           path: bin/server
@@ -111,7 +111,7 @@ jobs:
           echo "BUILD_REPO: ${{ steps.vars.outputs.BUILD_REPO }}"
           
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -119,7 +119,7 @@ jobs:
 
       - name: Build and push
         if: success()
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./deployments/docker/prod/Dockerfile
