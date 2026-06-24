@@ -5,5 +5,5 @@ COPY ./configs/prod.html ./configs/
 
 EXPOSE 8080
 
-CMD [ "./api-server", "-c", "./configs/prod.html" ]
+CMD [ "./api-server", "-c", "./configs/prod.yaml" ]
 
