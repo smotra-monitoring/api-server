@@ -39,7 +39,7 @@ jobs:
           ~/go/bin/oapi-codegen --config api/oapi-codegen.yaml https://raw.githubusercontent.com/${{ github.repository_owner }}/openapi/refs/heads/master/api/spec.yaml
 
       - name: Run tests
-        run: go test -race -cover -v ./...
+        run: go test -race -v ./...
 
       - name: Login to GHCR
         uses: docker/login-action@v3
