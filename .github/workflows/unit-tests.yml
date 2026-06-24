@@ -9,7 +9,7 @@ env:
 
 jobs:
   unit-test:
-    name: Build, Test, and Lint
+    name: Tests and Lints
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
