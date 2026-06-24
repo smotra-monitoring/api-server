@@ -1,5 +1,5 @@
 ---
-applyTo: "internal/api/**,internal/handlers/**,api/**,cmd/server/**"
+applyTo: "internal/api/**,internal/handlers/**,api/**,cmd/api-server/**"
 ---
 
 # API Code Generation and Handler Guidelines
@@ -28,7 +28,7 @@ The server uses two oapi-codegen configurations to separate endpoint types. Open
    - Authentication: Required (Agent API key or OAuth2)
    - Handler: `internal/handlers/api_handlers.go` → `APIHandler`
 
-### Routing Structure (`cmd/server/main.go`)
+### Routing Structure (`cmd/api-server/main.go`)
 
 ```go
 // Root-level endpoints (no prefix)

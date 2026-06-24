@@ -30,7 +30,7 @@ cd server
 go mod download
 
 # Run with development configuration
-go run cmd/server/main.go -c configs/dev.yaml
+go run cmd/api-server/main.go -c configs/dev.yaml
 ```
 
 The server will start on `http://localhost:8080`
@@ -100,7 +100,7 @@ just all              # Run all build steps
 
 ```
 server/
-├── cmd/server/              # Main application entry point
+├── cmd/api-server/          # Main application entry point
 ├── configs/                 # Configuration files
 ├── internal/
 │   ├── api/                # Generated API code (OpenAPI)
@@ -162,7 +162,7 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
 just build
 
 # Or manually
-go build -ldflags "-X main.version=1.0.0" -o bin/smotra-server cmd/server/main.go
+go build -ldflags "-X main.version=1.0.0" -o bin/smotra-server cmd/api-server/main.go
 
 # Run with production config
 ./bin/smotra-server -c configs/prod.yaml

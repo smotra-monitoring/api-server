@@ -27,7 +27,7 @@ The project includes a ready-to-use development configuration that uses SQLite:
 
 ```bash
 # Run with the provided dev config
-go run cmd/server/main.go -c configs/dev.yaml
+go run cmd/api-server/main.go -c configs/dev.yaml
 
 # Or use justfile
 just run
@@ -184,7 +184,7 @@ postgres_config:
 Then start the server:
 
 ```bash
-CONFIG_FILE=config.yaml go run cmd/server/main.go
+CONFIG_FILE=config.yaml go run cmd/api-server/main.go
 ```
 
 ## Configuration
@@ -316,7 +316,7 @@ auth:
 just build
 
 # Or manually
-go build -ldflags "-X main.version=1.0.0" -o bin/smotra-server cmd/server/main.go
+go build -ldflags "-X main.version=1.0.0" -o bin/smotra-server cmd/api-server/main.go
 
 # Run the binary with config file
 ./bin/smotra-server -c configs/prod.yaml
@@ -493,7 +493,7 @@ cargo install just
 1. Define API endpoints in the [smotra-monitoring/openapi](https://github.com/smotra-monitoring/openapi) repository
 2. Regenerate API code: `just generate-oapi`
 3. Implement handlers in `internal/handlers/` following the strict handler pattern
-4. Routes are automatically registered via `api.HandlerFromMux()` in `cmd/server/main.go`
+4. Routes are automatically registered via `api.HandlerFromMux()` in `cmd/api-server/main.go`
 5. Add unit tests and integration tests for your handlers
 6. Update metrics collection if appropriate (see Metrics section in copilot-instructions.md)
 7. Run `just all` to verify everything builds
@@ -606,7 +606,7 @@ If you see an error about missing configuration file:
 
 ```bash
 # Specify the config file path with -c flag
-go run cmd/server/main.go -c configs/dev.yaml
+go run cmd/api-server/main.go -c configs/dev.yaml
 
 # Or when running the binary
 ./bin/smotra-server -c configs/prod.yaml

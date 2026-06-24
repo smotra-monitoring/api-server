@@ -42,7 +42,7 @@ jobs:
         run: go test -race -v ./...
 
       - name: Build binary
-        run: go build -o api-server ./cmd/server
+        run: go build -o api-server ./cmd/api-server
 
       - name: Login to GHCR
         uses: docker/login-action@v4
