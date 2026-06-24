@@ -1,7 +1,7 @@
 FROM ubuntu:latest
 
 COPY ./api-server .
-COPY ./configs/prod.html ./configs/
+COPY ./configs/prod.yaml ./configs/
 
 EXPOSE 8080
 
