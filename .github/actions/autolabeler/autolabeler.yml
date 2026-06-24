@@ -1,0 +1,37 @@
+autolabeler:
+  - label: 'breaking'
+    title:
+      - '/breaking/i'
+  - label: 'enhancement'
+    title:
+      - '/enhancement/i'
+      - '/feature/i'
+  - label: 'bug'
+    title:
+      - '/fix/i'
+      - '/bug/i'
+      - '/regression/i'
+  - label: 'infrastructure'
+    title:
+      - '/infrastructure/i'
+  - label: 'documentation'
+    title:
+      - '/doc/i'
+    files:
+      - "*.md"
+  - label: 'code refinement'
+    title:
+      - '/refine/i'
+      - '/code improvement/i'
+      - '/clean/i'
+  - label: 'performance'
+    title:
+      - '/perf/i'
+  - label: 'security'
+    title:
+      - '/security/i'
+  - label: 'github-actions'
+    title:
+      - '/github.actions/i'
+    files:
+      - ".github/**"

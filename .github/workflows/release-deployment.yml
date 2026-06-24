@@ -3,145 +3,65 @@ on:
   release:
     types: ['published']
   workflow_dispatch:
+
 permissions:
   contents: read
-  deployments: write
   packages: write
   id-token: write
+  attestations: write
+
 concurrency:
-  group: pages
-  cancel-in-progress: false
-defaults:
-  run:
-    shell: bash
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  GO_VERSION: '1.25'
+  GO_VERSION: '1.26'
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      TZ: America/New_York
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           submodules: recursive
-          fetch-depth: 0
-          lfs: true
-          
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache: false
-          
-      - name: Verify installations
-        run: |
-          echo "Go: $(go version)"
-          echo "runner.temp: ${{ runner.temp }}"
-          echo "github.run_id: ${{ github.run_id }}"
-          echo "github.repository: ${{ github.repository }}"
-
-      - name: Configure Git
-        run: |
-          git config core.quotepath false
-
-      - name: go mod tidy
-        run: |
-          go mod tidy
+          cache: true
 
       - name: Generate API code
         run: |
           go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
           ~/go/bin/oapi-codegen --config api/oapi-codegen.yaml https://raw.githubusercontent.com/${{ github.repository_owner }}/openapi/refs/heads/master/api/spec.yaml
-          
-      - name: Build server
-        run: |
-          go build -ldflags="-X 'main.appVersion=${{ github.ref_name }}'" -o bin/server ./cmd/server
-          
+
       - name: Run tests
-        run: |
-          go test -v ./... -tags=integration
+        run: go test -race -cover -v ./...
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: server-binary
-          path: bin/server
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    env:
-      BUILD_REPO: ${{ github.event.repository.name }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: server-binary
-          path: bin/server
-
-      - name: start deployment
-        uses: bobheadxi/deployments@v1
-        id: deployment
-        with:
-          step: start
-          token: ${{ secrets.GITHUB_TOKEN }}
-          env: release
-          desc: "run_id: ${{ github.run_id }}, ref: ${{ github.ref }}"
-
-      - name: set deployment variables
-        id: vars
-        run: |
-          echo "BUILD_RELEASE=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          echo "BUILD_RELEASE_MAJOR=$(echo ${GITHUB_REF%%.*} | awk -F/ '{ print $3; }')" >> $GITHUB_OUTPUT
-          echo "BUILD_RELEASE_NUMBER=$(echo ${GITHUB_REF#refs/tags/v})" >> $GITHUB_OUTPUT
-          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
-          echo "BUILD_REPO=$(echo ${GITHUB_REPOSITORY} | awk -F/ '{ print $2; }')" >> $GITHUB_OUTPUT
-
-      - name: print deployment variables
-        run: |
-          echo "BUILD_RELEASE: ${{ steps.vars.outputs.BUILD_RELEASE }}"
-          echo "BUILD_RELEASE_MAJOR: ${{ steps.vars.outputs.BUILD_RELEASE_MAJOR }}" 
-          echo "BUILD_RELEASE_NUMBER: ${{ steps.vars.outputs.BUILD_RELEASE_NUMBER }}"
-          echo "BUILD_DATE: ${{ steps.vars.outputs.BUILD_DATE }}"
-          echo "BUILD_REPO: ${{ steps.vars.outputs.BUILD_REPO }}"
-          
-      - name: Login to GitHub Container Registry
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        if: success()
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./deployments/docker/prod/Dockerfile
-          build-args: |
-            BUILD_DATE=${{ steps.vars.outputs.BUILD_DATE }}
-            BUILD_REVISION=${{ github.sha }}
-            BUILD_VERSION=${{ github.sha }}
-            BUILD_REPO=${{ steps.vars.outputs.BUILD_REPO }}
-            BUILD_RELEASE_NUMBER=${{ steps.vars.outputs.BUILD_RELEASE_NUMBER }}
-          target: app
           push: true
+          attestations: type=sbom
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ steps.vars.outputs.BUILD_REPO }}:${{ steps.vars.outputs.BUILD_RELEASE }}
-            ghcr.io/${{ github.repository_owner }}/${{ steps.vars.outputs.BUILD_REPO }}:${{ steps.vars.outputs.BUILD_RELEASE_MAJOR }}
-            ghcr.io/${{ github.repository_owner }}/${{ steps.vars.outputs.BUILD_REPO }}:latest
-
-      - name: finish deployment
-        uses: bobheadxi/deployments@v1
-        if: always()
-        with:
-          step: finish
-          token: ${{ secrets.GITHUB_TOKEN }}
-          status: ${{ job.status }}
-          env: ${{ steps.deployment.outputs.env }}
-          deployment_id: ${{ steps.deployment.outputs.deployment_id }}
+            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            ${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            BUILD_DATE=${{ github.event.repository.pushed_at }}
+            BUILD_REVISION=${{ github.sha }}
+            BUILD_VERSION=${{ github.ref_name }}
+            BUILD_ATTESTATION=true

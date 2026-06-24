@@ -1,0 +1,20 @@
+name: Release Drafter
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  
+jobs:
+  auto_label:
+    permissions:
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      # runs autolabeler
+      - uses: release-drafter/release-drafter/autolabeler@v7
+        with:
+          config-name: actions/autolabeler/autolabeler.yml
