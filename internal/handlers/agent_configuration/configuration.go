@@ -26,9 +26,9 @@ type Handler struct {
 	getConfigurationFailure atomic.Uint64
 
 	// Topology resolution metrics
-	topologyResolutionsTotal    atomic.Uint64
-	topologyEndpointsResolved   atomic.Uint64
-	topologyResolutionsEmpty    atomic.Uint64
+	topologyResolutionsTotal  atomic.Uint64
+	topologyEndpointsResolved atomic.Uint64
+	topologyResolutionsEmpty  atomic.Uint64
 }
 
 // NewHandler creates a new configuration handler

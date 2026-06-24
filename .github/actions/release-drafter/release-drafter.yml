@@ -2,82 +2,38 @@ name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
 categories:
   - title: '🚀 Features'
-    labels:
+    semver-increment: minor
+    when:
+      labels:
       - 'feature'
       - 'enhancement'
   - title: '🐛 Bug Fixes'
-    labels:
+    semver-increment: patch
+    when:
+      labels:
       - 'fix'
       - 'bugfix'
       - 'bug'
   - title: '🧰 Maintenance'
-    labels:
+    semver-increment: patch
+    when:
+      labels:
       - 'infrastructure'
       - 'automation'
       - 'documentation'
       - 'code refinement'
   - title: '🏎 Performance'
-    label: 'performance'
+    semver-increment: patch
+    when:
+      labels:
+        - 'performance'
   - title: '🛡 Security'
-    label: 'security'
-change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
-version-resolver:
-  major:
-    labels:
-      - 'breaking'
-  minor:
-    labels:
-      - 'enhancement'
-      - 'feature'
-  patch:
-    labels:
-      - 'bug'
-      - 'bugfix'
-      - 'fix'
-      - 'maintenance'
-      - 'documentation'
-      - 'code refinement'
-      - 'infrastructure'
-      - 'performance'
+    semver-increment: patch
+    when:
+      labels:
       - 'security'
-  default: patch
-autolabeler:
-  - label: 'breaking'
-    title:
-      - '/breaking/i'
-  - label: 'enhancement'
-    title:
-      - '/enhancement/i'
-      - '/feature/i'
-  - label: 'bug'
-    title:
-      - '/fix/i'
-      - '/bug/i'
-      - '/regression/i'
-  - label: 'infrastructure'
-    title:
-      - '/infrastructure/i'
-  - label: 'documentation'
-    title:
-      - '/doc/i'
-    files:
-      - "*.md"
-  - label: 'code refinement'
-    title:
-      - '/refine/i'
-      - '/code improvement/i'
-      - '/clean/i'
-  - label: 'performance'
-    title:
-      - '/perf/i'
-  - label: 'security'
-    title:
-      - '/security/i'
-  - label: 'github-actions'
-    title:
-      - '/github.actions/i'
-    files:
-      - ".github/**"
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
 template: |
   # Changelog ...
   $CHANGES

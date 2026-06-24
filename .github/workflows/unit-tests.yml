@@ -1,0 +1,40 @@
+name: Unit Tests and Linting
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+env:
+  GO_VERSION: '1.26'
+
+jobs:
+  unit-test:
+    name: Build, Test, and Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true # Enabled for faster builds
+
+      - name: Verify dependencies
+        run: |
+          go mod tidy
+
+      - name: Run Tests
+        run: go test -v -race ./...
+
+      - name: Run Linter
+        run: |
+          go vet ./...
+          # Ensure code is formatted
+          if [ -n "$(go fmt ./...)" ]; then
+            echo "Code is not formatted. Run 'go fmt ./...' locally."
+            exit 1
+          fi
