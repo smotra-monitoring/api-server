@@ -1,7 +1,7 @@
 # Variables
-binary_name := "smotra-server"
+binary_name := "smotra-api-server"
 binary_path := "bin/" + binary_name
-main_path   := "cmd/server/main.go"
+main_path   := "cmd/api-server/main.go"
 config_file := "configs/dev.yaml"
 version     := "0.0.1"
 
@@ -142,10 +142,10 @@ dev:
 # Build Docker image
 docker-build:
     @echo "Building Docker image..."
-    docker build -t smotra-server:{{version}} .
-    @echo "Docker image built: smotra-server:{{version}}"
+    docker build -t smotra-api-server:{{version}} .
+    @echo "Docker image built: smotra-api-server:{{version}}"
 
 # Run Docker container
 docker-run:
     @echo "Running Docker container..."
-    docker run -p 8080:8080 --env-file .env smotra-server:{{version}}
+    docker run -p 8080:8080 --env-file .env smotra-api-server:{{version}}

@@ -48,8 +48,8 @@ go.work
 /dist/
 /build/
 /server
-cmd/server/server
-cmd/server/server.exe
+cmd/api-server/api-server
+cmd/api-server/api-server.exe
 
 # Logs
 *.log
