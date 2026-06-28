@@ -183,19 +183,33 @@ X-Agent-API-Key: <api-key>
 
 ```json
 {
-  "cpuUsagePercent": 12.5,
-  "memoryUsagePercent": 45.2,
-  "agentVersion": "1.0.0",
-  "uptimeSeconds": 86400
+  "timestamp": "2024-01-15T10:30:00Z",
+  "health_status": "healthy",
+  "metrics": {
+    "cpu_usage_percent": 12.5,
+    "memory_usage_mb": 1024.0,
+    "memory_total_mb": 8192.0,
+    "system_uptime_secs": 86400,
+    "agent_uptime_secs": 3600
+  }
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `cpuUsagePercent` | float | Yes | CPU utilization 0–100 |
-| `memoryUsagePercent` | float | Yes | Memory utilization 0–100 |
-| `agentVersion` | string | No | Running agent version string |
-| `uptimeSeconds` | int | No | Agent process uptime in seconds |
+| `timestamp` | string (RFC3339) | Yes | Agent-local timestamp when heartbeat was generated |
+| `health_status` | string | Yes | Agent health status: `healthy` or `degraded` |
+| `metrics` | object | Yes | System resource utilisation metrics (see below) |
+
+**`metrics` object:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cpu_usage_percent` | float | Yes | CPU utilization 0.0–100.0 |
+| `memory_usage_mb` | float | Yes | Resident memory currently in use (MB) |
+| `memory_total_mb` | float | Yes | Total physical memory available (MB) |
+| `system_uptime_secs` | int64 | Yes | OS/system uptime in seconds |
+| `agent_uptime_secs` | int64 | Yes | Agent process uptime in seconds; useful for detecting crashes and restarts |
 
 ### Response
 
