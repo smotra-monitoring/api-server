@@ -12,7 +12,7 @@ import (
 )
 
 const getAgentVitalsHistory = `-- name: GetAgentVitalsHistory :many
-SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, reported_at, received_at
+SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, agent_uptime_secs, reported_at, received_at
 FROM agent_vitals
 WHERE agent_id = ?
   AND reported_at >= ?
@@ -26,15 +26,27 @@ type GetAgentVitalsHistoryParams struct {
 	ReportedAt_2 time.Time
 }
 
-func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsHistoryParams) ([]AgentVital, error) {
+type GetAgentVitalsHistoryRow struct {
+	ID               string
+	AgentID          string
+	CpuPct           sql.NullFloat64
+	MemUsedMb        sql.NullFloat64
+	MemTotalMb       sql.NullFloat64
+	SystemUptimeSecs sql.NullInt64
+	AgentUptimeSecs  sql.NullInt64
+	ReportedAt       time.Time
+	ReceivedAt       time.Time
+}
+
+func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsHistoryParams) ([]GetAgentVitalsHistoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, getAgentVitalsHistory, arg.AgentID, arg.ReportedAt, arg.ReportedAt_2)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AgentVital
+	var items []GetAgentVitalsHistoryRow
 	for rows.Next() {
-		var i AgentVital
+		var i GetAgentVitalsHistoryRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AgentID,
@@ -42,6 +54,7 @@ func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsH
 			&i.MemUsedMb,
 			&i.MemTotalMb,
 			&i.SystemUptimeSecs,
+			&i.AgentUptimeSecs,
 			&i.ReportedAt,
 			&i.ReceivedAt,
 		); err != nil {
@@ -59,16 +72,28 @@ func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsH
 }
 
 const getLatestAgentVitals = `-- name: GetLatestAgentVitals :one
-SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, reported_at, received_at
+SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, agent_uptime_secs, reported_at, received_at
 FROM agent_vitals
 WHERE agent_id = ?
 ORDER BY reported_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetLatestAgentVitals(ctx context.Context, agentID string) (AgentVital, error) {
+type GetLatestAgentVitalsRow struct {
+	ID               string
+	AgentID          string
+	CpuPct           sql.NullFloat64
+	MemUsedMb        sql.NullFloat64
+	MemTotalMb       sql.NullFloat64
+	SystemUptimeSecs sql.NullInt64
+	AgentUptimeSecs  sql.NullInt64
+	ReportedAt       time.Time
+	ReceivedAt       time.Time
+}
+
+func (q *Queries) GetLatestAgentVitals(ctx context.Context, agentID string) (GetLatestAgentVitalsRow, error) {
 	row := q.db.QueryRowContext(ctx, getLatestAgentVitals, agentID)
-	var i AgentVital
+	var i GetLatestAgentVitalsRow
 	err := row.Scan(
 		&i.ID,
 		&i.AgentID,
@@ -76,6 +101,7 @@ func (q *Queries) GetLatestAgentVitals(ctx context.Context, agentID string) (Age
 		&i.MemUsedMb,
 		&i.MemTotalMb,
 		&i.SystemUptimeSecs,
+		&i.AgentUptimeSecs,
 		&i.ReportedAt,
 		&i.ReceivedAt,
 	)
@@ -90,8 +116,9 @@ INSERT INTO agent_vitals (
     mem_used_mb,
     mem_total_mb,
     system_uptime_secs,
+    agent_uptime_secs,
     reported_at
-) VALUES (?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertAgentVitalsParams struct {
@@ -101,6 +128,7 @@ type InsertAgentVitalsParams struct {
 	MemUsedMb        sql.NullFloat64
 	MemTotalMb       sql.NullFloat64
 	SystemUptimeSecs sql.NullInt64
+	AgentUptimeSecs  sql.NullInt64
 	ReportedAt       time.Time
 }
 
@@ -112,6 +140,7 @@ func (q *Queries) InsertAgentVitals(ctx context.Context, arg InsertAgentVitalsPa
 		arg.MemUsedMb,
 		arg.MemTotalMb,
 		arg.SystemUptimeSecs,
+		arg.AgentUptimeSecs,
 		arg.ReportedAt,
 	)
 	return err

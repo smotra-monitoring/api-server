@@ -54,6 +54,7 @@ type AgentVital struct {
 	SystemUptimeSecs sql.NullInt64
 	ReportedAt       time.Time
 	ReceivedAt       time.Time
+	AgentUptimeSecs  sql.NullInt64
 }
 
 type CheckResult struct {

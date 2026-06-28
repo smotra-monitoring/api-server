@@ -138,10 +138,11 @@ type AgentConfig struct {
 	AgentName string `json:"agent_name"`
 
 	// Endpoints Endpoints to monitor
-	Endpoints  []Endpoint       `json:"endpoints"`
-	Monitoring MonitoringConfig `json:"monitoring"`
-	Server     ServerConfig     `json:"server"`
-	Storage    StorageConfig    `json:"storage"`
+	Endpoints   []Endpoint        `json:"endpoints"`
+	Monitoring  MonitoringConfig  `json:"monitoring"`
+	SelfUpgrade SelfUpgradeConfig `json:"self_upgrade"`
+	Server      ServerConfig      `json:"server"`
+	Storage     StorageConfig     `json:"storage"`
 
 	// Tags Tags for this agent (used for mesh organization)
 	Tags *[]string `json:"tags,omitempty"`
@@ -155,20 +156,9 @@ type AgentHealthStatus string
 
 // AgentHeartbeat defines model for AgentHeartbeat.
 type AgentHeartbeat struct {
-	// CpuUsagePercent CPU utilization percentage (0.0–100.0)
-	CpuUsagePercent float32 `json:"cpu_usage_percent"`
-
-	// MemoryTotalMb Total physical memory available (MB)
-	MemoryTotalMb float32 `json:"memory_total_mb"`
-
-	// MemoryUsageMb Resident memory currently in use (MB)
-	MemoryUsageMb float32 `json:"memory_usage_mb"`
-
-	// Status Health status of the agent
-	Status AgentHealthStatus `json:"status"`
-
-	// SystemUptimeSecs System uptime in seconds
-	SystemUptimeSecs int64 `json:"system_uptime_secs"`
+	// HealthStatus Health status of the agent
+	HealthStatus AgentHealthStatus `json:"health_status"`
+	Metrics      AgentMetrics      `json:"metrics"`
 
 	// Timestamp Agent-local timestamp when the heartbeat was generated (RFC3339)
 	Timestamp time.Time `json:"timestamp"`
@@ -178,6 +168,24 @@ type AgentHeartbeat struct {
 type AgentListResponse struct {
 	Agents     []Agent    `json:"agents"`
 	Pagination Pagination `json:"pagination"`
+}
+
+// AgentMetrics defines model for AgentMetrics.
+type AgentMetrics struct {
+	// AgentUptimeSecs How long the agent process has been running in seconds; useful for detecting crashes and restarts
+	AgentUptimeSecs int64 `json:"agent_uptime_secs"`
+
+	// CpuUsagePercent CPU utilization percentage (0.0–100.0)
+	CpuUsagePercent float32 `json:"cpu_usage_percent"`
+
+	// MemoryTotalMb Total physical memory available (MB)
+	MemoryTotalMb float32 `json:"memory_total_mb"`
+
+	// MemoryUsageMb Resident memory currently in use (MB)
+	MemoryUsageMb float32 `json:"memory_usage_mb"`
+
+	// SystemUptimeSecs System uptime in seconds
+	SystemUptimeSecs int64 `json:"system_uptime_secs"`
 }
 
 // AgentNetworkInterface defines model for AgentNetworkInterface.
@@ -469,6 +477,18 @@ type ResultsBatchAcknowledgment struct {
 
 	// SubmissionId UUID version 7 as per RFC 4122
 	SubmissionId UUIDv7 `json:"submission_id"`
+}
+
+// SelfUpgradeConfig defines model for SelfUpgradeConfig.
+type SelfUpgradeConfig struct {
+	// CheckIntervalSecs Periodic self-upgrade check interval in seconds
+	CheckIntervalSecs int64 `json:"check_interval_secs"`
+
+	// Enabled Enables self-upgrade checks when true
+	Enabled bool `json:"enabled"`
+
+	// GithubRepoUrl GitHub repository URL for checking latest releases (must be a public repo)
+	GithubRepoUrl string `json:"github_repo_url"`
 }
 
 // ServerConfig defines model for ServerConfig.

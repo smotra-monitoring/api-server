@@ -61,6 +61,7 @@ tokio
 traceroute
 udpconnect
 userinfo
+utilisation
 uuidv
 versioned
 versioning

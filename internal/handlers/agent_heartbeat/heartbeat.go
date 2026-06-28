@@ -96,10 +96,11 @@ func (h *Handler) storeVitals(ctx context.Context, q *queries.Queries, agentID s
 		ID:               uuid.Must(uuid.NewV7()).String(),
 		AgentID:          agentID,
 		ReportedAt:       reportedAt,
-		CpuPct:           sql.NullFloat64{Float64: float64(body.CpuUsagePercent), Valid: true},
-		MemUsedMb:        sql.NullFloat64{Float64: float64(body.MemoryUsageMb), Valid: true},
-		MemTotalMb:       sql.NullFloat64{Float64: float64(body.MemoryTotalMb), Valid: true},
-		SystemUptimeSecs: sql.NullInt64{Int64: body.SystemUptimeSecs, Valid: true},
+		CpuPct:           sql.NullFloat64{Float64: float64(body.Metrics.CpuUsagePercent), Valid: true},
+		MemUsedMb:        sql.NullFloat64{Float64: float64(body.Metrics.MemoryUsageMb), Valid: true},
+		MemTotalMb:       sql.NullFloat64{Float64: float64(body.Metrics.MemoryTotalMb), Valid: true},
+		SystemUptimeSecs: sql.NullInt64{Int64: body.Metrics.SystemUptimeSecs, Valid: true},
+		AgentUptimeSecs:  sql.NullInt64{Int64: body.Metrics.AgentUptimeSecs, Valid: true},
 	}
 
 	return q.InsertAgentVitals(ctx, params)
