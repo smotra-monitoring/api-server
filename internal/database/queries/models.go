@@ -46,15 +46,28 @@ type AgentTag struct {
 }
 
 type AgentVital struct {
-	ID               string
-	AgentID          string
-	CpuPct           sql.NullFloat64
-	MemUsedMb        sql.NullFloat64
-	MemTotalMb       sql.NullFloat64
-	SystemUptimeSecs sql.NullInt64
-	ReportedAt       time.Time
-	ReceivedAt       time.Time
-	AgentUptimeSecs  sql.NullInt64
+	ID                string
+	AgentID           string
+	CpuPct            sql.NullFloat64
+	MemUsedMb         sql.NullFloat64
+	MemTotalMb        sql.NullFloat64
+	SystemUptimeSecs  sql.NullInt64
+	AgentUptimeSecs   sql.NullInt64
+	ReportedAt        time.Time
+	ReceivedAt        time.Time
+	AgentVersion      sql.NullString
+	ConfigVersion     sql.NullInt64
+	IsRunning         sql.NullInt64
+	StartedAt         sql.NullTime
+	StoppedAt         sql.NullTime
+	ChecksPerformed   sql.NullInt64
+	ChecksSuccessful  sql.NullInt64
+	ChecksFailed      sql.NullInt64
+	LastReportAt      sql.NullTime
+	FailedReportCount sql.NullInt64
+	ServerConnected   sql.NullInt64
+	CacheCapacity     sql.NullInt64
+	CacheLen          sql.NullInt64
 }
 
 type CheckResult struct {

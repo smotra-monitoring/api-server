@@ -129,6 +129,15 @@ type Agent struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// AgentCacheStats defines model for AgentCacheStats.
+type AgentCacheStats struct {
+	// Capacity Maximum number of results the cache can hold (hard cap)
+	Capacity int `json:"capacity"`
+
+	// Len Number of results currently buffered in the local cache
+	Len int `json:"len"`
+}
+
 // AgentConfig defines model for AgentConfig.
 type AgentConfig struct {
 	// AgentId UUID version 7 as per RFC 4122
@@ -156,6 +165,8 @@ type AgentHealthStatus string
 
 // AgentHeartbeat defines model for AgentHeartbeat.
 type AgentHeartbeat struct {
+	AgentStatus AgentStatus `json:"agent_status"`
+
 	// HealthStatus Health status of the agent
 	HealthStatus AgentHealthStatus `json:"health_status"`
 	Metrics      AgentMetrics      `json:"metrics"`
@@ -242,6 +253,43 @@ type AgentSelfRegistration struct {
 	// recommended=true reflects the OS-selected source IP for connections toward
 	// the server (determined via routing table, no traffic sent).
 	IpAddresses []AgentNetworkInterface `json:"ipAddresses"`
+}
+
+// AgentStatus defines model for AgentStatus.
+type AgentStatus struct {
+	// AgentVersion Version of the agent
+	AgentVersion string          `json:"agent_version"`
+	CacheStats   AgentCacheStats `json:"cache_stats"`
+
+	// ChecksFailed Number of failed checks
+	ChecksFailed int `json:"checks_failed"`
+
+	// ChecksPerformed Total number of checks performed by the agent
+	ChecksPerformed int `json:"checks_performed"`
+
+	// ChecksSuccessful Number of successful checks
+	ChecksSuccessful int `json:"checks_successful"`
+
+	// ConfigVersion Version of the agent configuration
+	ConfigVersion int `json:"config_version"`
+
+	// FailedReportCount Number of consecutive failed report attempts
+	FailedReportCount int `json:"failed_report_count"`
+
+	// IsRunning Whether the agent is currently running
+	IsRunning bool `json:"is_running"`
+
+	// LastReportAt Timestamp of the last report received from the agent (RFC3339)
+	LastReportAt time.Time `json:"last_report_at"`
+
+	// ServerConnected Whether the agent is currently connected to the server
+	ServerConnected bool `json:"server_connected"`
+
+	// StartedAt Timestamp when the agent started in UTC (RFC3339), null if never started
+	StartedAt time.Time `json:"started_at"`
+
+	// StoppedAt Timestamp when the agent stopped in UTC (RFC3339), null if running
+	StoppedAt *time.Time `json:"stopped_at"`
 }
 
 // BatchMonitoringResults A batch of monitoring results submitted by an agent from its local cache.

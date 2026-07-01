@@ -114,8 +114,9 @@ func TestHeartbeat_Integration_WithVitals_StoresSnapshot(t *testing.T) {
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
 
+	now := time.Now().UTC()
 	body := &api.AgentHeartbeat{
-		Timestamp:    time.Now().UTC(),
+		Timestamp:    now,
 		HealthStatus: api.Healthy,
 		Metrics: api.AgentMetrics{
 			CpuUsagePercent:  55.0,
@@ -123,6 +124,18 @@ func TestHeartbeat_Integration_WithVitals_StoresSnapshot(t *testing.T) {
 			MemoryTotalMb:    8192.0,
 			SystemUptimeSecs: 172800,
 			AgentUptimeSecs:  7200,
+		},
+		AgentStatus: api.AgentStatus{
+			AgentVersion:     "0.1.0",
+			ConfigVersion:    1,
+			IsRunning:        true,
+			StartedAt:        now.Add(-time.Hour),
+			ChecksPerformed:  50,
+			ChecksSuccessful: 50,
+			ChecksFailed:     0,
+			LastReportAt:     now.Add(-30 * time.Second),
+			ServerConnected:  true,
+			CacheStats:       api.AgentCacheStats{Capacity: 1000, Len: 0},
 		},
 	}
 
@@ -150,8 +163,9 @@ func TestHeartbeat_Integration_UpdatesAgentLastSeen(t *testing.T) {
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
 
+	now := time.Now().UTC()
 	body := &api.AgentHeartbeat{
-		Timestamp:    time.Now().UTC(),
+		Timestamp:    now,
 		HealthStatus: api.Healthy,
 		Metrics: api.AgentMetrics{
 			CpuUsagePercent:  10.0,
@@ -159,6 +173,18 @@ func TestHeartbeat_Integration_UpdatesAgentLastSeen(t *testing.T) {
 			MemoryTotalMb:    4096.0,
 			SystemUptimeSecs: 3600,
 			AgentUptimeSecs:  1800,
+		},
+		AgentStatus: api.AgentStatus{
+			AgentVersion:     "0.1.0",
+			ConfigVersion:    1,
+			IsRunning:        true,
+			StartedAt:        now.Add(-30 * time.Minute),
+			ChecksPerformed:  10,
+			ChecksSuccessful: 10,
+			ChecksFailed:     0,
+			LastReportAt:     now.Add(-time.Minute),
+			ServerConnected:  true,
+			CacheStats:       api.AgentCacheStats{Capacity: 1000, Len: 0},
 		},
 	}
 	postHeartbeat(t, router, agentID, body)
@@ -178,5 +204,98 @@ func TestHeartbeat_Integration_UpdatesAgentLastSeen(t *testing.T) {
 	}
 	if time.Since(lastSeenTime) > time.Second*5 {
 		t.Errorf("last_seen_at = %s, expected recent timestamp", *lastSeen)
+	}
+}
+
+func TestHeartbeat_Integration_StoresAgentStatus(t *testing.T) {
+	db, agentID := setupRealDB(t)
+	h := NewHandler(logger.Default(), db)
+	router := setupTestRouter(h)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	body := &api.AgentHeartbeat{
+		Timestamp:    now,
+		HealthStatus: api.Healthy,
+		Metrics: api.AgentMetrics{
+			CpuUsagePercent:  20.0,
+			MemoryUsageMb:    256.0,
+			MemoryTotalMb:    4096.0,
+			SystemUptimeSecs: 100,
+			AgentUptimeSecs:  50,
+		},
+		AgentStatus: api.AgentStatus{
+			AgentVersion:      "1.2.3",
+			ConfigVersion:     7,
+			IsRunning:         true,
+			StartedAt:         now.Add(-2 * time.Hour),
+			StoppedAt:         nil,
+			ChecksPerformed:   200,
+			ChecksSuccessful:  195,
+			ChecksFailed:      5,
+			LastReportAt:      now.Add(-10 * time.Second),
+			FailedReportCount: 1,
+			ServerConnected:   true,
+			CacheStats:        api.AgentCacheStats{Capacity: 500, Len: 12},
+		},
+	}
+
+	rr := postHeartbeat(t, router, agentID, body)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var (
+		agentVersion      string
+		configVersion     int
+		isRunning         int
+		checksPerformed   int
+		checksSuccessful  int
+		checksFailed      int
+		failedReportCount int
+		serverConnected   int
+		cacheCapacity     int
+		cacheLen          int
+	)
+	err := db.DB().QueryRowContext(context.Background(), `
+		SELECT agent_version, config_version, is_running,
+		       checks_performed, checks_successful, checks_failed,
+		       failed_report_count, server_connected, cache_capacity, cache_len
+		FROM agent_vitals WHERE agent_id = ?`, agentID.String()).Scan(
+		&agentVersion, &configVersion, &isRunning,
+		&checksPerformed, &checksSuccessful, &checksFailed,
+		&failedReportCount, &serverConnected, &cacheCapacity, &cacheLen,
+	)
+	if err != nil {
+		t.Fatalf("query agent_status fields: %v", err)
+	}
+	if agentVersion != "1.2.3" {
+		t.Errorf("agent_version = %q, want 1.2.3", agentVersion)
+	}
+	if configVersion != 7 {
+		t.Errorf("config_version = %d, want 7", configVersion)
+	}
+	if isRunning != 1 {
+		t.Errorf("is_running = %d, want 1", isRunning)
+	}
+	if checksPerformed != 200 {
+		t.Errorf("checks_performed = %d, want 200", checksPerformed)
+	}
+	if checksSuccessful != 195 {
+		t.Errorf("checks_successful = %d, want 195", checksSuccessful)
+	}
+	if checksFailed != 5 {
+		t.Errorf("checks_failed = %d, want 5", checksFailed)
+	}
+	if failedReportCount != 1 {
+		t.Errorf("failed_report_count = %d, want 1", failedReportCount)
+	}
+	if serverConnected != 1 {
+		t.Errorf("server_connected = %d, want 1", serverConnected)
+	}
+	if cacheCapacity != 500 {
+		t.Errorf("cache_capacity = %d, want 500", cacheCapacity)
+	}
+	if cacheLen != 12 {
+		t.Errorf("cache_len = %d, want 12", cacheLen)
 	}
 }
