@@ -171,7 +171,7 @@ Hops with no responding router have an empty `successLatencies` array.
 
 ## POST /v1/agent/{agentId}/heartbeat
 
-Send a vitals snapshot. The server always updates `last_seen_at` on the agent record and stores the vitals. Heartbeats should be sent at a regular interval (e.g. every 30–60 seconds).
+Send a vitals and status snapshot. The server always updates `last_seen_at` on the agent record and stores the heartbeat data (system metrics + agent operational status). Heartbeats should be sent at a regular interval (e.g. every 30–60 seconds).
 
 ### Request
 
@@ -191,6 +191,23 @@ X-Agent-API-Key: <api-key>
     "memory_total_mb": 8192.0,
     "system_uptime_secs": 86400,
     "agent_uptime_secs": 3600
+  },
+  "agent_status": {
+    "agent_version": "0.1.0",
+    "config_version": 5,
+    "is_running": true,
+    "started_at": "2024-01-15T09:30:00Z",
+    "stopped_at": null,
+    "checks_performed": 120,
+    "checks_successful": 118,
+    "checks_failed": 2,
+    "reported_at": "2024-01-15T10:29:30Z",
+    "failed_report_count": 0,
+    "server_connected": true,
+    "cache_stats": {
+      "capacity": 1000,
+      "len": 5
+    }
   }
 }
 ```
@@ -200,6 +217,7 @@ X-Agent-API-Key: <api-key>
 | `timestamp` | string (RFC3339) | Yes | Agent-local timestamp when heartbeat was generated |
 | `health_status` | string | Yes | Agent health status: `healthy` or `degraded` |
 | `metrics` | object | Yes | System resource utilisation metrics (see below) |
+| `agent_status` | object | Yes | Agent operational status (see below) |
 
 **`metrics` object:**
 
@@ -210,6 +228,34 @@ X-Agent-API-Key: <api-key>
 | `memory_total_mb` | float | Yes | Total physical memory available (MB) |
 | `system_uptime_secs` | int64 | Yes | OS/system uptime in seconds |
 | `agent_uptime_secs` | int64 | Yes | Agent process uptime in seconds; useful for detecting crashes and restarts |
+
+**`agent_status` object:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `agent_version` | string | Yes | Version string of the running agent binary |
+| `config_version` | int | Yes | Version of the configuration currently applied |
+| `is_running` | bool | Yes | Whether the agent's check loop is currently active |
+| `started_at` | string (RFC3339) | Yes | Timestamp when the agent process was started |
+| `stopped_at` | string (RFC3339) \| null | Yes | Timestamp when the agent was stopped; null if still running |
+| `checks_performed` | int | Yes | Total checks performed since agent start |
+| `checks_successful` | int | Yes | Number of checks that completed successfully |
+| `checks_failed` | int | Yes | Number of checks that failed |
+| `reported_at` | string (RFC3339) | Yes | Timestamp of the last report sent by the agent |
+| `failed_report_count` | int | Yes | Number of consecutive failed report attempts |
+| `server_connected` | bool | Yes | Whether the agent currently has a live connection to the server |
+| `cache_stats` | object | Yes | Local result cache statistics |
+
+**`cache_stats` object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `capacity` | int | Maximum number of results the cache can hold |
+| `len` | int | Number of results currently buffered |
+
+### Storage
+
+All heartbeat fields are stored in the `agent_vitals` time-series table alongside the system metrics. This allows historical queries to correlate resource usage with agent operational state.
 
 ### Response
 

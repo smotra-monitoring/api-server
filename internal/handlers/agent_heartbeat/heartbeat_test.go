@@ -29,8 +29,9 @@ func mockDBWithSQLite(t *testing.T) *testutil.MockDatabase {
 }
 
 func makeValidBody() *api.AgentHeartbeat {
+	now := time.Now().UTC()
 	return &api.AgentHeartbeat{
-		Timestamp:    time.Now().UTC(),
+		Timestamp:    now,
 		HealthStatus: api.Healthy,
 		Metrics: api.AgentMetrics{
 			CpuUsagePercent:  42.5,
@@ -38,6 +39,23 @@ func makeValidBody() *api.AgentHeartbeat {
 			MemoryTotalMb:    8192.0,
 			SystemUptimeSecs: 86400,
 			AgentUptimeSecs:  3600,
+		},
+		AgentStatus: api.AgentStatus{
+			AgentVersion:      "0.1.0",
+			ConfigVersion:     5,
+			IsRunning:         true,
+			StartedAt:         now.Add(-time.Hour),
+			StoppedAt:         nil,
+			ChecksPerformed:   120,
+			ChecksSuccessful:  118,
+			ChecksFailed:      2,
+			ReportedAt:        now.Add(-30 * time.Second),
+			FailedReportCount: 0,
+			ServerConnected:   true,
+			CacheStats: api.AgentCacheStats{
+				Capacity: 1000,
+				Len:      5,
+			},
 		},
 	}
 }

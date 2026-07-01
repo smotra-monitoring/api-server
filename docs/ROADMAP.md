@@ -78,6 +78,7 @@ This change will also require change in OpenAPI `TracerouteCheck.result.total_ti
   - [x] Benchmark tests (`submit_results_bench_test.go`)
 - [x] Agent heartbeat endpoint (POST /agent/{agentId}/heartbeat)
   - [x] Stores CPU/memory vitals snapshot on every heartbeat
+  - [x] Stores agent operational status (version, config version, check counters, cache stats, connectivity) on every heartbeat
   - [x] Updates `last_seen_at` on the agent record
   - [x] Prometheus metrics (attempts, success, failure, vitals stored)
   - [x] Authentication: agent must authenticate with matching agent ID
