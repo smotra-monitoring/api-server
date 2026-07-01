@@ -201,7 +201,7 @@ X-Agent-API-Key: <api-key>
     "checks_performed": 120,
     "checks_successful": 118,
     "checks_failed": 2,
-    "last_report_at": "2024-01-15T10:29:30Z",
+    "reported_at": "2024-01-15T10:29:30Z",
     "failed_report_count": 0,
     "server_connected": true,
     "cache_stats": {
@@ -241,7 +241,7 @@ X-Agent-API-Key: <api-key>
 | `checks_performed` | int | Yes | Total checks performed since agent start |
 | `checks_successful` | int | Yes | Number of checks that completed successfully |
 | `checks_failed` | int | Yes | Number of checks that failed |
-| `last_report_at` | string (RFC3339) | Yes | Timestamp of the last successful report sent to the server |
+| `reported_at` | string (RFC3339) | Yes | Timestamp of the last report sent by the agent |
 | `failed_report_count` | int | Yes | Number of consecutive failed report attempts |
 | `server_connected` | bool | Yes | Whether the agent currently has a live connection to the server |
 | `cache_stats` | object | Yes | Local result cache statistics |

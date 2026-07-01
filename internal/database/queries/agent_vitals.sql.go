@@ -14,7 +14,7 @@ import (
 const getAgentVitalsHistory = `-- name: GetAgentVitalsHistory :many
 SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, agent_uptime_secs, reported_at, received_at,
        agent_version, config_version, is_running, started_at, stopped_at,
-       checks_performed, checks_successful, checks_failed, last_report_at,
+       checks_performed, checks_successful, checks_failed,
        failed_report_count, server_connected, cache_capacity, cache_len
 FROM agent_vitals
 WHERE agent_id = ?
@@ -29,15 +29,39 @@ type GetAgentVitalsHistoryParams struct {
 	ReportedAt_2 time.Time
 }
 
-func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsHistoryParams) ([]AgentVital, error) {
+type GetAgentVitalsHistoryRow struct {
+	ID                string
+	AgentID           string
+	CpuPct            sql.NullFloat64
+	MemUsedMb         sql.NullFloat64
+	MemTotalMb        sql.NullFloat64
+	SystemUptimeSecs  sql.NullInt64
+	AgentUptimeSecs   sql.NullInt64
+	ReportedAt        time.Time
+	ReceivedAt        time.Time
+	AgentVersion      sql.NullString
+	ConfigVersion     sql.NullInt64
+	IsRunning         sql.NullInt64
+	StartedAt         sql.NullTime
+	StoppedAt         sql.NullTime
+	ChecksPerformed   sql.NullInt64
+	ChecksSuccessful  sql.NullInt64
+	ChecksFailed      sql.NullInt64
+	FailedReportCount sql.NullInt64
+	ServerConnected   sql.NullInt64
+	CacheCapacity     sql.NullInt64
+	CacheLen          sql.NullInt64
+}
+
+func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsHistoryParams) ([]GetAgentVitalsHistoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, getAgentVitalsHistory, arg.AgentID, arg.ReportedAt, arg.ReportedAt_2)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AgentVital
+	var items []GetAgentVitalsHistoryRow
 	for rows.Next() {
-		var i AgentVital
+		var i GetAgentVitalsHistoryRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AgentID,
@@ -56,7 +80,6 @@ func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsH
 			&i.ChecksPerformed,
 			&i.ChecksSuccessful,
 			&i.ChecksFailed,
-			&i.LastReportAt,
 			&i.FailedReportCount,
 			&i.ServerConnected,
 			&i.CacheCapacity,
@@ -78,7 +101,7 @@ func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsH
 const getLatestAgentVitals = `-- name: GetLatestAgentVitals :one
 SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, agent_uptime_secs, reported_at, received_at,
        agent_version, config_version, is_running, started_at, stopped_at,
-       checks_performed, checks_successful, checks_failed, last_report_at,
+       checks_performed, checks_successful, checks_failed,
        failed_report_count, server_connected, cache_capacity, cache_len
 FROM agent_vitals
 WHERE agent_id = ?
@@ -86,9 +109,33 @@ ORDER BY reported_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetLatestAgentVitals(ctx context.Context, agentID string) (AgentVital, error) {
+type GetLatestAgentVitalsRow struct {
+	ID                string
+	AgentID           string
+	CpuPct            sql.NullFloat64
+	MemUsedMb         sql.NullFloat64
+	MemTotalMb        sql.NullFloat64
+	SystemUptimeSecs  sql.NullInt64
+	AgentUptimeSecs   sql.NullInt64
+	ReportedAt        time.Time
+	ReceivedAt        time.Time
+	AgentVersion      sql.NullString
+	ConfigVersion     sql.NullInt64
+	IsRunning         sql.NullInt64
+	StartedAt         sql.NullTime
+	StoppedAt         sql.NullTime
+	ChecksPerformed   sql.NullInt64
+	ChecksSuccessful  sql.NullInt64
+	ChecksFailed      sql.NullInt64
+	FailedReportCount sql.NullInt64
+	ServerConnected   sql.NullInt64
+	CacheCapacity     sql.NullInt64
+	CacheLen          sql.NullInt64
+}
+
+func (q *Queries) GetLatestAgentVitals(ctx context.Context, agentID string) (GetLatestAgentVitalsRow, error) {
 	row := q.db.QueryRowContext(ctx, getLatestAgentVitals, agentID)
-	var i AgentVital
+	var i GetLatestAgentVitalsRow
 	err := row.Scan(
 		&i.ID,
 		&i.AgentID,
@@ -107,7 +154,6 @@ func (q *Queries) GetLatestAgentVitals(ctx context.Context, agentID string) (Age
 		&i.ChecksPerformed,
 		&i.ChecksSuccessful,
 		&i.ChecksFailed,
-		&i.LastReportAt,
 		&i.FailedReportCount,
 		&i.ServerConnected,
 		&i.CacheCapacity,
@@ -134,12 +180,11 @@ INSERT INTO agent_vitals (
     checks_performed,
     checks_successful,
     checks_failed,
-    last_report_at,
     failed_report_count,
     server_connected,
     cache_capacity,
     cache_len
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertAgentVitalsParams struct {
@@ -159,7 +204,6 @@ type InsertAgentVitalsParams struct {
 	ChecksPerformed   sql.NullInt64
 	ChecksSuccessful  sql.NullInt64
 	ChecksFailed      sql.NullInt64
-	LastReportAt      sql.NullTime
 	FailedReportCount sql.NullInt64
 	ServerConnected   sql.NullInt64
 	CacheCapacity     sql.NullInt64
@@ -184,7 +228,6 @@ func (q *Queries) InsertAgentVitals(ctx context.Context, arg InsertAgentVitalsPa
 		arg.ChecksPerformed,
 		arg.ChecksSuccessful,
 		arg.ChecksFailed,
-		arg.LastReportAt,
 		arg.FailedReportCount,
 		arg.ServerConnected,
 		arg.CacheCapacity,

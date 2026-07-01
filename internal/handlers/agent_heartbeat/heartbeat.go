@@ -87,15 +87,10 @@ func (h *Handler) Handle(ctx context.Context, req api.SendAgentHeartbeatRequestO
 }
 
 func (h *Handler) storeVitals(ctx context.Context, q *queries.Queries, agentID string, body *api.AgentHeartbeat) error {
-	reportedAt := body.AgentStatus.LastReportAt
-	if reportedAt.IsZero() {
-		reportedAt = time.Now().UTC()
-	}
 
 	params := queries.InsertAgentVitalsParams{
 		ID:               uuid.Must(uuid.NewV7()).String(),
 		AgentID:          agentID,
-		ReportedAt:       reportedAt,
 		CpuPct:           sql.NullFloat64{Float64: float64(body.Metrics.CpuUsagePercent), Valid: true},
 		MemUsedMb:        sql.NullFloat64{Float64: float64(body.Metrics.MemoryUsageMb), Valid: true},
 		MemTotalMb:       sql.NullFloat64{Float64: float64(body.Metrics.MemoryTotalMb), Valid: true},
@@ -107,10 +102,10 @@ func (h *Handler) storeVitals(ctx context.Context, q *queries.Queries, agentID s
 		IsRunning:         sql.NullInt64{Int64: boolToInt64(body.AgentStatus.IsRunning), Valid: true},
 		StartedAt:         sql.NullTime{Time: body.AgentStatus.StartedAt, Valid: true},
 		StoppedAt:         sql.NullTime{Time: derefTime(body.AgentStatus.StoppedAt), Valid: body.AgentStatus.StoppedAt != nil},
+		ReportedAt:        body.AgentStatus.ReportedAt,
 		ChecksPerformed:   sql.NullInt64{Int64: int64(body.AgentStatus.ChecksPerformed), Valid: true},
 		ChecksSuccessful:  sql.NullInt64{Int64: int64(body.AgentStatus.ChecksSuccessful), Valid: true},
 		ChecksFailed:      sql.NullInt64{Int64: int64(body.AgentStatus.ChecksFailed), Valid: true},
-		LastReportAt:      sql.NullTime{Time: body.AgentStatus.LastReportAt, Valid: true},
 		FailedReportCount: sql.NullInt64{Int64: int64(body.AgentStatus.FailedReportCount), Valid: true},
 		ServerConnected:   sql.NullInt64{Int64: boolToInt64(body.AgentStatus.ServerConnected), Valid: true},
 		CacheCapacity:     sql.NullInt64{Int64: int64(body.AgentStatus.CacheStats.Capacity), Valid: true},

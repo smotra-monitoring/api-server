@@ -49,7 +49,7 @@ func makeValidBody() *api.AgentHeartbeat {
 			ChecksPerformed:   120,
 			ChecksSuccessful:  118,
 			ChecksFailed:      2,
-			LastReportAt:      now.Add(-30 * time.Second),
+			ReportedAt:        now.Add(-30 * time.Second),
 			FailedReportCount: 0,
 			ServerConnected:   true,
 			CacheStats: api.AgentCacheStats{

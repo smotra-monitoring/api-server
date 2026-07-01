@@ -279,8 +279,8 @@ type AgentStatus struct {
 	// IsRunning Whether the agent is currently running
 	IsRunning bool `json:"is_running"`
 
-	// LastReportAt Timestamp of the last report received from the agent (RFC3339)
-	LastReportAt time.Time `json:"last_report_at"`
+	// ReportedAt Timestamp of the last report sent by the agent (RFC3339)
+	ReportedAt time.Time `json:"reported_at"`
 
 	// ServerConnected Whether the agent is currently connected to the server
 	ServerConnected bool `json:"server_connected"`
