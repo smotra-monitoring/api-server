@@ -6,5 +6,5 @@ COPY ./api-server .
 
 EXPOSE 8080
 
-CMD [ "./api-server", "-c", "./config.yaml" ]
+CMD [ "./api-server", "-c", "./config/config.yaml" ]
 
