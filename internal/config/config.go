@@ -15,11 +15,20 @@ func LoadAndValidate(filepath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to load config from file: %w", err)
 	}
 
+	cfg.applyEnvOverrides()
+
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
 	return cfg, nil
+}
+
+// applyEnvOverrides applies environment variable overrides to the configuration.
+func (c *Config) applyEnvOverrides() {
+	if pw := os.Getenv("DATABASE_PASSWORD"); pw != "" && c.PostgresConfig != nil {
+		c.PostgresConfig.Password = pw
+	}
 }
 
 // loadFromFile loads configuration from a YAML or JSON file
