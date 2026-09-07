@@ -110,6 +110,41 @@ func TestLoadAndValidate_ValidJSON(t *testing.T) {
 	}
 }
 
+func TestLoadAndValidate_DatabasePasswordEnvOverride(t *testing.T) {
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "config.yaml")
+
+	defaultConfig := Default()
+	defaultConfig.DatabaseType = "postgres"
+	defaultConfig.PostgresConfig = &database.PostgresConfig{
+		Host:     "localhost",
+		Port:     5432,
+		Username: "user",
+		Password: "from-file",
+		Database: "db",
+		SSLMode:  "disable",
+	}
+
+	yamlContent, err := yaml.Marshal(defaultConfig)
+	if err != nil {
+		t.Fatalf("Failed to marshal config: %v", err)
+	}
+	if err := os.WriteFile(configFile, yamlContent, 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	t.Setenv("DATABASE_PASSWORD", "from-env")
+
+	cfg, err := LoadAndValidate(configFile)
+	if err != nil {
+		t.Fatalf("LoadAndValidate failed: %v", err)
+	}
+
+	if cfg.PostgresConfig.Password != "from-env" {
+		t.Errorf("Expected password from-env, got %s", cfg.PostgresConfig.Password)
+	}
+}
+
 func TestLoadAndValidate_FileNotFound(t *testing.T) {
 	_, err := LoadAndValidate("/nonexistent/config.yaml")
 	if err == nil {

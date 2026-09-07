@@ -50,6 +50,7 @@ go.work
 /server
 cmd/api-server/api-server
 cmd/api-server/api-server.exe
+api-server
 
 # Logs
 *.log

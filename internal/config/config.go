@@ -15,6 +15,8 @@ func LoadAndValidate(filepath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to load config from file: %w", err)
 	}
 
+	cfg.applyEnvOverrides()
+
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}

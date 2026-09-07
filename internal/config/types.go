@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/smotra-monitoring/server/internal/database"
@@ -104,6 +105,13 @@ type AgentConfig struct {
 	ClaimPollInitialIntervalSecs int `json:"claim_poll_initial_interval_secs" yaml:"claim_poll_initial_interval_secs"`
 	ClaimPollIncrementSecs       int `json:"claim_poll_increment_secs" yaml:"claim_poll_increment_secs"`
 	ClaimPollMaxIntervalSecs     int `json:"claim_poll_max_interval_secs" yaml:"claim_poll_max_interval_secs"`
+}
+
+// applyEnvOverrides applies environment variable overrides to the configuration.
+func (c *Config) applyEnvOverrides() {
+	if pw := os.Getenv("DATABASE_PASSWORD"); pw != "" && c.PostgresConfig != nil {
+		c.PostgresConfig.Password = pw
+	}
 }
 
 // Validate validates the configuration
