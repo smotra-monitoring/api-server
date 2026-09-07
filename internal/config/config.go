@@ -24,13 +24,6 @@ func LoadAndValidate(filepath string) (*Config, error) {
 	return cfg, nil
 }
 
-// applyEnvOverrides applies environment variable overrides to the configuration.
-func (c *Config) applyEnvOverrides() {
-	if pw := os.Getenv("DATABASE_PASSWORD"); pw != "" && c.PostgresConfig != nil {
-		c.PostgresConfig.Password = pw
-	}
-}
-
 // loadFromFile loads configuration from a YAML or JSON file
 func loadFromFile(filepath string) (*Config, error) {
 	data, err := os.ReadFile(filepath)
