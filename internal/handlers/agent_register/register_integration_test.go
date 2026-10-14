@@ -270,10 +270,17 @@ func TestRegisterAgentSelf_Integration_AlreadyClaimed(t *testing.T) {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
+	workspaceID := uuid.Must(uuid.NewV7()).String()
+	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, 'default')`,
+		workspaceID, tenantID)
+	if err != nil {
+		t.Fatalf("Failed to create workspace: %v", err)
+	}
+
 	userID := uuid.Must(uuid.NewV7()).String()
 	_, err = db.DB().ExecContext(ctx,
-		`INSERT INTO users (id, tenant_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
-		userID, tenantID, "github", "test-user-123", "Test User")
+		`INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
+		userID, workspaceID, "github", "test-user-123", "Test User")
 	if err != nil {
 		t.Fatalf("Failed to create user: %v", err)
 	}

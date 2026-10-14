@@ -7,7 +7,7 @@ RETURNING id;
 -- name: CreateUser :one
 INSERT INTO users (
     id,
-    tenant_id,
+    workspace_id,
     oauth_provider,
     oauth_subject,
     display_name
@@ -24,10 +24,10 @@ WHERE oauth_provider = ? AND oauth_subject = ?
 LIMIT 1;
 
 -- name: UpsertUserByOAuth :one
--- Creates or updates user on OAuth login. tenant_id is only used on INSERT (ignored on conflict).
+-- Creates or updates user on OAuth login. workspace_id is only used on INSERT (ignored on conflict).
 INSERT INTO users (
     id,
-    tenant_id,
+    workspace_id,
     oauth_provider,
     oauth_subject,
     display_name,
@@ -53,10 +53,18 @@ UPDATE users
 SET last_login_at = datetime('now')
 WHERE id = ?;
 
--- name: ListUsersByTenant :many
+-- name: ListUsersByWorkspace :many
 SELECT * FROM users
-WHERE tenant_id = ?
+WHERE workspace_id = ?
 ORDER BY created_at DESC;
+
+-- name: GetWorkspaceTenantID :one
+SELECT tenant_id FROM workspaces WHERE id = ? LIMIT 1;
+
+-- name: UpsertDefaultWorkspace :one
+INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, 'default')
+ON CONFLICT(tenant_id, name) DO UPDATE SET name = excluded.name
+RETURNING id;
 
 -- name: DeleteUser :exec
 DELETE FROM users WHERE id = ?;

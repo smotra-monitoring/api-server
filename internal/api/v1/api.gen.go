@@ -122,11 +122,11 @@ type Agent struct {
 	// Name Human-readable agent name
 	Name string `json:"name"`
 
-	// SectionId Section (organizational unit) this agent belongs to
-	SectionId string `json:"sectionId"`
-
 	// UpdatedAt Timestamp when the agent record was last updated
 	UpdatedAt time.Time `json:"updatedAt"`
+
+	// WorkspaceId Workspace this agent belongs to
+	WorkspaceId string `json:"workspaceId"`
 }
 
 // AgentCacheStats defines model for AgentCacheStats.
@@ -315,8 +315,8 @@ type ClaimAgentRequest struct {
 	// Name Human-readable name for the agent (defaults to hostname if not provided)
 	Name *string `json:"name,omitempty"`
 
-	// SectionId UUID version 7 as per RFC 4122
-	SectionId UUIDv7 `json:"sectionId"`
+	// WorkspaceId UUID version 7 as per RFC 4122
+	WorkspaceId UUIDv7 `json:"workspaceId"`
 }
 
 // ClaimAgentResponse defines model for ClaimAgentResponse.

@@ -1,18 +1,18 @@
 -- name: CreateTopology :one
-INSERT INTO topologies (id, section_id, name, type, enabled)
+INSERT INTO topologies (id, workspace_id, name, type, enabled)
 VALUES (?, ?, ?, ?, ?)
 RETURNING id;
 
 -- name: GetTopology :one
-SELECT id, section_id, name, type, enabled, updated_at, created_at
+SELECT id, workspace_id, name, type, enabled, updated_at, created_at
 FROM topologies
 WHERE id = ?
 LIMIT 1;
 
--- name: ListTopologiesBySection :many
-SELECT id, section_id, name, type, enabled, updated_at, created_at
+-- name: ListTopologiesByWorkspace :many
+SELECT id, workspace_id, name, type, enabled, updated_at, created_at
 FROM topologies
-WHERE section_id = ?
+WHERE workspace_id = ?
 ORDER BY created_at DESC;
 
 -- name: UpdateTopology :exec

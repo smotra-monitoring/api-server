@@ -115,7 +115,7 @@ func setupDB(t *testing.T) (database.Database, string, string, string) {
 
 	// Section
 	sectionID := uuid.Must(uuid.NewV7()).String()
-	_, err = db.DB().ExecContext(ctx, `INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)`,
+	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
 		sectionID, tenantID, "Test Section")
 	if err != nil {
 		t.Fatalf("create section: %v", err)
@@ -123,8 +123,8 @@ func setupDB(t *testing.T) (database.Database, string, string, string) {
 
 	// User
 	userID := uuid.Must(uuid.NewV7()).String()
-	_, err = db.DB().ExecContext(ctx, `INSERT INTO users (id, tenant_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
-		userID, tenantID, "test_provider", "sub-123", "Test User")
+	_, err = db.DB().ExecContext(ctx, `INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
+		userID, sectionID, "test_provider", "sub-123", "Test User")
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -156,11 +156,11 @@ func setupDB(t *testing.T) (database.Database, string, string, string) {
 	for _, name := range []string{"agent-alpha", "agent-beta"} {
 		agentID := uuid.Must(uuid.NewV7()).String()
 		_, err = q.CreateAgent(ctx, queries.CreateAgentParams{
-			ID:         agentID,
-			SectionID:  sectionID,
-			Name:       name,
-			ApiKeyHash: middleware.HashAPIKeyForTests("key-" + name),
-			BaseConfig: baseConfig,
+			ID:          agentID,
+			WorkspaceID: sectionID,
+			Name:        name,
+			ApiKeyHash:  middleware.HashAPIKeyForTests("key-" + name),
+			BaseConfig:  baseConfig,
 		})
 		if err != nil {
 			t.Fatalf("create agent %s: %v", name, err)
@@ -260,11 +260,11 @@ func TestListAgents_Integration_AgentAPIKey_Returns401(t *testing.T) {
 	agentID := uuid.Must(uuid.NewV7()).String()
 	apiKey := "test-agent-api-key"
 	_, err := queries.New(db.DB()).CreateAgent(ctx, queries.CreateAgentParams{
-		ID:         agentID,
-		SectionID:  sectionID,
-		Name:       "auth-test-agent",
-		ApiKeyHash: middleware.HashAPIKeyForTests(apiKey),
-		BaseConfig: `{}`,
+		ID:          agentID,
+		WorkspaceID: sectionID,
+		Name:        "auth-test-agent",
+		ApiKeyHash:  middleware.HashAPIKeyForTests(apiKey),
+		BaseConfig:  `{}`,
 	})
 	if err != nil {
 		t.Fatalf("create agent: %v", err)
@@ -311,9 +311,14 @@ func TestListAgents_Integration_EmptyTenant_Returns200WithEmptyList(t *testing.T
 	if err != nil {
 		t.Fatalf("create tenant: %v", err)
 	}
+	emptyWorkspaceID := uuid.Must(uuid.NewV7()).String()
+	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, 'default')`, emptyWorkspaceID, tenantID)
+	if err != nil {
+		t.Fatalf("create workspace: %v", err)
+	}
 	userID := uuid.Must(uuid.NewV7()).String()
-	_, err = db.DB().ExecContext(ctx, `INSERT INTO users (id, tenant_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
-		userID, tenantID, "p", "s", "U")
+	_, err = db.DB().ExecContext(ctx, `INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
+		userID, emptyWorkspaceID, "p", "s", "U")
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}

@@ -96,12 +96,12 @@ func setupRealDB(t *testing.T) (database.Database, uuid.UUID, string) {
 		t.Fatalf("insert tenant: %v", err)
 	}
 	sectionID := uuid.Must(uuid.NewV7()).String()
-	if _, err := db.DB().ExecContext(ctx, `INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)`, sectionID, tenantID, "Default"); err != nil {
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`, sectionID, tenantID, "Default"); err != nil {
 		t.Fatalf("insert section: %v", err)
 	}
 	agentID := uuid.Must(uuid.NewV7())
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO agents (id, section_id, name, api_key_hash, base_config) VALUES (?, ?, ?, ?, ?)`,
+		`INSERT INTO agents (id, workspace_id, name, api_key_hash, base_config) VALUES (?, ?, ?, ?, ?)`,
 		agentID.String(), sectionID, "test-agent", "fakehash", "{}"); err != nil {
 		t.Fatalf("insert agent: %v", err)
 	}
@@ -117,7 +117,7 @@ func setupTopologyPermission(t *testing.T, db database.Database, sectionID, agen
 
 	tagID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO tags (id, section_id, name, scope) VALUES (?, ?, ?, 'global')`,
+		`INSERT INTO tags (id, workspace_id, name, scope) VALUES (?, ?, ?, 'global')`,
 		tagID, sectionID, "topo-"+tagID[:8]); err != nil {
 		t.Fatalf("insert topology tag: %v", err)
 	}
@@ -132,7 +132,7 @@ func setupTopologyPermission(t *testing.T, db database.Database, sectionID, agen
 
 	topologyID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO topologies (id, section_id, name, type, enabled) VALUES (?, ?, ?, 'full-mesh', 1)`,
+		`INSERT INTO topologies (id, workspace_id, name, type, enabled) VALUES (?, ?, ?, 'full-mesh', 1)`,
 		topologyID, sectionID, "topo-"+topologyID[:8]); err != nil {
 		t.Fatalf("insert topology: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestIntegration_PingBatch_Accepted(t *testing.T) {
 
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
 		endpointID, sectionID, "8.8.8.8"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestIntegration_Deduplication(t *testing.T) {
 
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
 		endpointID, sectionID, "1.1.1.1"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestIntegration_UpdatesLastSeenAt(t *testing.T) {
 
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
 		endpointID, sectionID, "9.9.9.9"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
@@ -349,7 +349,7 @@ func TestIntegration_UpdatesLastResultSubmittedAt(t *testing.T) {
 
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
 		endpointID, sectionID, "9.9.9.8"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
@@ -390,7 +390,7 @@ func TestIntegration_EndpointIDStored(t *testing.T) {
 
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
 		endpointID, sectionID, "10.0.0.1"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
@@ -427,7 +427,7 @@ func TestIntegration_TracerouteHopsStored(t *testing.T) {
 
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
 		endpointID, sectionID, "10.0.0.1"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
@@ -488,7 +488,7 @@ func TestIntegration_MixedTypeBatch(t *testing.T) {
 
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
 		endpointID, sectionID, "8.8.8.8"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
@@ -562,18 +562,18 @@ func TestIntegration_WrongAgentEndpointID_Returns422(t *testing.T) {
 		t.Fatalf("insert tenant: %v", err)
 	}
 	otherSectionID := uuid.Must(uuid.NewV7()).String()
-	if _, err := db.DB().ExecContext(ctx, `INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)`, otherSectionID, otherTenantID, "Other Section"); err != nil {
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`, otherSectionID, otherTenantID, "Other Section"); err != nil {
 		t.Fatalf("insert section: %v", err)
 	}
 	otherAgentID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO agents (id, section_id, name, api_key_hash, base_config) VALUES (?, ?, ?, ?, ?)`,
+		`INSERT INTO agents (id, workspace_id, name, api_key_hash, base_config) VALUES (?, ?, ?, ?, ?)`,
 		otherAgentID, otherSectionID, "other-agent", "fakehash2", "{}"); err != nil {
 		t.Fatalf("insert other agent: %v", err)
 	}
 	otherEndpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
 		otherEndpointID, otherSectionID, "9.9.9.9"); err != nil {
 		t.Fatalf("insert other endpoint: %v", err)
 	}

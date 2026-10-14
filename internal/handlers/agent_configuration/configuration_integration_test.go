@@ -108,7 +108,7 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 
 	// Create a section
 	sectionID := uuid.NewString()
-	if _, err := db.DB().ExecContext(ctx, "INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)", sectionID, tenantID, "Test Section"); err != nil {
+	if _, err := db.DB().ExecContext(ctx, "INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)", sectionID, tenantID, "Test Section"); err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
 
@@ -140,11 +140,11 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 	}`
 
 	_, err := q.CreateAgent(ctx, queries.CreateAgentParams{
-		ID:         agentID,
-		SectionID:  sectionID,
-		Name:       "Test Agent",
-		ApiKeyHash: "test-hash",
-		BaseConfig: baseConfig,
+		ID:          agentID,
+		WorkspaceID: sectionID,
+		Name:        "Test Agent",
+		ApiKeyHash:  "test-hash",
+		BaseConfig:  baseConfig,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create agent: %v", err)
@@ -152,7 +152,7 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 
 	// Create tags for the agent
 	agentTag1ID := uuid.NewString()
-	if _, err := db.DB().ExecContext(ctx, "INSERT INTO tags (id, section_id, name, scope) VALUES (?, ?, ?, ?)", agentTag1ID, sectionID, "production", "agent"); err != nil {
+	if _, err := db.DB().ExecContext(ctx, "INSERT INTO tags (id, workspace_id, name, scope) VALUES (?, ?, ?, ?)", agentTag1ID, sectionID, "production", "agent"); err != nil {
 		t.Fatalf("Failed to create tag: %v", err)
 	}
 
@@ -162,18 +162,18 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 
 	// Create endpoints for the section (not per-agent)
 	endpoint1ID := uuid.NewString()
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, ?)", endpoint1ID, sectionID, "192.168.1.1", 1); err != nil {
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, ?)", endpoint1ID, sectionID, "192.168.1.1", 1); err != nil {
 		t.Fatalf("Failed to create endpoint: %v", err)
 	}
 
 	endpoint2ID := uuid.NewString()
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, ?)", endpoint2ID, sectionID, "8.8.8.8", 1); err != nil {
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, ?)", endpoint2ID, sectionID, "8.8.8.8", 1); err != nil {
 		t.Fatalf("Failed to create endpoint: %v", err)
 	}
 
 	// Create endpoint tag
 	endpointTag1ID := uuid.NewString()
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO tags (id, section_id, name, scope) VALUES (?, ?, ?, ?)", endpointTag1ID, sectionID, "critical", "endpoint"); err != nil {
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO tags (id, workspace_id, name, scope) VALUES (?, ?, ?, ?)", endpointTag1ID, sectionID, "critical", "endpoint"); err != nil {
 		t.Fatalf("Failed to create endpoint tag: %v", err)
 	}
 
@@ -188,7 +188,7 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 
 	// Create a topology: agents tagged 'production' monitor endpoints tagged 'critical'
 	topologyID := uuid.NewString()
-	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topologies (id, section_id, name, type, enabled) VALUES (?, ?, ?, ?, ?)", topologyID, sectionID, "Test Topology", "full-mesh", 1); err != nil {
+	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topologies (id, workspace_id, name, type, enabled) VALUES (?, ?, ?, ?, ?)", topologyID, sectionID, "Test Topology", "full-mesh", 1); err != nil {
 		t.Fatalf("Failed to create topology: %v", err)
 	}
 	if _, err = db.DB().ExecContext(ctx, "INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, ?)", topologyID, agentTag1ID, "monitor"); err != nil {

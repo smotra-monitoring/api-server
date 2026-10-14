@@ -53,29 +53,29 @@ func benchDB(b *testing.B) (database.Database, uuid.UUID, string) {
 	benchExec(b, db.DB(), `INSERT INTO tenants (id, name) VALUES (?, ?)`, tenantID, "BenchTenant")
 
 	sectionID := uuid.Must(uuid.NewV7()).String()
-	benchExec(b, db.DB(), `INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)`, sectionID, tenantID, "BenchSection")
+	benchExec(b, db.DB(), `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`, sectionID, tenantID, "BenchSection")
 
 	agentID := uuid.Must(uuid.NewV7())
 	benchExec(b, db.DB(),
-		`INSERT INTO agents (id, section_id, name, api_key_hash, base_config) VALUES (?, ?, ?, ?, ?)`,
+		`INSERT INTO agents (id, workspace_id, name, api_key_hash, base_config) VALUES (?, ?, ?, ?, ?)`,
 		agentID.String(), sectionID, "bench-agent", "fakehash", "{}")
 
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	benchExec(b, db.DB(),
-		`INSERT INTO endpoints (id, section_id, address, enabled) VALUES (?, ?, ?, 1)`,
+		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
 		endpointID, sectionID, "bench.example.com")
 
 	// Set up topology so the agent is permitted to submit results for the endpoint.
 	tagID := uuid.Must(uuid.NewV7()).String()
 	benchExec(b, db.DB(),
-		`INSERT INTO tags (id, section_id, name, scope) VALUES (?, ?, 'bench-tag', 'global')`,
+		`INSERT INTO tags (id, workspace_id, name, scope) VALUES (?, ?, 'bench-tag', 'global')`,
 		tagID, sectionID)
 	benchExec(b, db.DB(), `INSERT INTO agent_tags (agent_id, tag_id) VALUES (?, ?)`, agentID.String(), tagID)
 	benchExec(b, db.DB(), `INSERT INTO endpoint_tags (endpoint_id, tag_id) VALUES (?, ?)`, endpointID, tagID)
 
 	topologyID := uuid.Must(uuid.NewV7()).String()
 	benchExec(b, db.DB(),
-		`INSERT INTO topologies (id, section_id, name, type, enabled) VALUES (?, ?, 'bench-topo', 'full-mesh', 1)`,
+		`INSERT INTO topologies (id, workspace_id, name, type, enabled) VALUES (?, ?, 'bench-topo', 'full-mesh', 1)`,
 		topologyID, sectionID)
 	benchExec(b, db.DB(),
 		`INSERT INTO topology_members (topology_id, tag_id, role) VALUES (?, ?, 'monitor')`,

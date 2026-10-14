@@ -11,7 +11,7 @@ import (
 
 type Agent struct {
 	ID                    string
-	SectionID             string
+	WorkspaceID           string
 	Name                  string
 	ApiKeyHash            string
 	BaseConfig            string
@@ -139,7 +139,7 @@ type CheckResultsUdpConnect struct {
 
 type Endpoint struct {
 	ID            string
-	SectionID     string
+	WorkspaceID   string
 	Address       string
 	Port          sql.NullInt64
 	Enabled       int64
@@ -163,12 +163,6 @@ type Oauth2PendingState struct {
 	ExpiresAt time.Time
 }
 
-type Section struct {
-	ID       string
-	TenantID string
-	Name     string
-}
-
 type Session struct {
 	ID                       string
 	UserID                   string
@@ -190,10 +184,10 @@ type Session struct {
 }
 
 type Tag struct {
-	ID        string
-	SectionID string
-	Name      string
-	Scope     string
+	ID          string
+	WorkspaceID string
+	Name        string
+	Scope       string
 }
 
 type Tenant struct {
@@ -203,13 +197,13 @@ type Tenant struct {
 }
 
 type Topology struct {
-	ID        string
-	SectionID string
-	Name      string
-	Type      string
-	Enabled   int64
-	UpdatedAt time.Time
-	CreatedAt time.Time
+	ID          string
+	WorkspaceID string
+	Name        string
+	Type        string
+	Enabled     int64
+	UpdatedAt   time.Time
+	CreatedAt   time.Time
 }
 
 type TopologyMember struct {
@@ -220,7 +214,7 @@ type TopologyMember struct {
 
 type User struct {
 	ID            string
-	TenantID      string
+	WorkspaceID   string
 	OauthProvider string
 	OauthSubject  string
 	DisplayName   string
@@ -229,4 +223,10 @@ type User struct {
 	LastLoginAt   sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+type Workspace struct {
+	ID       string
+	TenantID string
+	Name     string
 }

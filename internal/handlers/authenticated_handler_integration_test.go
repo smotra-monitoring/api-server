@@ -41,7 +41,7 @@ func TestAuthenticatedHandler_Integration(t *testing.T) {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
-	_, err = db.DB().ExecContext(ctx, "INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)", sectionID, tenantID, "Test Section")
+	_, err = db.DB().ExecContext(ctx, "INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)", sectionID, tenantID, "Test Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
@@ -49,11 +49,11 @@ func TestAuthenticatedHandler_Integration(t *testing.T) {
 	baseConfig := `{"monitoring":{"interval_secs":60,"timeout_secs":5,"ping_count":3,"max_concurrent":10,"traceroute_on_failure":false,"traceroute_max_hops":30},"server":{"report_interval_secs":300,"heartbeat_interval_secs":300,"verify_tls":true,"timeout_secs":5,"retry_attempts":3},"storage":{"cache_dir":"./cache","max_cached_results":10000,"max_cache_age_secs":86400}}`
 
 	_, err = q.CreateAgent(ctx, queries.CreateAgentParams{
-		ID:         agentID,
-		SectionID:  sectionID,
-		Name:       "Test Agent",
-		ApiKeyHash: apiKeyHash,
-		BaseConfig: baseConfig,
+		ID:          agentID,
+		WorkspaceID: sectionID,
+		Name:        "Test Agent",
+		ApiKeyHash:  apiKeyHash,
+		BaseConfig:  baseConfig,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create agent: %v", err)
