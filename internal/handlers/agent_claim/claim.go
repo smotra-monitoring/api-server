@@ -17,6 +17,7 @@ import (
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/database/queries"
 	"github.com/smotra-monitoring/server/internal/logger"
+	"github.com/smotra-monitoring/server/internal/middleware"
 )
 
 // Handler handles agent claiming requests from web UI
@@ -139,9 +140,39 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 
 	apiKeyHash := hashAPIKey(apiKey)
 
-	// TODO: Get user ID from auth context when OAuth2 is implemented
-	// For now, we'll use a placeholder or nil
-	var userID sql.NullString // Will be populated from JWT/OAuth2 context
+	// Extract authenticated user from context and validate workspace ownership.
+	authInfo, _ := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+	userID := sql.NullString{}
+	if authInfo != nil && authInfo.UserID != "" {
+		// Resolve user record to get their workspace, then check tenant match.
+		claimingUser, uerr := q.GetUserByID(ctx, authInfo.UserID)
+		if uerr == nil {
+			targetTenantID, terr := q.GetWorkspaceTenantID(ctx, req.Body.WorkspaceId.String())
+			if terr != nil {
+				h.claimFailureTotal.Add(1)
+				return api.PostClaimAgent404JSONResponse(api.Error{
+					Error:   "workspace_not_found",
+					Message: "Target workspace not found",
+				}), nil
+			}
+			userTenantID, terr := q.GetWorkspaceTenantID(ctx, claimingUser.WorkspaceID)
+			if terr != nil {
+				h.claimFailureTotal.Add(1)
+				return api.PostClaimAgent404JSONResponse(api.Error{
+					Error:   "workspace_not_found",
+					Message: "User's workspace not found",
+				}), nil
+			}
+			if terr == nil && userTenantID != targetTenantID {
+				h.claimFailureTotal.Add(1)
+				return api.PostClaimAgent403JSONResponse(api.Error{
+					Error:   "forbidden",
+					Message: "Target workspace does not belong to your tenant",
+				}), nil
+			}
+		}
+		userID = sql.NullString{String: authInfo.UserID, Valid: true}
+	}
 
 	// Determine agent name - use hostname from claim unless overridden
 	agentName := claimFromDB.Hostname
@@ -174,7 +205,7 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 
 	if _, err = txQueries.CreateAgentFromClaim(ctx, queries.CreateAgentFromClaimParams{
 		ID:              agentIDStr,
-		SectionID:       req.Body.SectionId.String(),
+		WorkspaceID:     req.Body.WorkspaceId.String(),
 		Name:            agentName,
 		ApiKeyHash:      apiKeyHash,
 		BaseConfig:      "{}",
@@ -194,13 +225,13 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 		}, nil
 	}
 
-	// Auto-register the agent as a section endpoint so it can participate in topologies.
+	// Auto-register the agent as a workspace endpoint so it can participate in topologies.
 	// Prefer the recommended IP address; fall back to first IP; fall back to hostname.
 	endpointAddress := selectEndpointAddress(claimFromDB.IpAddressesJson, claimFromDB.Hostname)
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err = txQueries.CreateAgentEndpoint(ctx, queries.CreateAgentEndpointParams{
 		ID:            endpointID,
-		SectionID:     req.Body.SectionId.String(),
+		WorkspaceID:   req.Body.WorkspaceId.String(),
 		Address:       endpointAddress,
 		LinkedAgentID: sql.NullString{String: agentIDStr, Valid: true},
 	}); err != nil {
@@ -254,7 +285,7 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 	h.logger.InfoContext(ctx, "Agent claimed successfully",
 		slog.String("agentId", agentIDStr),
 		slog.String("name", agentName),
-		slog.String("sectionId", req.Body.SectionId.String()),
+		slog.String("workspaceId", req.Body.WorkspaceId.String()),
 	)
 
 	return api.PostClaimAgent200JSONResponse(api.ClaimAgentResponse{

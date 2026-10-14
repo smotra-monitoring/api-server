@@ -43,7 +43,7 @@ func NewHandler(log *logger.Logger, db database.Database) *Handler {
 	}
 }
 
-// Handle returns a paginated list of agents belonging to the authenticated user's tenant.
+// Handle returns a paginated list of agents belonging to the authenticated user's workspace.
 func (h *Handler) Handle(ctx context.Context, req api.ListAgentsRequestObject) (api.ListAgentsResponseObject, error) {
 	h.listAttemptsTotal.Add(1)
 
@@ -53,7 +53,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ListAgentsRequestObject) (
 
 	q := queries.New(h.db.DB())
 
-	// Resolve tenant ID from user.
+	// Resolve workspace ID from user.
 	user, err := q.GetUserByID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -76,7 +76,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ListAgentsRequestObject) (
 		}, nil
 	}
 
-	tenantID := user.TenantID
+	workspaceID := user.WorkspaceID
 
 	// Parse and clamp pagination parameters.
 	page := defaultPage
@@ -100,10 +100,10 @@ func (h *Handler) Handle(ctx context.Context, req api.ListAgentsRequestObject) (
 	limit := int64(pageSize)
 
 	// Count total agents for pagination metadata.
-	totalItems, err := q.CountAgentsByTenant(ctx, tenantID)
+	totalItems, err := q.CountAgentsByWorkspace(ctx, workspaceID)
 	if err != nil {
 		h.listFailureTotal.Add(1)
-		h.logger.ErrorContext(ctx, "Failed to count agents", slog.String("tenant_id", tenantID), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "Failed to count agents", slog.String("workspace_id", workspaceID), slog.String("error", err.Error()))
 		return api.ListAgents500JSONResponse{
 			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
 				Error:   "database_error",
@@ -113,14 +113,14 @@ func (h *Handler) Handle(ctx context.Context, req api.ListAgentsRequestObject) (
 	}
 
 	// Fetch agents for the current page.
-	rows, err := q.ListAgentsByTenant(ctx, queries.ListAgentsByTenantParams{
-		TenantID: tenantID,
-		Limit:    limit,
-		Offset:   offset,
+	rows, err := q.ListAgentsByWorkspace(ctx, queries.ListAgentsByWorkspaceParams{
+		WorkspaceID: workspaceID,
+		Limit:       limit,
+		Offset:      offset,
 	})
 	if err != nil {
 		h.listFailureTotal.Add(1)
-		h.logger.ErrorContext(ctx, "Failed to list agents", slog.String("tenant_id", tenantID), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "Failed to list agents", slog.String("workspace_id", workspaceID), slog.String("error", err.Error()))
 		return api.ListAgents500JSONResponse{
 			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
 				Error:   "database_error",
@@ -158,10 +158,10 @@ func (h *Handler) Handle(ctx context.Context, req api.ListAgentsRequestObject) (
 }
 
 // rowToItem converts a database row to an API response item.
-func (h *Handler) rowToItem(row queries.ListAgentsByTenantRow) api.Agent {
+func (h *Handler) rowToItem(row queries.ListAgentsByWorkspaceRow) api.Agent {
 	item := api.Agent{
 		Id:            api.UUIDv7(uuid.MustParse(row.ID)),
-		SectionId:     row.SectionID,
+		WorkspaceId:   row.WorkspaceID,
 		Name:          row.Name,
 		ConfigVersion: int(row.ConfigVersion),
 		CreatedAt:     row.CreatedAt,

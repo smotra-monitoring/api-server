@@ -422,9 +422,22 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 		}}, nil
 	}
 
+	// Upsert a default workspace for this tenant (idempotent on repeated logins).
+	workspaceID := uuid.Must(uuid.NewV7()).String()
+	resultingWorkspaceID, err := qTx.UpsertDefaultWorkspace(ctx, queries.UpsertDefaultWorkspaceParams{
+		ID:       workspaceID,
+		TenantID: resultingTenantID,
+	})
+	if err != nil {
+		h.log.ErrorContext(ctx, "UpsertDefaultWorkspace failed", slog.String("error", err.Error()))
+		return api.Oauth2Token400JSONResponse{BadRequestJSONResponse: api.BadRequestJSONResponse{
+			Error: "internal_error", Message: "Database error",
+		}}, nil
+	}
+
 	userID, err := qTx.UpsertUserByOAuth(ctx, queries.UpsertUserByOAuthParams{
 		ID:            uuid.Must(uuid.NewV7()).String(),
-		TenantID:      resultingTenantID,
+		WorkspaceID:   resultingWorkspaceID,
 		OauthProvider: providerName,
 		OauthSubject:  sub,
 		DisplayName:   displayName,

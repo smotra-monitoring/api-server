@@ -13,7 +13,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     id,
-    tenant_id,
+    workspace_id,
     oauth_provider,
     oauth_subject,
     display_name
@@ -23,7 +23,7 @@ RETURNING id
 
 type CreateUserParams struct {
 	ID            string
-	TenantID      string
+	WorkspaceID   string
 	OauthProvider string
 	OauthSubject  string
 	DisplayName   string
@@ -32,7 +32,7 @@ type CreateUserParams struct {
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, createUser,
 		arg.ID,
-		arg.TenantID,
+		arg.WorkspaceID,
 		arg.OauthProvider,
 		arg.OauthSubject,
 		arg.DisplayName,
@@ -52,7 +52,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id string) error {
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, tenant_id, oauth_provider, oauth_subject, display_name, email, avatar_url, last_login_at, created_at, updated_at FROM users
+SELECT id, workspace_id, oauth_provider, oauth_subject, display_name, email, avatar_url, last_login_at, created_at, updated_at FROM users
 WHERE id = ? LIMIT 1
 `
 
@@ -61,7 +61,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
+		&i.WorkspaceID,
 		&i.OauthProvider,
 		&i.OauthSubject,
 		&i.DisplayName,
@@ -75,7 +75,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 }
 
 const getUserByOAuth = `-- name: GetUserByOAuth :one
-SELECT id, tenant_id, oauth_provider, oauth_subject, display_name, email, avatar_url, last_login_at, created_at, updated_at FROM users
+SELECT id, workspace_id, oauth_provider, oauth_subject, display_name, email, avatar_url, last_login_at, created_at, updated_at FROM users
 WHERE oauth_provider = ? AND oauth_subject = ?
 LIMIT 1
 `
@@ -90,7 +90,7 @@ func (q *Queries) GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) 
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
+		&i.WorkspaceID,
 		&i.OauthProvider,
 		&i.OauthSubject,
 		&i.DisplayName,
@@ -103,14 +103,25 @@ func (q *Queries) GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) 
 	return i, err
 }
 
-const listUsersByTenant = `-- name: ListUsersByTenant :many
-SELECT id, tenant_id, oauth_provider, oauth_subject, display_name, email, avatar_url, last_login_at, created_at, updated_at FROM users
-WHERE tenant_id = ?
+const getWorkspaceTenantID = `-- name: GetWorkspaceTenantID :one
+SELECT tenant_id FROM workspaces WHERE id = ? LIMIT 1
+`
+
+func (q *Queries) GetWorkspaceTenantID(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceTenantID, id)
+	var tenant_id string
+	err := row.Scan(&tenant_id)
+	return tenant_id, err
+}
+
+const listUsersByWorkspace = `-- name: ListUsersByWorkspace :many
+SELECT id, workspace_id, oauth_provider, oauth_subject, display_name, email, avatar_url, last_login_at, created_at, updated_at FROM users
+WHERE workspace_id = ?
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListUsersByTenant(ctx context.Context, tenantID string) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, listUsersByTenant, tenantID)
+func (q *Queries) ListUsersByWorkspace(ctx context.Context, workspaceID string) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listUsersByWorkspace, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +131,7 @@ func (q *Queries) ListUsersByTenant(ctx context.Context, tenantID string) ([]Use
 		var i User
 		if err := rows.Scan(
 			&i.ID,
-			&i.TenantID,
+			&i.WorkspaceID,
 			&i.OauthProvider,
 			&i.OauthSubject,
 			&i.DisplayName,
@@ -170,6 +181,24 @@ func (q *Queries) UpdateUserLastLogin(ctx context.Context, id string) error {
 	return err
 }
 
+const upsertDefaultWorkspace = `-- name: UpsertDefaultWorkspace :one
+INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, 'default')
+ON CONFLICT(tenant_id, name) DO UPDATE SET name = excluded.name
+RETURNING id
+`
+
+type UpsertDefaultWorkspaceParams struct {
+	ID       string
+	TenantID string
+}
+
+func (q *Queries) UpsertDefaultWorkspace(ctx context.Context, arg UpsertDefaultWorkspaceParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, upsertDefaultWorkspace, arg.ID, arg.TenantID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const upsertTenant = `-- name: UpsertTenant :one
 INSERT INTO tenants (id, name)
 VALUES (?, ?)
@@ -192,7 +221,7 @@ func (q *Queries) UpsertTenant(ctx context.Context, arg UpsertTenantParams) (str
 const upsertUserByOAuth = `-- name: UpsertUserByOAuth :one
 INSERT INTO users (
     id,
-    tenant_id,
+    workspace_id,
     oauth_provider,
     oauth_subject,
     display_name,
@@ -211,7 +240,7 @@ RETURNING id
 
 type UpsertUserByOAuthParams struct {
 	ID            string
-	TenantID      string
+	WorkspaceID   string
 	OauthProvider string
 	OauthSubject  string
 	DisplayName   string
@@ -219,11 +248,11 @@ type UpsertUserByOAuthParams struct {
 	AvatarUrl     sql.NullString
 }
 
-// Creates or updates user on OAuth login. tenant_id is only used on INSERT (ignored on conflict).
+// Creates or updates user on OAuth login. workspace_id is only used on INSERT (ignored on conflict).
 func (q *Queries) UpsertUserByOAuth(ctx context.Context, arg UpsertUserByOAuthParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserByOAuth,
 		arg.ID,
-		arg.TenantID,
+		arg.WorkspaceID,
 		arg.OauthProvider,
 		arg.OauthSubject,
 		arg.DisplayName,

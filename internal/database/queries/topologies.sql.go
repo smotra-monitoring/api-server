@@ -26,23 +26,23 @@ func (q *Queries) AddTopologyMember(ctx context.Context, arg AddTopologyMemberPa
 }
 
 const createTopology = `-- name: CreateTopology :one
-INSERT INTO topologies (id, section_id, name, type, enabled)
+INSERT INTO topologies (id, workspace_id, name, type, enabled)
 VALUES (?, ?, ?, ?, ?)
 RETURNING id
 `
 
 type CreateTopologyParams struct {
-	ID        string
-	SectionID string
-	Name      string
-	Type      string
-	Enabled   int64
+	ID          string
+	WorkspaceID string
+	Name        string
+	Type        string
+	Enabled     int64
 }
 
 func (q *Queries) CreateTopology(ctx context.Context, arg CreateTopologyParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, createTopology,
 		arg.ID,
-		arg.SectionID,
+		arg.WorkspaceID,
 		arg.Name,
 		arg.Type,
 		arg.Enabled,
@@ -62,7 +62,7 @@ func (q *Queries) DeleteTopology(ctx context.Context, id string) error {
 }
 
 const getTopology = `-- name: GetTopology :one
-SELECT id, section_id, name, type, enabled, updated_at, created_at
+SELECT id, workspace_id, name, type, enabled, updated_at, created_at
 FROM topologies
 WHERE id = ?
 LIMIT 1
@@ -73,7 +73,7 @@ func (q *Queries) GetTopology(ctx context.Context, id string) (Topology, error) 
 	var i Topology
 	err := row.Scan(
 		&i.ID,
-		&i.SectionID,
+		&i.WorkspaceID,
 		&i.Name,
 		&i.Type,
 		&i.Enabled,
@@ -83,15 +83,15 @@ func (q *Queries) GetTopology(ctx context.Context, id string) (Topology, error) 
 	return i, err
 }
 
-const listTopologiesBySection = `-- name: ListTopologiesBySection :many
-SELECT id, section_id, name, type, enabled, updated_at, created_at
+const listTopologiesByWorkspace = `-- name: ListTopologiesByWorkspace :many
+SELECT id, workspace_id, name, type, enabled, updated_at, created_at
 FROM topologies
-WHERE section_id = ?
+WHERE workspace_id = ?
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListTopologiesBySection(ctx context.Context, sectionID string) ([]Topology, error) {
-	rows, err := q.db.QueryContext(ctx, listTopologiesBySection, sectionID)
+func (q *Queries) ListTopologiesByWorkspace(ctx context.Context, workspaceID string) ([]Topology, error) {
+	rows, err := q.db.QueryContext(ctx, listTopologiesByWorkspace, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (q *Queries) ListTopologiesBySection(ctx context.Context, sectionID string)
 		var i Topology
 		if err := rows.Scan(
 			&i.ID,
-			&i.SectionID,
+			&i.WorkspaceID,
 			&i.Name,
 			&i.Type,
 			&i.Enabled,

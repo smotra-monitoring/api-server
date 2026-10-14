@@ -11,38 +11,37 @@ import (
 	"time"
 )
 
-const countAgentsByTenant = `-- name: CountAgentsByTenant :one
-SELECT COUNT(*) FROM agents a
-JOIN sections s ON a.section_id = s.id
-WHERE s.tenant_id = ?
+const countAgentsByWorkspace = `-- name: CountAgentsByWorkspace :one
+SELECT COUNT(*) FROM agents
+WHERE workspace_id = ?
 `
 
-// Returns total count of agents belonging to all sections of a given tenant.
-func (q *Queries) CountAgentsByTenant(ctx context.Context, tenantID string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countAgentsByTenant, tenantID)
+// Returns total count of agents belonging to a workspace.
+func (q *Queries) CountAgentsByWorkspace(ctx context.Context, workspaceID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAgentsByWorkspace, workspaceID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const createAgent = `-- name: CreateAgent :one
-INSERT INTO agents (id, section_id, name, api_key_hash, base_config) VALUES 
+INSERT INTO agents (id, workspace_id, name, api_key_hash, base_config) VALUES 
 (?, ?, ?, ?, ?)
 RETURNING id
 `
 
 type CreateAgentParams struct {
-	ID         string
-	SectionID  string
-	Name       string
-	ApiKeyHash string
-	BaseConfig string
+	ID          string
+	WorkspaceID string
+	Name        string
+	ApiKeyHash  string
+	BaseConfig  string
 }
 
 func (q *Queries) CreateAgent(ctx context.Context, arg CreateAgentParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, createAgent,
 		arg.ID,
-		arg.SectionID,
+		arg.WorkspaceID,
 		arg.Name,
 		arg.ApiKeyHash,
 		arg.BaseConfig,
@@ -55,7 +54,7 @@ func (q *Queries) CreateAgent(ctx context.Context, arg CreateAgentParams) (strin
 const createAgentFromClaim = `-- name: CreateAgentFromClaim :one
 INSERT INTO agents (
     id,
-    section_id,
+    workspace_id,
     name,
     api_key_hash,
     base_config,
@@ -67,7 +66,7 @@ RETURNING id
 
 type CreateAgentFromClaimParams struct {
 	ID              string
-	SectionID       string
+	WorkspaceID     string
 	Name            string
 	ApiKeyHash      string
 	BaseConfig      string
@@ -80,7 +79,7 @@ type CreateAgentFromClaimParams struct {
 func (q *Queries) CreateAgentFromClaim(ctx context.Context, arg CreateAgentFromClaimParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, createAgentFromClaim,
 		arg.ID,
-		arg.SectionID,
+		arg.WorkspaceID,
 		arg.Name,
 		arg.ApiKeyHash,
 		arg.BaseConfig,
@@ -174,26 +173,25 @@ func (q *Queries) GetEndpointTags(ctx context.Context, endpointID string) ([]str
 	return items, nil
 }
 
-const listAgentsByTenant = `-- name: ListAgentsByTenant :many
-SELECT a.id, a.section_id, a.name, a.config_version, a.agent_version,
+const listAgentsByWorkspace = `-- name: ListAgentsByWorkspace :many
+SELECT a.id, a.workspace_id, a.name, a.config_version, a.agent_version,
        a.ip_addresses_json, a.last_seen_at, a.last_result_submitted_at,
        a.updated_at, a.created_at
 FROM agents a
-JOIN sections s ON a.section_id = s.id
-WHERE s.tenant_id = ?
+WHERE a.workspace_id = ?
 ORDER BY a.created_at DESC
 LIMIT ? OFFSET ?
 `
 
-type ListAgentsByTenantParams struct {
-	TenantID string
-	Limit    int64
-	Offset   int64
+type ListAgentsByWorkspaceParams struct {
+	WorkspaceID string
+	Limit       int64
+	Offset      int64
 }
 
-type ListAgentsByTenantRow struct {
+type ListAgentsByWorkspaceRow struct {
 	ID                    string
-	SectionID             string
+	WorkspaceID           string
 	Name                  string
 	ConfigVersion         int64
 	AgentVersion          sql.NullString
@@ -204,19 +202,19 @@ type ListAgentsByTenantRow struct {
 	CreatedAt             time.Time
 }
 
-// Returns paginated agents belonging to all sections of a given tenant.
-func (q *Queries) ListAgentsByTenant(ctx context.Context, arg ListAgentsByTenantParams) ([]ListAgentsByTenantRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAgentsByTenant, arg.TenantID, arg.Limit, arg.Offset)
+// Returns paginated agents belonging to a workspace.
+func (q *Queries) ListAgentsByWorkspace(ctx context.Context, arg ListAgentsByWorkspaceParams) ([]ListAgentsByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAgentsByWorkspace, arg.WorkspaceID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAgentsByTenantRow
+	var items []ListAgentsByWorkspaceRow
 	for rows.Next() {
-		var i ListAgentsByTenantRow
+		var i ListAgentsByWorkspaceRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.SectionID,
+			&i.WorkspaceID,
 			&i.Name,
 			&i.ConfigVersion,
 			&i.AgentVersion,

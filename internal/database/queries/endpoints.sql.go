@@ -11,14 +11,14 @@ import (
 )
 
 const createAgentEndpoint = `-- name: CreateAgentEndpoint :one
-INSERT INTO endpoints (id, section_id, address, is_agent, linked_agent_id)
+INSERT INTO endpoints (id, workspace_id, address, is_agent, linked_agent_id)
 VALUES (?, ?, ?, 1, ?)
 RETURNING id
 `
 
 type CreateAgentEndpointParams struct {
 	ID            string
-	SectionID     string
+	WorkspaceID   string
 	Address       string
 	LinkedAgentID sql.NullString
 }
@@ -27,7 +27,7 @@ type CreateAgentEndpointParams struct {
 func (q *Queries) CreateAgentEndpoint(ctx context.Context, arg CreateAgentEndpointParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, createAgentEndpoint,
 		arg.ID,
-		arg.SectionID,
+		arg.WorkspaceID,
 		arg.Address,
 		arg.LinkedAgentID,
 	)
@@ -37,24 +37,24 @@ func (q *Queries) CreateAgentEndpoint(ctx context.Context, arg CreateAgentEndpoi
 }
 
 const createEndpoint = `-- name: CreateEndpoint :one
-INSERT INTO endpoints (id, section_id, address, port, enabled)
+INSERT INTO endpoints (id, workspace_id, address, port, enabled)
 VALUES (?, ?, ?, ?, ?)
 RETURNING id
 `
 
 type CreateEndpointParams struct {
-	ID        string
-	SectionID string
-	Address   string
-	Port      sql.NullInt64
-	Enabled   int64
+	ID          string
+	WorkspaceID string
+	Address     string
+	Port        sql.NullInt64
+	Enabled     int64
 }
 
-// Creates a standalone (non-agent) endpoint in a section.
+// Creates a standalone (non-agent) endpoint in a workspace.
 func (q *Queries) CreateEndpoint(ctx context.Context, arg CreateEndpointParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, createEndpoint,
 		arg.ID,
-		arg.SectionID,
+		arg.WorkspaceID,
 		arg.Address,
 		arg.Port,
 		arg.Enabled,
@@ -113,7 +113,7 @@ JOIN topologies      t     ON t.id = tm_t.topology_id AND t.enabled = 1
 JOIN topology_members tm_m ON tm_m.topology_id = t.id AND tm_m.role = 'monitor'
 JOIN agent_tags      at    ON at.tag_id = tm_m.tag_id AND at.agent_id = ?1
 WHERE e.enabled = 1
-  AND e.section_id = (SELECT section_id FROM agents WHERE id = ?1)
+  AND e.workspace_id = (SELECT workspace_id FROM agents WHERE id = ?1)
   AND NOT (e.is_agent = 1 AND e.linked_agent_id = ?1)
 `
 
@@ -126,7 +126,7 @@ type GetEndpointsForAgentRow struct {
 
 // Resolves the full set of endpoints an agent should monitor based on active topology memberships.
 // An endpoint is included when:
-//  1. It is in the same section as the agent (section guard).
+//  1. It is in the same workspace as the agent (workspace guard).
 //  2. One of its tags appears in topology_members with role='target'.
 //  3. The same topology has a member with role='monitor' whose tag is assigned to the agent.
 //  4. That topology is enabled.
@@ -159,15 +159,15 @@ func (q *Queries) GetEndpointsForAgent(ctx context.Context, agentID string) ([]G
 	return items, nil
 }
 
-const listEndpointsBySection = `-- name: ListEndpointsBySection :many
-SELECT id, section_id, address, port, enabled, is_agent, linked_agent_id, updated_at, created_at
+const listEndpointsByWorkspace = `-- name: ListEndpointsByWorkspace :many
+SELECT id, workspace_id, address, port, enabled, is_agent, linked_agent_id, updated_at, created_at
 FROM endpoints
-WHERE section_id = ?
+WHERE workspace_id = ?
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListEndpointsBySection(ctx context.Context, sectionID string) ([]Endpoint, error) {
-	rows, err := q.db.QueryContext(ctx, listEndpointsBySection, sectionID)
+func (q *Queries) ListEndpointsByWorkspace(ctx context.Context, workspaceID string) ([]Endpoint, error) {
+	rows, err := q.db.QueryContext(ctx, listEndpointsByWorkspace, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func (q *Queries) ListEndpointsBySection(ctx context.Context, sectionID string) 
 		var i Endpoint
 		if err := rows.Scan(
 			&i.ID,
-			&i.SectionID,
+			&i.WorkspaceID,
 			&i.Address,
 			&i.Port,
 			&i.Enabled,

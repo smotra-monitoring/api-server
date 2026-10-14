@@ -15,8 +15,10 @@ import (
 	"github.com/google/uuid"
 	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
 	api "github.com/smotra-monitoring/server/internal/api/v1"
+	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/database/queries"
 	"github.com/smotra-monitoring/server/internal/logger"
+	"github.com/smotra-monitoring/server/internal/middleware"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
 
@@ -106,6 +108,17 @@ func setupTestRouter(handler *Handler) *chi.Mux {
 	return r
 }
 
+// setupTestRouterWithAuth builds a router that runs the OAuth2 middleware so tests
+// can inject a real session token via the Authorization header.
+func setupTestRouterWithAuth(db database.Database, handler *Handler) *chi.Mux {
+	testImpl := &testServerImpl{Handler: handler}
+	r := chi.NewRouter()
+	r.Use(middleware.OAuth2Auth(logger.Default(), db))
+	strictHandler := api.NewStrictHandler(testImpl, nil)
+	api.HandlerFromMux(strictHandler, r)
+	return r
+}
+
 func TestClaimAgent_Integration_Success(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
@@ -127,7 +140,7 @@ func TestClaimAgent_Integration_Success(t *testing.T) {
 
 	// Create section
 	sectionID := uuid.Must(uuid.NewV7()).String()
-	_, err = db.DB().ExecContext(ctx, `INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)`,
+	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
 		sectionID, tenantID, "Default Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
@@ -153,10 +166,10 @@ func TestClaimAgent_Integration_Success(t *testing.T) {
 
 	// Claim the agent
 	reqBody := api.ClaimAgentRequest{
-		AgentId:    agentID,
-		ClaimToken: claimToken,
-		SectionId:  uuid.MustParse(sectionID),
-		Name:       ptrString("My Test Agent"),
+		AgentId:     agentID,
+		ClaimToken:  claimToken,
+		WorkspaceId: uuid.MustParse(sectionID),
+		Name:        ptrString("My Test Agent"),
 	}
 
 	reqJSON, _ := json.Marshal(reqBody)
@@ -233,7 +246,7 @@ func TestClaimAgent_Integration_InvalidToken(t *testing.T) {
 	}
 
 	sectionID := uuid.Must(uuid.NewV7()).String()
-	_, err = db.DB().ExecContext(ctx, `INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)`,
+	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
 		sectionID, tenantID, "Default Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
@@ -259,10 +272,10 @@ func TestClaimAgent_Integration_InvalidToken(t *testing.T) {
 
 	// Try to claim with wrong token
 	reqBody := api.ClaimAgentRequest{
-		AgentId:    agentID,
-		ClaimToken: "wrong-token-12345678",
-		SectionId:  uuid.MustParse(sectionID),
-		Name:       ptrString("My Test Agent"),
+		AgentId:     agentID,
+		ClaimToken:  "wrong-token-12345678",
+		WorkspaceId: uuid.MustParse(sectionID),
+		Name:        ptrString("My Test Agent"),
 	}
 
 	reqJSON, _ := json.Marshal(reqBody)
@@ -297,7 +310,7 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 	handler := NewHandler(log, db)
 	router := setupTestRouter(handler)
 
-	// Create tenant, user, and section
+	// Create tenant, user, and workspace
 	tenantID := uuid.Must(uuid.NewV7()).String()
 	_, err := db.DB().ExecContext(ctx, `INSERT INTO tenants (id, name) VALUES (?, ?)`,
 		tenantID, "Test Tenant")
@@ -305,19 +318,19 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
-	userID := uuid.Must(uuid.NewV7()).String()
-	_, err = db.DB().ExecContext(ctx,
-		`INSERT INTO users (id, tenant_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
-		userID, tenantID, "github", "test-user-123", "Test User")
-	if err != nil {
-		t.Fatalf("Failed to create user: %v", err)
-	}
-
 	sectionID := uuid.Must(uuid.NewV7()).String()
-	_, err = db.DB().ExecContext(ctx, `INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)`,
+	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
 		sectionID, tenantID, "Default Section")
 	if err != nil {
-		t.Fatalf("Failed to create section: %v", err)
+		t.Fatalf("Failed to create workspace: %v", err)
+	}
+
+	userID := uuid.Must(uuid.NewV7()).String()
+	_, err = db.DB().ExecContext(ctx,
+		`INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
+		userID, sectionID, "github", "test-user-123", "Test User")
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
 	}
 
 	// Create already claimed agent
@@ -340,10 +353,10 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 
 	// Claim the agent
 	reqBody1 := api.ClaimAgentRequest{
-		AgentId:    agentID,
-		ClaimToken: claimToken,
-		SectionId:  uuid.MustParse(sectionID),
-		Name:       ptrString("My Test Agent"),
+		AgentId:     agentID,
+		ClaimToken:  claimToken,
+		WorkspaceId: uuid.MustParse(sectionID),
+		Name:        ptrString("My Test Agent"),
 	}
 
 	reqJSON1, _ := json.Marshal(reqBody1)
@@ -359,10 +372,10 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 
 	// Try to claim again
 	reqBody2 := api.ClaimAgentRequest{
-		AgentId:    agentID,
-		ClaimToken: claimToken,
-		SectionId:  uuid.MustParse(sectionID),
-		Name:       ptrString("My Test Agent"),
+		AgentId:     agentID,
+		ClaimToken:  claimToken,
+		WorkspaceId: uuid.MustParse(sectionID),
+		Name:        ptrString("My Test Agent"),
 	}
 
 	reqJSON2, _ := json.Marshal(reqBody2)
@@ -405,7 +418,7 @@ func TestClaimAgent_Integration_NotFound(t *testing.T) {
 	}
 
 	sectionID := uuid.Must(uuid.NewV7()).String()
-	_, err = db.DB().ExecContext(ctx, `INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)`,
+	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
 		sectionID, tenantID, "Default Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
@@ -414,10 +427,10 @@ func TestClaimAgent_Integration_NotFound(t *testing.T) {
 	// Try to claim non-existent agent
 	agentID := uuid.Must(uuid.NewV7())
 	reqBody := api.ClaimAgentRequest{
-		AgentId:    agentID,
-		ClaimToken: "some-token",
-		SectionId:  uuid.MustParse(sectionID),
-		Name:       ptrString("My Test Agent"),
+		AgentId:     agentID,
+		ClaimToken:  "some-token",
+		WorkspaceId: uuid.MustParse(sectionID),
+		Name:        ptrString("My Test Agent"),
 	}
 
 	reqJSON, _ := json.Marshal(reqBody)
@@ -452,7 +465,7 @@ func TestClaimAgent_Integration_UsesHostnameWhenNameNotProvided(t *testing.T) {
 	}
 
 	sectionID := uuid.Must(uuid.NewV7()).String()
-	_, err = db.DB().ExecContext(ctx, `INSERT INTO sections (id, tenant_id, name) VALUES (?, ?, ?)`,
+	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
 		sectionID, tenantID, "Default Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
@@ -478,10 +491,10 @@ func TestClaimAgent_Integration_UsesHostnameWhenNameNotProvided(t *testing.T) {
 
 	// Claim without providing name
 	reqBody := api.ClaimAgentRequest{
-		AgentId:    agentID,
-		ClaimToken: claimToken,
-		SectionId:  uuid.MustParse(sectionID),
-		Name:       nil, // No name provided
+		AgentId:     agentID,
+		ClaimToken:  claimToken,
+		WorkspaceId: uuid.MustParse(sectionID),
+		Name:        nil, // No name provided
 	}
 
 	reqJSON, _ := json.Marshal(reqBody)
@@ -513,4 +526,237 @@ func TestClaimAgent_Integration_UsesHostnameWhenNameNotProvided(t *testing.T) {
 
 func ptrString(s string) *string {
 	return &s
+}
+
+// setupClaimFixture creates a tenant, workspace, and unclaimed agent claim for reuse across tests.
+func setupClaimFixture(t *testing.T, db database.Database) (tenantID, workspaceID string, agentID uuid.UUID, claimToken string) {
+	t.Helper()
+	ctx := context.Background()
+	q := queries.New(db.DB())
+
+	tenantID = uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO tenants (id, name) VALUES (?, ?)`, tenantID, "Fixture Tenant"); err != nil {
+		t.Fatalf("fixture tenant: %v", err)
+	}
+	workspaceID = uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, 'default')`, workspaceID, tenantID); err != nil {
+		t.Fatalf("fixture workspace: %v", err)
+	}
+	agentID = uuid.Must(uuid.NewV7())
+	claimToken = "test-claim-token-12345678"
+	tokenHash := sha256.Sum256([]byte(claimToken))
+	if _, err := q.UpsertAgentClaim(ctx, queries.UpsertAgentClaimParams{
+		ID:                  agentID.String(),
+		ClaimTokenHash:      hex.EncodeToString(tokenHash[:]),
+		Hostname:            "fixture-host",
+		AgentVersion:        "1.0.0",
+		ClaimTokenExpiresAt: time.Now().Add(24 * time.Hour),
+	}); err != nil {
+		t.Fatalf("fixture claim: %v", err)
+	}
+	return
+}
+
+func TestClaimAgent_Integration_CrossTenantForbidden(t *testing.T) {
+	log := logger.Default()
+	db := testutil.SetupTestSQLiteDB(t)
+	ctx := context.Background()
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
+
+	_, workspaceA, agentID, claimToken := setupClaimFixture(t, db)
+
+	// Tenant B with its own workspace — the user below belongs here.
+	tenantB := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO tenants (id, name) VALUES (?, ?)`, tenantB, "Other Tenant"); err != nil {
+		t.Fatalf("tenant B: %v", err)
+	}
+	workspaceB := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, 'default')`, workspaceB, tenantB); err != nil {
+		t.Fatalf("workspace B: %v", err)
+	}
+	userB := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx,
+		`INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, 'github', 'sub-b', 'User B')`,
+		userB, workspaceB); err != nil {
+		t.Fatalf("user B: %v", err)
+	}
+
+	// Create a session for user B.
+	plainToken := "cross-tenant-test-token-xyz"
+	tokenHash := middleware.HashAPIKeyForTests(plainToken)
+	now := time.Now().UTC()
+	q := queries.New(db.DB())
+	if _, err := q.CreateSession(ctx, queries.CreateSessionParams{
+		ID:                uuid.Must(uuid.NewV7()).String(),
+		UserID:            userB,
+		TokenHash:         tokenHash,
+		SlidingExpiresAt:  now.Add(24 * time.Hour),
+		ExpiresAt:         now.Add(24 * time.Hour),
+		Oauth2Provider:    "github",
+		Oauth2AccessToken: "tok",
+		Oauth2TokenType:   "Bearer",
+	}); err != nil {
+		t.Fatalf("session: %v", err)
+	}
+
+	handler := NewHandler(log, db)
+	router := setupTestRouterWithAuth(db, handler)
+
+	// User B (tenant B) tries to claim agent into workspace A (tenant A) — must be 403.
+	reqBody := api.ClaimAgentRequest{
+		AgentId:     agentID,
+		ClaimToken:  claimToken,
+		WorkspaceId: uuid.MustParse(workspaceA),
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+plainToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d. Body: %s", w.Code, w.Body.String())
+	}
+	var errResp api.Error
+	if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if errResp.Error != "forbidden" {
+		t.Errorf("expected error 'forbidden', got %q", errResp.Error)
+	}
+}
+
+func TestClaimAgent_Integration_UnknownWorkspace(t *testing.T) {
+	log := logger.Default()
+	db := testutil.SetupTestSQLiteDB(t)
+	ctx := context.Background()
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
+
+	_, workspaceA, agentID, claimToken := setupClaimFixture(t, db)
+	// Ensure the agent claim exists but with a known workspace we can manipulate later.
+	_ = workspaceA
+
+	// Set up an authenticated user.
+	tenantID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO tenants (id, name) VALUES (?, ?)`, tenantID, "Test Tenant 2"); err != nil {
+		t.Fatalf("tenant: %v", err)
+	}
+	wsID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, 'default')`, wsID, tenantID); err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+	userID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx,
+		`INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, 'github', 'sub-x', 'User X')`,
+		userID, wsID); err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	plainToken := "unknown-ws-test-token-abc"
+	now := time.Now().UTC()
+	q := queries.New(db.DB())
+	if _, err := q.CreateSession(ctx, queries.CreateSessionParams{
+		ID:                uuid.Must(uuid.NewV7()).String(),
+		UserID:            userID,
+		TokenHash:         middleware.HashAPIKeyForTests(plainToken),
+		SlidingExpiresAt:  now.Add(24 * time.Hour),
+		ExpiresAt:         now.Add(24 * time.Hour),
+		Oauth2Provider:    "github",
+		Oauth2AccessToken: "tok",
+		Oauth2TokenType:   "Bearer",
+	}); err != nil {
+		t.Fatalf("session: %v", err)
+	}
+
+	handler := NewHandler(log, db)
+	router := setupTestRouterWithAuth(db, handler)
+
+	// Target workspace does not exist in the database.
+	reqBody := api.ClaimAgentRequest{
+		AgentId:     agentID,
+		ClaimToken:  claimToken,
+		WorkspaceId: uuid.Must(uuid.NewV7()), // random — not in DB
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+plainToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d. Body: %s", w.Code, w.Body.String())
+	}
+	var errResp api.Error
+	if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if errResp.Error != "workspace_not_found" {
+		t.Errorf("expected error 'workspace_not_found', got %q", errResp.Error)
+	}
+}
+
+func TestClaimAgent_Integration_OAuthUserSetsClaimedBy(t *testing.T) {
+	log := logger.Default()
+	db := testutil.SetupTestSQLiteDB(t)
+	ctx := context.Background()
+	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
+
+	tenantID, workspaceID, agentID, claimToken := setupClaimFixture(t, db)
+
+	// Create a user in the same tenant/workspace.
+	userID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx,
+		`INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, 'github', 'sub-owner', 'Owner')`,
+		userID, workspaceID); err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	_ = tenantID
+
+	plainToken := "oauth-claim-test-token-abc"
+	now := time.Now().UTC()
+	q := queries.New(db.DB())
+	if _, err := q.CreateSession(ctx, queries.CreateSessionParams{
+		ID:                uuid.Must(uuid.NewV7()).String(),
+		UserID:            userID,
+		TokenHash:         middleware.HashAPIKeyForTests(plainToken),
+		SlidingExpiresAt:  now.Add(24 * time.Hour),
+		ExpiresAt:         now.Add(24 * time.Hour),
+		Oauth2Provider:    "github",
+		Oauth2AccessToken: "tok",
+		Oauth2TokenType:   "Bearer",
+	}); err != nil {
+		t.Fatalf("session: %v", err)
+	}
+
+	handler := NewHandler(log, db)
+	router := setupTestRouterWithAuth(db, handler)
+
+	reqBody := api.ClaimAgentRequest{
+		AgentId:     agentID,
+		ClaimToken:  claimToken,
+		WorkspaceId: uuid.MustParse(workspaceID),
+		Name:        ptrString("OAuth Test Agent"),
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+plainToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	claimFromDB, err := q.GetAgentClaim(ctx, agentID.String())
+	if err != nil {
+		t.Fatalf("get claim: %v", err)
+	}
+	if !claimFromDB.ClaimedByUserID.Valid || claimFromDB.ClaimedByUserID.String != userID {
+		t.Errorf("expected claimed_by_user_id = %q, got %v", userID, claimFromDB.ClaimedByUserID)
+	}
+	if !claimFromDB.ApiKeyPlaintext.Valid || claimFromDB.ApiKeyPlaintext.String == "" {
+		t.Error("expected api_key_plaintext to be set")
+	}
 }
