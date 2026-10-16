@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: '1.26'
+  GO_VERSION: 'stable'
   IMAGE_NAME: ghcr.io/${{ github.repository }}
 
 jobs:
@@ -33,16 +33,14 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      # - name: Generate API code
-      #   run: |
-      #     go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-      #     ~/go/bin/oapi-codegen --config api/oapi-codegen.yaml https://raw.githubusercontent.com/${{ github.repository_owner }}/openapi/refs/heads/master/api/spec.yaml
+      - name: Install just
+        uses: extractions/setup-just@v2
 
       - name: Run tests
-        run: go test -race -v ./...
+        run: just test-race
 
       - name: Build binary
-        run: go build -o api-server ./cmd/api-server
+        run: just build ${{ github.ref_name}}
 
       - name: Login to GHCR
         uses: docker/login-action@v4
