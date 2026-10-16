@@ -97,7 +97,7 @@ func setupRouter(db database.Database, handler *Handler) *chi.Mux {
 }
 
 // setupDB creates a SQLite DB with all migrations and a tenant + user + session.
-// Returns (db, plainSessionToken, agentID, sectionID).
+// Returns (db, plainSessionToken, agentID, workspaceID).
 func setupDB(t *testing.T) (database.Database, string, string, string) {
 	t.Helper()
 	db := testutil.SetupTestSQLiteDB(t)
@@ -114,9 +114,9 @@ func setupDB(t *testing.T) (database.Database, string, string, string) {
 	}
 
 	// Section
-	sectionID := uuid.Must(uuid.NewV7()).String()
+	workspaceID := uuid.Must(uuid.NewV7()).String()
 	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
-		sectionID, tenantID, "Test Section")
+		workspaceID, tenantID, "Test Section")
 	if err != nil {
 		t.Fatalf("create section: %v", err)
 	}
@@ -124,7 +124,7 @@ func setupDB(t *testing.T) (database.Database, string, string, string) {
 	// User
 	userID := uuid.Must(uuid.NewV7()).String()
 	_, err = db.DB().ExecContext(ctx, `INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
-		userID, sectionID, "test_provider", "sub-123", "Test User")
+		userID, workspaceID, "test_provider", "sub-123", "Test User")
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -157,7 +157,7 @@ func setupDB(t *testing.T) (database.Database, string, string, string) {
 		agentID := uuid.Must(uuid.NewV7()).String()
 		_, err = q.CreateAgent(ctx, queries.CreateAgentParams{
 			ID:          agentID,
-			WorkspaceID: sectionID,
+			WorkspaceID: workspaceID,
 			Name:        name,
 			ApiKeyHash:  middleware.HashAPIKeyForTests("key-" + name),
 			BaseConfig:  baseConfig,
@@ -167,7 +167,7 @@ func setupDB(t *testing.T) (database.Database, string, string, string) {
 		}
 	}
 
-	return db, plainToken, sectionID, tenantID
+	return db, plainToken, workspaceID, tenantID
 }
 
 func TestListAgents_Integration_Success(t *testing.T) {
@@ -253,7 +253,7 @@ func TestListAgents_Integration_AgentAPIKey_Returns401(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	db, _, sectionID, _ := setupDB(t)
+	db, _, workspaceID, _ := setupDB(t)
 	ctx := context.Background()
 
 	// Create an agent with a known API key
@@ -261,7 +261,7 @@ func TestListAgents_Integration_AgentAPIKey_Returns401(t *testing.T) {
 	apiKey := "test-agent-api-key"
 	_, err := queries.New(db.DB()).CreateAgent(ctx, queries.CreateAgentParams{
 		ID:          agentID,
-		WorkspaceID: sectionID,
+		WorkspaceID: workspaceID,
 		Name:        "auth-test-agent",
 		ApiKeyHash:  middleware.HashAPIKeyForTests(apiKey),
 		BaseConfig:  `{}`,

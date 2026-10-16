@@ -104,7 +104,7 @@ curl -X POST http://localhost:8080/agents/claim \
   -d '{
     "agentId": "019c1234-5678-7abc-def0-123456789abc",
     "claimToken": "original-token-from-agent",
-    "sectionId": "019c9876-5432-7fed-cba0-987654321fed",
+    "workspaceId": "019c9876-5432-7fed-cba0-987654321fed",
     "name": "Production Web Server 01"
   }'
 ```
@@ -444,7 +444,7 @@ server/
 - **Interface-based**: Easy to swap database backends
 - **Connection Management**: Configurable connection pools and timeouts
 - **sqlc Code Generation**: Type-safe database queries generated from SQL
-- **Multi-Tenant Schema**: Hierarchical structure with tenants, sections, agents, and endpoints
+- **Multi-Tenant Schema**: Hierarchical structure with tenants, workspaces, agents, and endpoints
 - **UUIDv7 Keys**: Time-ordered UUIDs for efficient indexing
 
 ### API
@@ -466,7 +466,7 @@ server/
 - **Tags Support**: Agent-level and endpoint-level tags with scoping (agent, endpoint, global)
 - **JSON Configuration**: Base configuration stored as JSON blob for flexibility
 - **Authenticated Access**: Requires valid agent API key via `X-Agent-API-Key` header
-- **Multi-Tenant Support**: Hierarchical structure with tenants, sections, and agents
+- **Multi-Tenant Support**: Hierarchical structure with tenants, workspaces, and agents
 
 ## Development
 

@@ -138,10 +138,10 @@ func TestClaimAgent_Integration_Success(t *testing.T) {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
-	// Create section
-	sectionID := uuid.Must(uuid.NewV7()).String()
+	// Create workspace
+	workspaceID := uuid.Must(uuid.NewV7()).String()
 	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
-		sectionID, tenantID, "Default Section")
+		workspaceID, tenantID, "Default Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestClaimAgent_Integration_Success(t *testing.T) {
 	reqBody := api.ClaimAgentRequest{
 		AgentId:     agentID,
 		ClaimToken:  claimToken,
-		WorkspaceId: uuid.MustParse(sectionID),
+		WorkspaceId: uuid.MustParse(workspaceID),
 		Name:        ptrString("My Test Agent"),
 	}
 
@@ -245,9 +245,9 @@ func TestClaimAgent_Integration_InvalidToken(t *testing.T) {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
-	sectionID := uuid.Must(uuid.NewV7()).String()
+	workspaceID := uuid.Must(uuid.NewV7()).String()
 	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
-		sectionID, tenantID, "Default Section")
+		workspaceID, tenantID, "Default Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestClaimAgent_Integration_InvalidToken(t *testing.T) {
 	reqBody := api.ClaimAgentRequest{
 		AgentId:     agentID,
 		ClaimToken:  "wrong-token-12345678",
-		WorkspaceId: uuid.MustParse(sectionID),
+		WorkspaceId: uuid.MustParse(workspaceID),
 		Name:        ptrString("My Test Agent"),
 	}
 
@@ -318,9 +318,9 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
-	sectionID := uuid.Must(uuid.NewV7()).String()
+	workspaceID := uuid.Must(uuid.NewV7()).String()
 	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
-		sectionID, tenantID, "Default Section")
+		workspaceID, tenantID, "Default Section")
 	if err != nil {
 		t.Fatalf("Failed to create workspace: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 	userID := uuid.Must(uuid.NewV7()).String()
 	_, err = db.DB().ExecContext(ctx,
 		`INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
-		userID, sectionID, "github", "test-user-123", "Test User")
+		userID, workspaceID, "github", "test-user-123", "Test User")
 	if err != nil {
 		t.Fatalf("Failed to create user: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 	reqBody1 := api.ClaimAgentRequest{
 		AgentId:     agentID,
 		ClaimToken:  claimToken,
-		WorkspaceId: uuid.MustParse(sectionID),
+		WorkspaceId: uuid.MustParse(workspaceID),
 		Name:        ptrString("My Test Agent"),
 	}
 
@@ -374,7 +374,7 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 	reqBody2 := api.ClaimAgentRequest{
 		AgentId:     agentID,
 		ClaimToken:  claimToken,
-		WorkspaceId: uuid.MustParse(sectionID),
+		WorkspaceId: uuid.MustParse(workspaceID),
 		Name:        ptrString("My Test Agent"),
 	}
 
@@ -417,9 +417,9 @@ func TestClaimAgent_Integration_NotFound(t *testing.T) {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
-	sectionID := uuid.Must(uuid.NewV7()).String()
+	workspaceID := uuid.Must(uuid.NewV7()).String()
 	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
-		sectionID, tenantID, "Default Section")
+		workspaceID, tenantID, "Default Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
@@ -429,7 +429,7 @@ func TestClaimAgent_Integration_NotFound(t *testing.T) {
 	reqBody := api.ClaimAgentRequest{
 		AgentId:     agentID,
 		ClaimToken:  "some-token",
-		WorkspaceId: uuid.MustParse(sectionID),
+		WorkspaceId: uuid.MustParse(workspaceID),
 		Name:        ptrString("My Test Agent"),
 	}
 
@@ -464,9 +464,9 @@ func TestClaimAgent_Integration_UsesHostnameWhenNameNotProvided(t *testing.T) {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
-	sectionID := uuid.Must(uuid.NewV7()).String()
+	workspaceID := uuid.Must(uuid.NewV7()).String()
 	_, err = db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`,
-		sectionID, tenantID, "Default Section")
+		workspaceID, tenantID, "Default Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
@@ -493,7 +493,7 @@ func TestClaimAgent_Integration_UsesHostnameWhenNameNotProvided(t *testing.T) {
 	reqBody := api.ClaimAgentRequest{
 		AgentId:     agentID,
 		ClaimToken:  claimToken,
-		WorkspaceId: uuid.MustParse(sectionID),
+		WorkspaceId: uuid.MustParse(workspaceID),
 		Name:        nil, // No name provided
 	}
 

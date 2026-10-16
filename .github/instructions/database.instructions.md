@@ -15,7 +15,7 @@ applyTo: "internal/database/**,data/db/**,data/prod/**"
 
 All primary key `id` fields **must use UUIDv7** format:
 - UUIDv7 is time-ordered → better B-tree index efficiency, less fragmentation
-- Applies to all entities: tenants, agents, sections, endpoints, users, checks, etc.
+- Applies to all entities: tenants, agents, workspaces, endpoints, users, checks, etc.
 - SQL migrations: `UUID` type for PostgreSQL, `TEXT` for SQLite with validation
 - Application code: use UUIDv7 libraries/functions when generating IDs
 
@@ -23,11 +23,11 @@ All primary key `id` fields **must use UUIDv7** format:
 
 Multi-tenant hierarchical structure:
 
-1. **Tenants** — top-level organizational units; each has multiple sections; identified by UUIDv7
-2. **Sections** — logical groupings within a tenant; namespace separation for agents and tags
-3. **Agents** — deployed on hosts; belongs to a section; config stored as JSON blob; authenticated via SHA-256 hashed API key; version-tracked
+1. **Tenants** — top-level organizational units; each has multiple workspaces; identified by UUIDv7
+2. **Workspaces** — logical groupings within a tenant; namespace separation for agents and tags
+3. **Agents** — deployed on hosts; belongs to a workspace; config stored as JSON blob; authenticated via SHA-256 hashed API key; version-tracked
 4. **Endpoints** — target addresses monitored by agents; belongs to an agent; can be enabled/disabled; supports port; multi-tag
-5. **Tags** — metadata labels; belongs to a section; scope: `agent`, `endpoint`, or `global`; can be assigned to agents and/or endpoints
+5. **Tags** — metadata labels; belongs to a workspace; scope: `agent`, `endpoint`, or `global`; can be assigned to agents and/or endpoints
 
 ### Automatic Versioning (DB Triggers)
 

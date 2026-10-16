@@ -85,14 +85,14 @@ func setupRealDB(t *testing.T) (database.Database, uuid.UUID) {
 	if _, err := db.DB().ExecContext(ctx, `INSERT INTO tenants (id, name) VALUES (?, ?)`, tenantID, "Test Tenant"); err != nil {
 		t.Fatalf("insert tenant: %v", err)
 	}
-	sectionID := uuid.Must(uuid.NewV7()).String()
-	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`, sectionID, tenantID, "Default"); err != nil {
+	workspaceID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`, workspaceID, tenantID, "Default"); err != nil {
 		t.Fatalf("insert section: %v", err)
 	}
 	agentID := uuid.Must(uuid.NewV7())
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO agents (id, workspace_id, name, api_key_hash, base_config) VALUES (?, ?, ?, ?, ?)`,
-		agentID.String(), sectionID, "test-agent", "fakehash", "{}"); err != nil {
+		agentID.String(), workspaceID, "test-agent", "fakehash", "{}"); err != nil {
 		t.Fatalf("insert agent: %v", err)
 	}
 	return db, agentID
