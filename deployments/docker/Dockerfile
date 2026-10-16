@@ -2,7 +2,7 @@ FROM ubuntu:latest
 
 WORKDIR /app
 
-COPY ./api-server .
+COPY ./bin/api-server .
 
 EXPOSE 8080
 

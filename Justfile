@@ -1,9 +1,9 @@
 # Variables
-binary_name := "smotra-api-server"
+binary_name := "api-server"
 binary_path := "bin/" + binary_name
 main_path   := "cmd/api-server/main.go"
 config_file := "configs/dev.yaml"
-version     := "0.0.1"
+dev_version := "0.0.2"
 
 # Run all build steps
 all: clean generate-oapi generate-sqlc fmt lint test build
@@ -13,10 +13,10 @@ help:
     @just --list
 
 # Build the server binary
-build:
+build version=dev_version:
     @echo "Building {{binary_name}}..."
     mkdir -p bin
-    go build -ldflags "-X main.version={{version}}" -o {{binary_path}} {{main_path}}
+    go build -ldflags "-X main.appVersion={{version}}" -o {{binary_path}} {{main_path}}
     @echo "Binary built: {{binary_path}}"
 
 # Run the server (development mode)
@@ -28,6 +28,10 @@ run config=config_file:
 test:
     @echo "Running all tests..."
     go test -v ./...
+
+test-race:
+    @echo "Running tests with race detection..."
+    go test -race -v ./...
 
 # Run unit tests only
 test-unit:
@@ -140,12 +144,12 @@ dev:
     fi
 
 # Build Docker image
-docker-build:
+docker-build version=dev_version:
     @echo "Building Docker image..."
-    docker build -t smotra-api-server:{{version}} .
-    @echo "Docker image built: smotra-api-server:{{version}}"
+    docker build -t api-server:{{version}} .
+    @echo "Docker image built: api-server:{{version}}"
 
 # Run Docker container
-docker-run:
+docker-run version=dev_version:
     @echo "Running Docker container..."
-    docker run -p 8080:8080 --env-file .env smotra-api-server:{{version}}
+    docker run -p 8080:8080 --env-file .env api-server:{{version}}
