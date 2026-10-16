@@ -45,8 +45,8 @@ func TestAgentAPIKeyAuth_Integration(t *testing.T) {
 	}
 
 	// Create a section
-	sectionID := uuid.New().String()
-	_, err = db.DB().ExecContext(ctx, "INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)", sectionID, tenantID, "Test Section")
+	workspaceID := uuid.New().String()
+	_, err = db.DB().ExecContext(ctx, "INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)", workspaceID, tenantID, "Test Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestAgentAPIKeyAuth_Integration(t *testing.T) {
 
 	_, err = q.CreateAgent(ctx, queries.CreateAgentParams{
 		ID:          agentID,
-		WorkspaceID: sectionID,
+		WorkspaceID: workspaceID,
 		Name:        "Test Agent",
 		ApiKeyHash:  apiKeyHash,
 		BaseConfig:  baseConfig,
@@ -202,7 +202,7 @@ func TestAuthenticationChain_Integration(t *testing.T) {
 	// Create test agent
 	q := queries.New(db.DB())
 	tenantID := uuid.New().String()
-	sectionID := uuid.New().String()
+	workspaceID := uuid.New().String()
 	agentID := "019bdeb2-50dc-794e-808b-cf47526b867f"
 	apiKey := "test-key"
 	apiKeyHash := hashAPIKey(apiKey)
@@ -212,7 +212,7 @@ func TestAuthenticationChain_Integration(t *testing.T) {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
-	_, err = db.DB().ExecContext(ctx, "INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)", sectionID, tenantID, "Test Section")
+	_, err = db.DB().ExecContext(ctx, "INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)", workspaceID, tenantID, "Test Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestAuthenticationChain_Integration(t *testing.T) {
 
 	_, err = q.CreateAgent(ctx, queries.CreateAgentParams{
 		ID:          agentID,
-		WorkspaceID: sectionID,
+		WorkspaceID: workspaceID,
 		Name:        "Test Agent",
 		ApiKeyHash:  apiKeyHash,
 		BaseConfig:  baseConfig,

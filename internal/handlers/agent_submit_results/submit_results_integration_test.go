@@ -84,7 +84,7 @@ func setupTestRouter(h *Handler) *chi.Mux {
 }
 
 // setupRealDB creates a SQLite DB with all migrations applied plus a test tenant/section/agent.
-// Returns (db, agentID, sectionID).
+// Returns (db, agentID, workspaceID).
 func setupRealDB(t *testing.T) (database.Database, uuid.UUID, string) {
 	t.Helper()
 	db := testutil.SetupTestSQLiteDB(t)
@@ -95,30 +95,30 @@ func setupRealDB(t *testing.T) (database.Database, uuid.UUID, string) {
 	if _, err := db.DB().ExecContext(ctx, `INSERT INTO tenants (id, name) VALUES (?, ?)`, tenantID, "Test Tenant"); err != nil {
 		t.Fatalf("insert tenant: %v", err)
 	}
-	sectionID := uuid.Must(uuid.NewV7()).String()
-	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`, sectionID, tenantID, "Default"); err != nil {
+	workspaceID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`, workspaceID, tenantID, "Default"); err != nil {
 		t.Fatalf("insert section: %v", err)
 	}
 	agentID := uuid.Must(uuid.NewV7())
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO agents (id, workspace_id, name, api_key_hash, base_config) VALUES (?, ?, ?, ?, ?)`,
-		agentID.String(), sectionID, "test-agent", "fakehash", "{}"); err != nil {
+		agentID.String(), workspaceID, "test-agent", "fakehash", "{}"); err != nil {
 		t.Fatalf("insert agent: %v", err)
 	}
 
-	return db, agentID, sectionID
+	return db, agentID, workspaceID
 }
 
 // setupTopologyPermission creates a topology + tag membership so that agentID is
 // permitted (via GetEndpointsForAgent / GetEndpointByIDAndAgentID) to monitor endpointID.
-func setupTopologyPermission(t *testing.T, db database.Database, sectionID, agentID, endpointID string) {
+func setupTopologyPermission(t *testing.T, db database.Database, workspaceID, agentID, endpointID string) {
 	t.Helper()
 	ctx := context.Background()
 
 	tagID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO tags (id, workspace_id, name, scope) VALUES (?, ?, ?, 'global')`,
-		tagID, sectionID, "topo-"+tagID[:8]); err != nil {
+		tagID, workspaceID, "topo-"+tagID[:8]); err != nil {
 		t.Fatalf("insert topology tag: %v", err)
 	}
 	if _, err := db.DB().ExecContext(ctx,
@@ -133,7 +133,7 @@ func setupTopologyPermission(t *testing.T, db database.Database, sectionID, agen
 	topologyID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO topologies (id, workspace_id, name, type, enabled) VALUES (?, ?, ?, 'full-mesh', 1)`,
-		topologyID, sectionID, "topo-"+topologyID[:8]); err != nil {
+		topologyID, workspaceID, "topo-"+topologyID[:8]); err != nil {
 		t.Fatalf("insert topology: %v", err)
 	}
 	if _, err := db.DB().ExecContext(ctx,
@@ -193,7 +193,7 @@ func postBatch(t *testing.T, router *chi.Mux, agentID uuid.UUID, results []api.M
 }
 
 func TestIntegration_PingBatch_Accepted(t *testing.T) {
-	db, agentID, sectionID := setupRealDB(t)
+	db, agentID, workspaceID := setupRealDB(t)
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
 	ctx := context.Background()
@@ -201,10 +201,10 @@ func TestIntegration_PingBatch_Accepted(t *testing.T) {
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
-		endpointID, sectionID, "8.8.8.8"); err != nil {
+		endpointID, workspaceID, "8.8.8.8"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
-	setupTopologyPermission(t, db, sectionID, agentID.String(), endpointID)
+	setupTopologyPermission(t, db, workspaceID, agentID.String(), endpointID)
 
 	result := api.MonitoringResult{
 		Id:         uuid.Must(uuid.NewV7()),
@@ -248,7 +248,7 @@ func TestIntegration_PingBatch_Accepted(t *testing.T) {
 }
 
 func TestIntegration_Deduplication(t *testing.T) {
-	db, agentID, sectionID := setupRealDB(t)
+	db, agentID, workspaceID := setupRealDB(t)
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
 	ctx := context.Background()
@@ -256,10 +256,10 @@ func TestIntegration_Deduplication(t *testing.T) {
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
-		endpointID, sectionID, "1.1.1.1"); err != nil {
+		endpointID, workspaceID, "1.1.1.1"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
-	setupTopologyPermission(t, db, sectionID, agentID.String(), endpointID)
+	setupTopologyPermission(t, db, workspaceID, agentID.String(), endpointID)
 
 	result := api.MonitoringResult{
 		Id:         uuid.Must(uuid.NewV7()),
@@ -299,7 +299,7 @@ func TestIntegration_Deduplication(t *testing.T) {
 }
 
 func TestIntegration_UpdatesLastSeenAt(t *testing.T) {
-	db, agentID, sectionID := setupRealDB(t)
+	db, agentID, workspaceID := setupRealDB(t)
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
 	ctx := context.Background()
@@ -307,10 +307,10 @@ func TestIntegration_UpdatesLastSeenAt(t *testing.T) {
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
-		endpointID, sectionID, "9.9.9.9"); err != nil {
+		endpointID, workspaceID, "9.9.9.9"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
-	setupTopologyPermission(t, db, sectionID, agentID.String(), endpointID)
+	setupTopologyPermission(t, db, workspaceID, agentID.String(), endpointID)
 
 	start := time.Now().UTC().Add(-time.Second)
 	finish := start.Add(2 * time.Second)
@@ -342,7 +342,7 @@ func TestIntegration_UpdatesLastSeenAt(t *testing.T) {
 }
 
 func TestIntegration_UpdatesLastResultSubmittedAt(t *testing.T) {
-	db, agentID, sectionID := setupRealDB(t)
+	db, agentID, workspaceID := setupRealDB(t)
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
 	ctx := context.Background()
@@ -350,10 +350,10 @@ func TestIntegration_UpdatesLastResultSubmittedAt(t *testing.T) {
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
-		endpointID, sectionID, "9.9.9.8"); err != nil {
+		endpointID, workspaceID, "9.9.9.8"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
-	setupTopologyPermission(t, db, sectionID, agentID.String(), endpointID)
+	setupTopologyPermission(t, db, workspaceID, agentID.String(), endpointID)
 
 	start := time.Now().UTC().Add(-time.Second)
 	finish := start.Add(2 * time.Second)
@@ -385,16 +385,16 @@ func TestIntegration_UpdatesLastResultSubmittedAt(t *testing.T) {
 }
 
 func TestIntegration_EndpointIDStored(t *testing.T) {
-	db, agentID, sectionID := setupRealDB(t)
+	db, agentID, workspaceID := setupRealDB(t)
 	ctx := context.Background()
 
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
-		endpointID, sectionID, "10.0.0.1"); err != nil {
+		endpointID, workspaceID, "10.0.0.1"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
-	setupTopologyPermission(t, db, sectionID, agentID.String(), endpointID)
+	setupTopologyPermission(t, db, workspaceID, agentID.String(), endpointID)
 
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
@@ -420,7 +420,7 @@ func TestIntegration_EndpointIDStored(t *testing.T) {
 }
 
 func TestIntegration_TracerouteHopsStored(t *testing.T) {
-	db, agentID, sectionID := setupRealDB(t)
+	db, agentID, workspaceID := setupRealDB(t)
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
 	ctx := context.Background()
@@ -428,10 +428,10 @@ func TestIntegration_TracerouteHopsStored(t *testing.T) {
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
-		endpointID, sectionID, "10.0.0.1"); err != nil {
+		endpointID, workspaceID, "10.0.0.1"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
-	setupTopologyPermission(t, db, sectionID, agentID.String(), endpointID)
+	setupTopologyPermission(t, db, workspaceID, agentID.String(), endpointID)
 
 	hop1addr := "192.168.1.1"
 	hop2addr := "10.0.0.1"
@@ -481,7 +481,7 @@ func TestIntegration_TracerouteHopsStored(t *testing.T) {
 }
 
 func TestIntegration_MixedTypeBatch(t *testing.T) {
-	db, agentID, sectionID := setupRealDB(t)
+	db, agentID, workspaceID := setupRealDB(t)
 	h := NewHandler(logger.Default(), db)
 	router := setupTestRouter(h)
 	ctx := context.Background()
@@ -489,10 +489,10 @@ func TestIntegration_MixedTypeBatch(t *testing.T) {
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
-		endpointID, sectionID, "8.8.8.8"); err != nil {
+		endpointID, workspaceID, "8.8.8.8"); err != nil {
 		t.Fatalf("insert endpoint: %v", err)
 	}
-	setupTopologyPermission(t, db, sectionID, agentID.String(), endpointID)
+	setupTopologyPermission(t, db, workspaceID, agentID.String(), endpointID)
 
 	results := []api.MonitoringResult{
 		{
@@ -561,20 +561,20 @@ func TestIntegration_WrongAgentEndpointID_Returns422(t *testing.T) {
 	if _, err := db.DB().ExecContext(ctx, `INSERT INTO tenants (id, name) VALUES (?, ?)`, otherTenantID, "Other Tenant"); err != nil {
 		t.Fatalf("insert tenant: %v", err)
 	}
-	otherSectionID := uuid.Must(uuid.NewV7()).String()
-	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`, otherSectionID, otherTenantID, "Other Section"); err != nil {
+	otherWorkspaceID := uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)`, otherWorkspaceID, otherTenantID, "Other Section"); err != nil {
 		t.Fatalf("insert section: %v", err)
 	}
 	otherAgentID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO agents (id, workspace_id, name, api_key_hash, base_config) VALUES (?, ?, ?, ?, ?)`,
-		otherAgentID, otherSectionID, "other-agent", "fakehash2", "{}"); err != nil {
+		otherAgentID, otherWorkspaceID, "other-agent", "fakehash2", "{}"); err != nil {
 		t.Fatalf("insert other agent: %v", err)
 	}
 	otherEndpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx,
 		`INSERT INTO endpoints (id, workspace_id, address, enabled) VALUES (?, ?, ?, 1)`,
-		otherEndpointID, otherSectionID, "9.9.9.9"); err != nil {
+		otherEndpointID, otherWorkspaceID, "9.9.9.9"); err != nil {
 		t.Fatalf("insert other endpoint: %v", err)
 	}
 

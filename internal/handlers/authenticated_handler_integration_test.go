@@ -31,7 +31,7 @@ func TestAuthenticatedHandler_Integration(t *testing.T) {
 	q := queries.New(db.DB())
 
 	tenantID := uuid.New().String()
-	sectionID := uuid.New().String()
+	workspaceID := uuid.New().String()
 	agentID := "019bdeb2-50dc-794e-808b-cf47526b867f"
 	apiKey := "test-secret-key-123"
 	apiKeyHash := middleware.HashAPIKeyForTests(apiKey) // Helper function we need to export
@@ -41,7 +41,7 @@ func TestAuthenticatedHandler_Integration(t *testing.T) {
 		t.Fatalf("Failed to create tenant: %v", err)
 	}
 
-	_, err = db.DB().ExecContext(ctx, "INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)", sectionID, tenantID, "Test Section")
+	_, err = db.DB().ExecContext(ctx, "INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)", workspaceID, tenantID, "Test Section")
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestAuthenticatedHandler_Integration(t *testing.T) {
 
 	_, err = q.CreateAgent(ctx, queries.CreateAgentParams{
 		ID:          agentID,
-		WorkspaceID: sectionID,
+		WorkspaceID: workspaceID,
 		Name:        "Test Agent",
 		ApiKeyHash:  apiKeyHash,
 		BaseConfig:  baseConfig,

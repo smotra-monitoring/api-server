@@ -12,8 +12,8 @@ Agent                          Server                         Admin
   |-- POST /v1/agent/register --> |                              |
   |<-- { status, pollUrl } -------|                              |
   |                               |                              |
-  |                               |<-- POST /v1/agents/claim ----|
-  |                               |    (claimToken + sectionId)  |
+  |                               |<-- POST /v1/agent/claim ----|
+  |                               |    (claimToken + workspaceId)|
   |                               |                              |
   |-- GET  /v1/agent/{id}/        |                              |
   |        claim-status -------> |                              |
@@ -78,7 +78,7 @@ The agent should begin polling `pollUrl` (see Phase 3). The `claimUrl` is shown 
 
 ## Phase 2 — Administrator Claiming
 
-**Endpoint**: `POST /v1/agents/claim`  
+**Endpoint**: `POST /v1/agent/claim`  
 **Authentication**: OAuth2 bearer token (admin; user context extraction pending — currently unenforced).
 
 An administrator reviews the list of pending agents in the web UI and claims one by providing the original plaintext claim token (which the agent displayed on its console or stored in its local config).
@@ -86,13 +86,13 @@ An administrator reviews the list of pending agents in the web UI and claims one
 ### Request
 
 ```bash
-curl -X POST http://localhost:8080/v1/agents/claim \
+curl -X POST http://localhost:8080/v1/agent/claim \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <admin-token>" \
   -d '{
     "agentId": "019c1234-5678-7abc-def0-123456789abc",
     "claimToken": "original-plaintext-token-from-agent",
-    "sectionId": "019c9876-5432-7fed-cba0-987654321fed",
+    "workspaceId": "019c9876-5432-7fed-cba0-987654321fed",
     "name": "Production Web Server 01"
   }'
 ```
@@ -101,7 +101,7 @@ curl -X POST http://localhost:8080/v1/agents/claim \
 |-------|------|----------|-------------|
 | `agentId` | UUIDv7 | Yes | Agent to claim |
 | `claimToken` | string | Yes | Plaintext claim token (not the hash) |
-| `sectionId` | UUIDv7 | Yes | Section (group) the agent belongs to |
+| `workspaceId` | UUIDv7 | Yes | Workspace the agent belongs to |
 | `name` | string | No | Human-readable display name for the agent |
 
 ### What the server does
@@ -203,6 +203,6 @@ agent:
 
 ## Future Work
 
-- **OAuth2 admin context**: the claim endpoint currently accepts any bearer token. Once OAuth2 user context extraction is implemented, the server will validate the admin's tenant membership and verify that `sectionId` belongs to their tenant.
+- **OAuth2 admin context**: the claim endpoint currently accepts any bearer token. Once OAuth2 user context extraction is implemented, the server will validate the admin's tenant membership and verify that `workspaceId` belongs to their tenant.
 - **Metrics**: Prometheus counters for `agent_register`, `agent_claim`, and `agent_claim_status` handlers are tracked in the ROADMAP.
 - **Rate limiting**: registration and claim-status polling endpoints are candidates for per-IP rate limiting to prevent enumeration.

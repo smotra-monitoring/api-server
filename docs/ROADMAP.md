@@ -46,7 +46,7 @@ This change will also require change in OpenAPI `TracerouteCheck.result.total_ti
 - [x] Correct OpenAPI spec. Endpoint enabled is required
 - [x] Double check OpenAPI spec. AgentConfig.tags is required AgentConfig.Endpoints.tags is optional
 - [x] Correct DB schema. Add optional port to the Endpoint
-- [x] Database schema with support for tenants, sections, agents, endpoints, and tags
+- [x] Database schema with support for tenants, workspaces, agents, endpoints, and tags
 - [x] sqlc integration for type-safe database queries
 - [x] Agent configuration endpoint implementation (GET /agent/{agentId}/configuration)
 - [x] Database versioning triggers for automatic configuration version bumping
@@ -104,7 +104,7 @@ This change will also require change in OpenAPI `TracerouteCheck.result.total_ti
 - [ ] Remove CreateAgent from agent.sql, it can be safely replaced by CreateAgentFromClaim. Then `just regenerate-sqlc` and fix tests. CreateAgent only used in tests. 
 
 - [ ] Implement OAuth2 user context extraction
-- [ ] After implementing OAuth2: In claim.go Handle: add check on SectionID. SectionID must belong to the same tenant as the user.
+- [ ] After implementing OAuth2: In claim.go Handle: add check on WorkspaceID. WorkspaceID must belong to the same tenant as the user.
 - [ ] After implementing OAuth2: In claim_integration_test.go. Find "TODO:....." and uncomment code lines to enable "user checks".
 
 - [ ] Update copilot-instructions.md to add metrics to any new entities that might require it

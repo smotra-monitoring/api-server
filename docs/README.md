@@ -8,7 +8,7 @@ A distributed monitoring system designed to track reachability and performance o
 - 📊 **Real-Time Metrics** - Prometheus-format metrics endpoint for monitoring and observability
 - 🔐 **Secure Authentication** - Agent API key authentication with secure claiming workflow
 - 🗄️ **Flexible Database** - SQLite for development, PostgreSQL with TimescaleDB for production
-- 🏷️ **Multi-Tenant Support** - Hierarchical structure with tenants, sections, and agents
+- 🏷️ **Multi-Tenant Support** - Hierarchical structure with tenants, workspaces, and agents
 - 🌐 **RESTful API** - OpenAPI 3.0 specification with automatic code generation
 - 📈 **Extensible Architecture** - Plugin support for custom monitoring capabilities
 
