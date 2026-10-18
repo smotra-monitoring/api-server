@@ -162,8 +162,7 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 					Error:   "workspace_not_found",
 					Message: "User's workspace not found",
 				}), nil
-			}
-			if terr == nil && userTenantID != targetTenantID {
+			} else if userTenantID != targetTenantID {
 				h.claimFailureTotal.Add(1)
 				return api.PostClaimAgent403JSONResponse(api.Error{
 					Error:   "forbidden",

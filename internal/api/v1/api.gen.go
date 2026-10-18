@@ -547,9 +547,6 @@ type ServerConfig struct {
 	// HeartbeatIntervalSecs Heartbeat interval in seconds
 	HeartbeatIntervalSecs int64 `json:"heartbeat_interval_secs"`
 
-	// ReportIntervalSecs Report interval in seconds
-	ReportIntervalSecs int64 `json:"report_interval_secs"`
-
 	// RetryAttempts Retry attempts on failure
 	RetryAttempts int32 `json:"retry_attempts"`
 

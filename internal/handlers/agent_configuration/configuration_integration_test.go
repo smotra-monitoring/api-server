@@ -126,7 +126,6 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 		"server": {
 			"url": "https://api.smotra.net",
 			"api_key": "test-key",
-			"report_interval_secs": 300,
 			"heartbeat_interval_secs": 300,
 			"verify_tls": true,
 			"timeout_secs": 5,
