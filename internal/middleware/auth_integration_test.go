@@ -55,7 +55,7 @@ func TestAgentAPIKeyAuth_Integration(t *testing.T) {
 	agentID := "019bdeb2-50dc-794e-808b-cf47526b867f"
 	apiKey := "test-secret-key-123"
 	apiKeyHash := hashAPIKey(apiKey)
-	baseConfig := `{"monitoring":{"interval_secs":60,"timeout_secs":5,"ping_count":3,"max_concurrent":10,"traceroute_on_failure":false,"traceroute_max_hops":30},"server":{"report_interval_secs":300,"heartbeat_interval_secs":300,"verify_tls":true,"timeout_secs":5,"retry_attempts":3},"storage":{"cache_dir":"./cache","max_cached_results":10000,"max_cache_age_secs":86400}}`
+	baseConfig := `{"monitoring":{"interval_secs":60,"timeout_secs":5,"ping_count":3,"max_concurrent":10,"traceroute_on_failure":false,"traceroute_max_hops":30},"server":{"heartbeat_interval_secs":300,"verify_tls":true,"timeout_secs":5,"retry_attempts":3},"storage":{"cache_dir":"./cache","max_cached_results":10000,"max_cache_age_secs":86400}}`
 
 	_, err = q.CreateAgent(ctx, queries.CreateAgentParams{
 		ID:          agentID,
