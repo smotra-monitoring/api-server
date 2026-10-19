@@ -129,12 +129,16 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 			"heartbeat_interval_secs": 300,
 			"verify_tls": true,
 			"timeout_secs": 5,
-			"retry_attempts": 3
+			"retry_attempts": 3,
+			"claiming": {"max_registration_retries": 5}
 		},
 		"storage": {
 			"cache_dir": "./cache",
 			"max_cached_results": 10000,
-			"max_cache_age_secs": 86400
+			"max_cache_age_secs": 86400,
+			"cache_enabled": true,
+			"cache_batch_size": 100,
+			"cache_report_interval_secs": 60
 		}
 	}`
 
@@ -233,10 +237,10 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 		}
 
 		// Verify tags
-		if len(*config.Tags) != 1 {
-			t.Errorf("Expected 1 tag, got %d", len(*config.Tags))
-		} else if (*config.Tags)[0] != "production" {
-			t.Errorf("Expected tag 'production', got %s", (*config.Tags)[0])
+		if len(config.Tags) != 1 {
+			t.Errorf("Expected 1 tag, got %d", len(config.Tags))
+		} else if config.Tags[0] != "production" {
+			t.Errorf("Expected tag 'production', got %s", config.Tags[0])
 		}
 
 		// Verify endpoints: count, IDs, and the required id field is populated
@@ -269,13 +273,25 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 		}
 
 		// Verify server config
-		if config.Server.Url == nil || *config.Server.Url != "https://api.smotra.net" {
-			t.Errorf("Expected server URL 'https://api.smotra.net', got %v", config.Server.Url)
+		if config.Server.Url != "https://api.smotra.net" {
+			t.Errorf("Expected server URL 'https://api.smotra.net', got %s", config.Server.Url)
+		}
+		if config.Server.Claiming.MaxRegistrationRetries != 5 {
+			t.Errorf("Expected max_registration_retries 5, got %d", config.Server.Claiming.MaxRegistrationRetries)
 		}
 
 		// Verify storage config
 		if config.Storage.CacheDir != "./cache" {
 			t.Errorf("Expected cache_dir './cache', got %s", config.Storage.CacheDir)
+		}
+		if !config.Storage.CacheEnabled {
+			t.Errorf("Expected cache_enabled true")
+		}
+		if config.Storage.CacheBatchSize != 100 {
+			t.Errorf("Expected cache_batch_size 100, got %d", config.Storage.CacheBatchSize)
+		}
+		if config.Storage.CacheReportIntervalSecs != 60 {
+			t.Errorf("Expected cache_report_interval_secs 60, got %d", config.Storage.CacheReportIntervalSecs)
 		}
 	})
 
