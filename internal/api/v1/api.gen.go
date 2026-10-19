@@ -154,7 +154,7 @@ type AgentConfig struct {
 	Storage     StorageConfig     `json:"storage"`
 
 	// Tags Tags for this agent (used for mesh organization)
-	Tags *[]string `json:"tags,omitempty"`
+	Tags []string `json:"tags"`
 
 	// Version Configuration version (used for syncing with server)
 	Version int32 `json:"version"`
@@ -329,6 +329,12 @@ type ClaimAgentResponse struct {
 
 	// Status Status in claim response
 	Status ClaimResponseStatus `json:"status"`
+}
+
+// ClaimConfig defines model for ClaimConfig.
+type ClaimConfig struct {
+	// MaxRegistrationRetries Maximum registration retry attempts
+	MaxRegistrationRetries int64 `json:"max_registration_retries"`
 }
 
 // ClaimResponseStatus Status in claim response
@@ -542,7 +548,8 @@ type SelfUpgradeConfig struct {
 // ServerConfig defines model for ServerConfig.
 type ServerConfig struct {
 	// ApiKey API key for authentication
-	ApiKey *string `json:"api_key"`
+	ApiKey   *string     `json:"api_key"`
+	Claiming ClaimConfig `json:"claiming"`
 
 	// HeartbeatIntervalSecs Heartbeat interval in seconds
 	HeartbeatIntervalSecs int64 `json:"heartbeat_interval_secs"`
@@ -554,7 +561,7 @@ type ServerConfig struct {
 	TimeoutSecs int64 `json:"timeout_secs"`
 
 	// Url Server URL
-	Url *string `json:"url"`
+	Url string `json:"url"`
 
 	// VerifyTls Enable TLS verification
 	VerifyTls bool `json:"verify_tls"`
@@ -562,8 +569,17 @@ type ServerConfig struct {
 
 // StorageConfig defines model for StorageConfig.
 type StorageConfig struct {
+	// CacheBatchSize Number of results sent to the server in a single POST request
+	CacheBatchSize int64 `json:"cache_batch_size"`
+
 	// CacheDir Directory for storing cached data
 	CacheDir string `json:"cache_dir"`
+
+	// CacheEnabled Enable in-memory result caching and batch reporting
+	CacheEnabled bool `json:"cache_enabled"`
+
+	// CacheReportIntervalSecs How often (in seconds) the result reporter drains and sends a batch
+	CacheReportIntervalSecs int64 `json:"cache_report_interval_secs"`
 
 	// MaxCacheAgeSecs Maximum age of cached results in seconds (e.g., 86400 = 24 hours)
 	MaxCacheAgeSecs int64 `json:"max_cache_age_secs"`

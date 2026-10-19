@@ -87,10 +87,9 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 		return nil, fmt.Errorf("failed to get agent tags: %w", err)
 	}
 
-	// Convert agent tags to pointer (nil if empty)
-	var agentTagsPtr *[]string
-	if len(agentTags) > 0 {
-		agentTagsPtr = &agentTags
+	// nil slice marshals as JSON null; required field must be []
+	if agentTags == nil {
+		agentTags = []string{}
 	}
 
 	// Get agent endpoints resolved via topology membership
@@ -166,7 +165,7 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 		Version:    int32(configRow.ConfigVersion), // Convert from int to int32
 		AgentId:    agentUUID,
 		AgentName:  configRow.Name,
-		Tags:       agentTagsPtr,
+		Tags:       agentTags,
 		Monitoring: baseConfig.Monitoring,
 		Server:     baseConfig.Server,
 		Storage:    baseConfig.Storage,
