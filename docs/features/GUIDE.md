@@ -104,7 +104,6 @@ curl -X POST http://localhost:8080/agents/claim \
   -d '{
     "agentId": "019c1234-5678-7abc-def0-123456789abc",
     "claimToken": "original-token-from-agent",
-    "workspaceId": "019c9876-5432-7fed-cba0-987654321fed",
     "name": "Production Web Server 01"
   }'
 ```
