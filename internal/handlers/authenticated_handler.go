@@ -206,17 +206,6 @@ func (h *AuthenticatedHandler) Oauth2Revoke(ctx context.Context, request api.Oau
 		}, nil
 	}
 
-	if authInfo.SessionID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing session ID in authentication info for oauth2 revoke")
-		return api.Oauth2Revoke401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
 	if authInfo.UserID == "" {
 		h.authInvalidTotal.Add(1)
 		h.logger.Warn("Missing user ID in authentication info for oauth2 revoke")
@@ -250,17 +239,6 @@ func (h *AuthenticatedHandler) AuthRefresh(ctx context.Context, request api.Auth
 	if authInfo.AuthType != "oauth2" {
 		h.authInvalidTotal.Add(1)
 		h.logger.Warn("Invalid authentication type for refresh", "auth_type", authInfo.AuthType)
-		return api.AuthRefresh401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	if authInfo.SessionID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing session ID in authentication info for refresh")
 		return api.AuthRefresh401JSONResponse{
 			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
 				Error:   "unauthorized",
@@ -310,17 +288,6 @@ func (h *AuthenticatedHandler) Logout(ctx context.Context, request api.LogoutReq
 		}, nil
 	}
 
-	if authInfo.SessionID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing session ID in authentication info for logout")
-		return api.Logout401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
 	if authInfo.UserID == "" {
 		h.authInvalidTotal.Add(1)
 		h.logger.Warn("Missing user ID in authentication info for logout")
@@ -362,17 +329,6 @@ func (h *AuthenticatedHandler) GetUserInfo(ctx context.Context, request api.GetU
 		}, nil
 	}
 
-	if authInfo.SessionID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing session ID in authentication info for userinfo")
-		return api.GetUserInfo401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
 	if authInfo.UserID == "" {
 		h.authInvalidTotal.Add(1)
 		h.logger.Warn("Missing user ID in authentication info for userinfo")
@@ -386,6 +342,49 @@ func (h *AuthenticatedHandler) GetUserInfo(ctx context.Context, request api.GetU
 
 	h.authSuccessTotal.Add(1)
 	return h.APIHandler.GetUserInfo(ctx, request)
+}
+
+// PostClaimAgent wraps the agent claim handler with authentication.
+// Only OAuth2-authenticated users (web sessions) may claim agents.
+// Agent API keys are explicitly rejected.
+func (h *AuthenticatedHandler) PostClaimAgent(ctx context.Context, request api.PostClaimAgentRequestObject) (api.PostClaimAgentResponseObject, error) {
+	h.authAttemptsTotal.Add(1)
+
+	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+	if !ok || authInfo == nil || !authInfo.Authenticated {
+		h.authNoAuthTotal.Add(1)
+		return api.PostClaimAgent401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.AuthType != "oauth2" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Invalid authentication type for claim endpoint", "auth_type", authInfo.AuthType)
+		return api.PostClaimAgent401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	if authInfo.UserID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing user ID in authentication info for claim endpoint")
+		return api.PostClaimAgent401JSONResponse{
+			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+				Error:   "unauthorized",
+				Message: "Valid session required",
+			},
+		}, nil
+	}
+
+	h.authSuccessTotal.Add(1)
+	return h.APIHandler.PostClaimAgent(ctx, request)
 }
 
 // ListAgents wraps the agent list handler with authentication.

@@ -46,8 +46,6 @@ func NewHandler(logger *logger.Logger, db database.Database) *Handler {
 func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObject) (api.PostClaimAgentResponseObject, error) {
 	h.claimAttemptsTotal.Add(1)
 
-	q := queries.New(h.db.DB())
-
 	if req.Body == nil {
 		h.claimFailureTotal.Add(1)
 		return api.PostClaimAgent400JSONResponse{
@@ -57,6 +55,41 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 			},
 		}, nil
 	}
+
+	// Auth is guaranteed by AuthenticatedHandler wrapper; cast directly.
+	authInfo := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+
+	q := queries.New(h.db.DB())
+
+	// Resolve workspace from the authenticated user — clients cannot specify a different workspace.
+	claimingUser, err := q.GetUserByID(ctx, authInfo.UserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			h.claimFailureTotal.Add(1)
+			h.logger.WarnContext(ctx, "Authenticated user not found in database",
+				slog.String("user_id", authInfo.UserID),
+			)
+			return api.PostClaimAgent401JSONResponse{
+				UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
+					Error:   "unauthorized",
+					Message: "User not found",
+				},
+			}, nil
+		}
+		h.claimFailureTotal.Add(1)
+		h.logger.ErrorContext(ctx, "Failed to retrieve authenticated user",
+			slog.String("user_id", authInfo.UserID),
+			slog.String("error", err.Error()),
+		)
+		return api.PostClaimAgent500JSONResponse{
+			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
+				Error:   "internal_error",
+				Message: "Failed to retrieve user information",
+			},
+		}, nil
+	}
+	workspaceID := claimingUser.WorkspaceID
+	userID := sql.NullString{String: authInfo.UserID, Valid: true}
 
 	agentIDStr := req.Body.AgentId.String()
 
@@ -140,39 +173,6 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 
 	apiKeyHash := hashAPIKey(apiKey)
 
-	// Extract authenticated user from context and validate workspace ownership.
-	authInfo, _ := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
-	userID := sql.NullString{}
-	if authInfo != nil && authInfo.UserID != "" {
-		// Resolve user record to get their workspace, then check tenant match.
-		claimingUser, uerr := q.GetUserByID(ctx, authInfo.UserID)
-		if uerr == nil {
-			targetTenantID, terr := q.GetWorkspaceTenantID(ctx, req.Body.WorkspaceId.String())
-			if terr != nil {
-				h.claimFailureTotal.Add(1)
-				return api.PostClaimAgent404JSONResponse(api.Error{
-					Error:   "workspace_not_found",
-					Message: "Target workspace not found",
-				}), nil
-			}
-			userTenantID, terr := q.GetWorkspaceTenantID(ctx, claimingUser.WorkspaceID)
-			if terr != nil {
-				h.claimFailureTotal.Add(1)
-				return api.PostClaimAgent404JSONResponse(api.Error{
-					Error:   "workspace_not_found",
-					Message: "User's workspace not found",
-				}), nil
-			} else if userTenantID != targetTenantID {
-				h.claimFailureTotal.Add(1)
-				return api.PostClaimAgent403JSONResponse(api.Error{
-					Error:   "forbidden",
-					Message: "Target workspace does not belong to your tenant",
-				}), nil
-			}
-		}
-		userID = sql.NullString{String: authInfo.UserID, Valid: true}
-	}
-
 	// Determine agent name - use hostname from claim unless overridden
 	agentName := claimFromDB.Hostname
 	if req.Body.Name != nil && *req.Body.Name != "" {
@@ -204,7 +204,7 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 
 	if _, err = txQueries.CreateAgentFromClaim(ctx, queries.CreateAgentFromClaimParams{
 		ID:              agentIDStr,
-		WorkspaceID:     req.Body.WorkspaceId.String(),
+		WorkspaceID:     workspaceID,
 		Name:            agentName,
 		ApiKeyHash:      apiKeyHash,
 		BaseConfig:      "{}",
@@ -230,7 +230,7 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 	endpointID := uuid.Must(uuid.NewV7()).String()
 	if _, err = txQueries.CreateAgentEndpoint(ctx, queries.CreateAgentEndpointParams{
 		ID:            endpointID,
-		WorkspaceID:   req.Body.WorkspaceId.String(),
+		WorkspaceID:   workspaceID,
 		Address:       endpointAddress,
 		LinkedAgentID: sql.NullString{String: agentIDStr, Valid: true},
 	}); err != nil {
@@ -284,7 +284,7 @@ func (h *Handler) Handle(ctx context.Context, req api.PostClaimAgentRequestObjec
 	h.logger.InfoContext(ctx, "Agent claimed successfully",
 		slog.String("agentId", agentIDStr),
 		slog.String("name", agentName),
-		slog.String("workspaceId", req.Body.WorkspaceId.String()),
+		slog.String("workspaceId", workspaceID),
 	)
 
 	return api.PostClaimAgent200JSONResponse(api.ClaimAgentResponse{

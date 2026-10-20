@@ -13,7 +13,6 @@ Agent                          Server                         Admin
   |<-- { status, pollUrl } -------|                              |
   |                               |                              |
   |                               |<-- POST /v1/agent/claim ----|
-  |                               |    (claimToken + workspaceId)|
   |                               |                              |
   |-- GET  /v1/agent/{id}/        |                              |
   |        claim-status -------> |                              |
@@ -92,16 +91,14 @@ curl -X POST http://localhost:8080/v1/agent/claim \
   -d '{
     "agentId": "019c1234-5678-7abc-def0-123456789abc",
     "claimToken": "original-plaintext-token-from-agent",
-    "workspaceId": "019c9876-5432-7fed-cba0-987654321fed",
     "name": "Production Web Server 01"
   }'
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+|-------|------|----------|--------------|
 | `agentId` | UUIDv7 | Yes | Agent to claim |
 | `claimToken` | string | Yes | Plaintext claim token (not the hash) |
-| `workspaceId` | UUIDv7 | Yes | Workspace the agent belongs to |
 | `name` | string | No | Human-readable display name for the agent |
 
 ### What the server does
@@ -203,6 +200,6 @@ agent:
 
 ## Future Work
 
-- **OAuth2 admin context**: the claim endpoint currently accepts any bearer token. Once OAuth2 user context extraction is implemented, the server will validate the admin's tenant membership and verify that `workspaceId` belongs to their tenant.
+- **OAuth2 admin context**: the claim endpoint requires an OAuth2 bearer token. The agent is claimed into the workspace of the authenticated user.
 - **Metrics**: Prometheus counters for `agent_register`, `agent_claim`, and `agent_claim_status` handlers are tracked in the ROADMAP.
 - **Rate limiting**: registration and claim-status polling endpoints are candidates for per-IP rate limiting to prevent enumeration.

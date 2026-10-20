@@ -358,3 +358,59 @@ func TestAuthenticatedHandler_SendAgentHeartbeat_AgentIDMismatch(t *testing.T) {
 		t.Errorf("expected 503 for agent ID mismatch, got %T", resp)
 	}
 }
+
+// ─── PostClaimAgent auth checks ──────────────────────────────────────────────
+
+func TestAuthenticatedHandler_PostClaimAgent_NoAuth(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	resp, err := handler.PostClaimAgent(context.Background(), api.PostClaimAgentRequestObject{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.PostClaimAgent401JSONResponse); !ok {
+		t.Errorf("expected 401 for missing auth, got %T", resp)
+	}
+}
+
+func TestAuthenticatedHandler_PostClaimAgent_AgentAPIKeyRejected(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	authInfo := &middleware.AuthInfo{AgentID: "some-agent-id", AuthType: "agent_api_key", Authenticated: true}
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, authInfo)
+
+	resp, err := handler.PostClaimAgent(ctx, api.PostClaimAgentRequestObject{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.PostClaimAgent401JSONResponse); !ok {
+		t.Errorf("expected 401 for agent API key auth on claim endpoint, got %T", resp)
+	}
+}
+
+func TestAuthenticatedHandler_PostClaimAgent_MissingUserID(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	mockDB := testutil.NewMockDatabase()
+	cfg := testutil.DefaultTestConfig()
+	metricsHandler := NewMetricsHandler(log, "test")
+	handler := NewAuthenticatedHandler(log, mockDB, cfg, "test", metricsHandler)
+
+	authInfo := &middleware.AuthInfo{AuthType: "oauth2", Authenticated: true, UserID: ""}
+	ctx := context.WithValue(context.Background(), middleware.AuthContextKey, authInfo)
+
+	resp, err := handler.PostClaimAgent(ctx, api.PostClaimAgentRequestObject{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := resp.(api.PostClaimAgent401JSONResponse); !ok {
+		t.Errorf("expected 401 for missing user ID, got %T", resp)
+	}
+}

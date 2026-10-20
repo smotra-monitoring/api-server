@@ -119,6 +119,37 @@ func setupTestRouterWithAuth(db database.Database, handler *Handler) *chi.Mux {
 	return r
 }
 
+// setupUserAndSession creates a user in the given workspace and a valid OAuth2 session.
+// Returns the userID and a plain Bearer token for use in test requests.
+func setupUserAndSession(t *testing.T, db database.Database, workspaceID string) (userID, plainToken string) {
+	t.Helper()
+	ctx := context.Background()
+	q := queries.New(db.DB())
+
+	userID = uuid.Must(uuid.NewV7()).String()
+	if _, err := db.DB().ExecContext(ctx,
+		`INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, 'github', ?, 'Test User')`,
+		userID, workspaceID, "sub-"+userID[:8]); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	plainToken = "test-session-token-" + userID
+	now := time.Now().UTC()
+	if _, err := q.CreateSession(ctx, queries.CreateSessionParams{
+		ID:                uuid.Must(uuid.NewV7()).String(),
+		UserID:            userID,
+		TokenHash:         middleware.HashAPIKeyForTests(plainToken),
+		SlidingExpiresAt:  now.Add(24 * time.Hour),
+		ExpiresAt:         now.Add(24 * time.Hour),
+		Oauth2Provider:    "github",
+		Oauth2AccessToken: "tok",
+		Oauth2TokenType:   "Bearer",
+	}); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	return
+}
+
 func TestClaimAgent_Integration_Success(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
@@ -128,7 +159,6 @@ func TestClaimAgent_Integration_Success(t *testing.T) {
 	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db)
-	router := setupTestRouter(handler)
 
 	// Create tenant
 	tenantID := uuid.Must(uuid.NewV7()).String()
@@ -145,6 +175,10 @@ func TestClaimAgent_Integration_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
+
+	// Create authenticated user in the workspace
+	_, plainToken := setupUserAndSession(t, db, workspaceID)
+	router := setupTestRouterWithAuth(db, handler)
 
 	// Create unclaimed agent
 	agentID := uuid.Must(uuid.NewV7())
@@ -166,15 +200,15 @@ func TestClaimAgent_Integration_Success(t *testing.T) {
 
 	// Claim the agent
 	reqBody := api.ClaimAgentRequest{
-		AgentId:     agentID,
-		ClaimToken:  claimToken,
-		WorkspaceId: uuid.MustParse(workspaceID),
-		Name:        ptrString("My Test Agent"),
+		AgentId:    agentID,
+		ClaimToken: claimToken,
+		Name:       ptrString("My Test Agent"),
 	}
 
 	reqJSON, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+plainToken)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -216,10 +250,9 @@ func TestClaimAgent_Integration_Success(t *testing.T) {
 		t.Error("Expected claimed_at to be set")
 	}
 
-	// TODO: uncomment after implementing OAuth user association
-	// if !claimFromDB.ClaimedByUserID.Valid {
-	// 	t.Error("Expected claimed_by_user_id to be set")
-	// }
+	if !claimFromDB.ClaimedByUserID.Valid {
+		t.Error("Expected claimed_by_user_id to be set")
+	}
 
 	if !claimFromDB.ApiKeyPlaintext.Valid || claimFromDB.ApiKeyPlaintext.String == "" {
 		t.Error("Expected api_key_plaintext to be set for delivery")
@@ -235,7 +268,6 @@ func TestClaimAgent_Integration_InvalidToken(t *testing.T) {
 	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db)
-	router := setupTestRouter(handler)
 
 	// Create tenant and section
 	tenantID := uuid.Must(uuid.NewV7()).String()
@@ -251,6 +283,9 @@ func TestClaimAgent_Integration_InvalidToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
+
+	_, plainToken := setupUserAndSession(t, db, workspaceID)
+	router := setupTestRouterWithAuth(db, handler)
 
 	// Create unclaimed agent
 	agentID := uuid.Must(uuid.NewV7())
@@ -272,15 +307,15 @@ func TestClaimAgent_Integration_InvalidToken(t *testing.T) {
 
 	// Try to claim with wrong token
 	reqBody := api.ClaimAgentRequest{
-		AgentId:     agentID,
-		ClaimToken:  "wrong-token-12345678",
-		WorkspaceId: uuid.MustParse(workspaceID),
-		Name:        ptrString("My Test Agent"),
+		AgentId:    agentID,
+		ClaimToken: "wrong-token-12345678",
+		Name:       ptrString("My Test Agent"),
 	}
 
 	reqJSON, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+plainToken)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -308,7 +343,6 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db)
-	router := setupTestRouter(handler)
 
 	// Create tenant, user, and workspace
 	tenantID := uuid.Must(uuid.NewV7()).String()
@@ -325,13 +359,8 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 		t.Fatalf("Failed to create workspace: %v", err)
 	}
 
-	userID := uuid.Must(uuid.NewV7()).String()
-	_, err = db.DB().ExecContext(ctx,
-		`INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)`,
-		userID, workspaceID, "github", "test-user-123", "Test User")
-	if err != nil {
-		t.Fatalf("Failed to create user: %v", err)
-	}
+	_, plainToken := setupUserAndSession(t, db, workspaceID)
+	router := setupTestRouterWithAuth(db, handler)
 
 	// Create already claimed agent
 	agentID := uuid.Must(uuid.NewV7())
@@ -353,15 +382,15 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 
 	// Claim the agent
 	reqBody1 := api.ClaimAgentRequest{
-		AgentId:     agentID,
-		ClaimToken:  claimToken,
-		WorkspaceId: uuid.MustParse(workspaceID),
-		Name:        ptrString("My Test Agent"),
+		AgentId:    agentID,
+		ClaimToken: claimToken,
+		Name:       ptrString("My Test Agent"),
 	}
 
 	reqJSON1, _ := json.Marshal(reqBody1)
 	req1 := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON1))
 	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("Authorization", "Bearer "+plainToken)
 
 	w1 := httptest.NewRecorder()
 	router.ServeHTTP(w1, req1)
@@ -372,15 +401,15 @@ func TestClaimAgent_Integration_AlreadyClaimed(t *testing.T) {
 
 	// Try to claim again
 	reqBody2 := api.ClaimAgentRequest{
-		AgentId:     agentID,
-		ClaimToken:  claimToken,
-		WorkspaceId: uuid.MustParse(workspaceID),
-		Name:        ptrString("My Test Agent"),
+		AgentId:    agentID,
+		ClaimToken: claimToken,
+		Name:       ptrString("My Test Agent"),
 	}
 
 	reqJSON2, _ := json.Marshal(reqBody2)
 	req2 := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON2))
 	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("Authorization", "Bearer "+plainToken)
 
 	w2 := httptest.NewRecorder()
 	router.ServeHTTP(w2, req2)
@@ -407,7 +436,6 @@ func TestClaimAgent_Integration_NotFound(t *testing.T) {
 	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db)
-	router := setupTestRouter(handler)
 
 	// Create tenant and section
 	tenantID := uuid.Must(uuid.NewV7()).String()
@@ -424,18 +452,21 @@ func TestClaimAgent_Integration_NotFound(t *testing.T) {
 		t.Fatalf("Failed to create section: %v", err)
 	}
 
+	_, plainToken := setupUserAndSession(t, db, workspaceID)
+	router := setupTestRouterWithAuth(db, handler)
+
 	// Try to claim non-existent agent
 	agentID := uuid.Must(uuid.NewV7())
 	reqBody := api.ClaimAgentRequest{
-		AgentId:     agentID,
-		ClaimToken:  "some-token",
-		WorkspaceId: uuid.MustParse(workspaceID),
-		Name:        ptrString("My Test Agent"),
+		AgentId:    agentID,
+		ClaimToken: "some-token",
+		Name:       ptrString("My Test Agent"),
 	}
 
 	reqJSON, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+plainToken)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -454,7 +485,6 @@ func TestClaimAgent_Integration_UsesHostnameWhenNameNotProvided(t *testing.T) {
 	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
 	handler := NewHandler(log, db)
-	router := setupTestRouter(handler)
 
 	// Create tenant and section
 	tenantID := uuid.Must(uuid.NewV7()).String()
@@ -470,6 +500,9 @@ func TestClaimAgent_Integration_UsesHostnameWhenNameNotProvided(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create section: %v", err)
 	}
+
+	_, plainToken := setupUserAndSession(t, db, workspaceID)
+	router := setupTestRouterWithAuth(db, handler)
 
 	// Create unclaimed agent
 	agentID := uuid.Must(uuid.NewV7())
@@ -491,15 +524,15 @@ func TestClaimAgent_Integration_UsesHostnameWhenNameNotProvided(t *testing.T) {
 
 	// Claim without providing name
 	reqBody := api.ClaimAgentRequest{
-		AgentId:     agentID,
-		ClaimToken:  claimToken,
-		WorkspaceId: uuid.MustParse(workspaceID),
-		Name:        nil, // No name provided
+		AgentId:    agentID,
+		ClaimToken: claimToken,
+		Name:       nil, // No name provided
 	}
 
 	reqJSON, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+plainToken)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -557,13 +590,13 @@ func setupClaimFixture(t *testing.T, db database.Database) (tenantID, workspaceI
 	return
 }
 
-func TestClaimAgent_Integration_CrossTenantForbidden(t *testing.T) {
+func TestClaimAgent_Integration_AgentClaimedIntoUserWorkspace(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
 	ctx := context.Background()
 	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
-	_, workspaceA, agentID, claimToken := setupClaimFixture(t, db)
+	_, _, agentID, claimToken := setupClaimFixture(t, db)
 
 	// Tenant B with its own workspace — the user below belongs here.
 	tenantB := uuid.Must(uuid.NewV7()).String()
@@ -574,39 +607,15 @@ func TestClaimAgent_Integration_CrossTenantForbidden(t *testing.T) {
 	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, 'default')`, workspaceB, tenantB); err != nil {
 		t.Fatalf("workspace B: %v", err)
 	}
-	userB := uuid.Must(uuid.NewV7()).String()
-	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, 'github', 'sub-b', 'User B')`,
-		userB, workspaceB); err != nil {
-		t.Fatalf("user B: %v", err)
-	}
-
-	// Create a session for user B.
-	plainToken := "cross-tenant-test-token-xyz"
-	tokenHash := middleware.HashAPIKeyForTests(plainToken)
-	now := time.Now().UTC()
-	q := queries.New(db.DB())
-	if _, err := q.CreateSession(ctx, queries.CreateSessionParams{
-		ID:                uuid.Must(uuid.NewV7()).String(),
-		UserID:            userB,
-		TokenHash:         tokenHash,
-		SlidingExpiresAt:  now.Add(24 * time.Hour),
-		ExpiresAt:         now.Add(24 * time.Hour),
-		Oauth2Provider:    "github",
-		Oauth2AccessToken: "tok",
-		Oauth2TokenType:   "Bearer",
-	}); err != nil {
-		t.Fatalf("session: %v", err)
-	}
+	_, plainToken := setupUserAndSession(t, db, workspaceB)
 
 	handler := NewHandler(log, db)
 	router := setupTestRouterWithAuth(db, handler)
 
-	// User B (tenant B) tries to claim agent into workspace A (tenant A) — must be 403.
+	// User B (tenant B) claims the agent; the server uses user B's workspace.
 	reqBody := api.ClaimAgentRequest{
-		AgentId:     agentID,
-		ClaimToken:  claimToken,
-		WorkspaceId: uuid.MustParse(workspaceA),
+		AgentId:    agentID,
+		ClaimToken: claimToken,
 	}
 	reqJSON, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON))
@@ -615,29 +624,32 @@ func TestClaimAgent_Integration_CrossTenantForbidden(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d. Body: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d. Body: %s", w.Code, w.Body.String())
 	}
-	var errResp api.Error
-	if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
-		t.Fatalf("unmarshal: %v", err)
+
+	// Verify the agent was created in user B's workspace.
+	var agentWorkspaceID string
+	err := db.DB().QueryRowContext(ctx, "SELECT workspace_id FROM agents WHERE id = ?", agentID.String()).Scan(&agentWorkspaceID)
+	if err != nil {
+		t.Fatalf("query agent workspace: %v", err)
 	}
-	if errResp.Error != "forbidden" {
-		t.Errorf("expected error 'forbidden', got %q", errResp.Error)
+	if agentWorkspaceID != workspaceB {
+		t.Errorf("expected agent workspace %q (user's), got %q", workspaceB, agentWorkspaceID)
 	}
 }
 
-func TestClaimAgent_Integration_UnknownWorkspace(t *testing.T) {
+// TestClaimAgent_Integration_RequestBodyWorkspaceIdIgnored verifies that the agent
+// is always claimed into the authenticated user's workspace.
+func TestClaimAgent_Integration_RequestBodyWorkspaceIdIgnored(t *testing.T) {
 	log := logger.Default()
 	db := testutil.SetupTestSQLiteDB(t)
 	ctx := context.Background()
 	testutil.ApplyMigrations(t, ctx, db.DB(), "../../../data/db/dev/migrations")
 
-	_, workspaceA, agentID, claimToken := setupClaimFixture(t, db)
-	// Ensure the agent claim exists but with a known workspace we can manipulate later.
-	_ = workspaceA
+	_, _, agentID, claimToken := setupClaimFixture(t, db)
 
-	// Set up an authenticated user.
+	// Set up an authenticated user in their own workspace.
 	tenantID := uuid.Must(uuid.NewV7()).String()
 	if _, err := db.DB().ExecContext(ctx, `INSERT INTO tenants (id, name) VALUES (?, ?)`, tenantID, "Test Tenant 2"); err != nil {
 		t.Fatalf("tenant: %v", err)
@@ -646,36 +658,14 @@ func TestClaimAgent_Integration_UnknownWorkspace(t *testing.T) {
 	if _, err := db.DB().ExecContext(ctx, `INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, 'default')`, wsID, tenantID); err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
-	userID := uuid.Must(uuid.NewV7()).String()
-	if _, err := db.DB().ExecContext(ctx,
-		`INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, 'github', 'sub-x', 'User X')`,
-		userID, wsID); err != nil {
-		t.Fatalf("user: %v", err)
-	}
-	plainToken := "unknown-ws-test-token-abc"
-	now := time.Now().UTC()
-	q := queries.New(db.DB())
-	if _, err := q.CreateSession(ctx, queries.CreateSessionParams{
-		ID:                uuid.Must(uuid.NewV7()).String(),
-		UserID:            userID,
-		TokenHash:         middleware.HashAPIKeyForTests(plainToken),
-		SlidingExpiresAt:  now.Add(24 * time.Hour),
-		ExpiresAt:         now.Add(24 * time.Hour),
-		Oauth2Provider:    "github",
-		Oauth2AccessToken: "tok",
-		Oauth2TokenType:   "Bearer",
-	}); err != nil {
-		t.Fatalf("session: %v", err)
-	}
+	_, plainToken := setupUserAndSession(t, db, wsID)
 
 	handler := NewHandler(log, db)
 	router := setupTestRouterWithAuth(db, handler)
 
-	// Target workspace does not exist in the database.
 	reqBody := api.ClaimAgentRequest{
-		AgentId:     agentID,
-		ClaimToken:  claimToken,
-		WorkspaceId: uuid.Must(uuid.NewV7()), // random — not in DB
+		AgentId:    agentID,
+		ClaimToken: claimToken,
 	}
 	reqJSON, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON))
@@ -684,15 +674,18 @@ func TestClaimAgent_Integration_UnknownWorkspace(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d. Body: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d. Body: %s", w.Code, w.Body.String())
 	}
-	var errResp api.Error
-	if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
-		t.Fatalf("unmarshal: %v", err)
+
+	// Verify the agent is in the user's workspace.
+	var agentWorkspaceID string
+	err := db.DB().QueryRowContext(ctx, "SELECT workspace_id FROM agents WHERE id = ?", agentID.String()).Scan(&agentWorkspaceID)
+	if err != nil {
+		t.Fatalf("query agent workspace: %v", err)
 	}
-	if errResp.Error != "workspace_not_found" {
-		t.Errorf("expected error 'workspace_not_found', got %q", errResp.Error)
+	if agentWorkspaceID != wsID {
+		t.Errorf("expected agent workspace %q (user's), got %q", wsID, agentWorkspaceID)
 	}
 }
 
@@ -733,10 +726,9 @@ func TestClaimAgent_Integration_OAuthUserSetsClaimedBy(t *testing.T) {
 	router := setupTestRouterWithAuth(db, handler)
 
 	reqBody := api.ClaimAgentRequest{
-		AgentId:     agentID,
-		ClaimToken:  claimToken,
-		WorkspaceId: uuid.MustParse(workspaceID),
-		Name:        ptrString("OAuth Test Agent"),
+		AgentId:    agentID,
+		ClaimToken: claimToken,
+		Name:       ptrString("OAuth Test Agent"),
 	}
 	reqJSON, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest(http.MethodPost, "/agent/claim", bytes.NewReader(reqJSON))

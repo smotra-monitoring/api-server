@@ -314,9 +314,6 @@ type ClaimAgentRequest struct {
 
 	// Name Human-readable name for the agent (defaults to hostname if not provided)
 	Name *string `json:"name,omitempty"`
-
-	// WorkspaceId UUID version 7 as per RFC 4122
-	WorkspaceId UUIDv7 `json:"workspaceId"`
 }
 
 // ClaimAgentResponse defines model for ClaimAgentResponse.
