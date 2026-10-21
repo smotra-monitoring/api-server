@@ -452,8 +452,8 @@ server/
   - **Root Endpoints**: `/healthz`, `/metrics` - No versioning, infrastructure monitoring
   - **Versioned Endpoints**: `/v1/*` - Core business logic with API versioning
 - **Tag-Based Code Generation**: Two oapi-codegen configs generate separate packages:
-  - `api/oapi-codegen-root.yaml` → `internal/api/health/` (health tag)
-  - `api/oapi-codegen-prefixed.yaml` → `internal/v1/` (current tag, excludes health)
+  - `api/oapi-codegen-health.yaml` → `internal/api/health/` (health tag)
+  - `api/oapi-codegen-v1.yaml` → `internal/v1/` (current tag, excludes health)
 - **Strict Handlers**: Uses OpenAPI strict handler pattern for type safety
 - **Authentication**: Agent API key authentication via `X-Agent-API-Key` header
 - **Future-Proof**: Clean separation allows adding `/api/v2` without conflicts
@@ -507,10 +507,10 @@ just generate-oapi
 
 # Or manually:
 # Root-level endpoints (/healthz, /metrics)
-oapi-codegen -config=api/oapi-codegen-root.yaml api/openapi/api/spec.yaml
+oapi-codegen -config=api/oapi-codegen-health.yaml api/openapi/api/spec.yaml
 
 # Versioned API endpoints (/v1/*)
-oapi-codegen -config=api/oapi-codegen-prefixed.yaml api/openapi/api/spec.yaml
+oapi-codegen -config=api/oapi-codegen-v1.yaml api/openapi/api/spec.yaml
 ```
 
 **Generated Packages:**
