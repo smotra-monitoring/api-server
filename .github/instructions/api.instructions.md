@@ -13,7 +13,7 @@ The server uses two oapi-codegen configurations to separate endpoint types. Open
 ### Generated Packages
 
 1. **Root-Level Endpoints** (`internal/api/health/`)
-   - Config: `api/oapi-codegen-root.yaml`
+   - Config: `api/oapi-codegen-health.yaml`
    - Package: `api_health`
    - Filter: `include-tags: [health]`
    - Endpoints: `/healthz`, `/healthz/ready`, `/healthz/live`, `/metrics`
@@ -21,7 +21,7 @@ The server uses two oapi-codegen configurations to separate endpoint types. Open
    - Handler: `internal/handlers/health_handlers.go` → `HealthHandler`
 
 2. **Versioned API Endpoints** (`internal/api/v1/`)
-   - Config: `api/oapi-codegen-prefixed.yaml`
+   - Config: `api/oapi-codegen-v1.yaml`
    - Package: `api_v1`
    - Filter: `include-tags: [current], exclude-tags: [health]`
    - Endpoints: `/v1/agent/*`, etc.
