@@ -6,6 +6,7 @@ server:
     # idle_timeout: 2m0s
     # shutdown_timeout: 30s
     environment: development
+    trusted_proxies: ["10.0.0.0/24"]
 database_type: sqlite
 sqlite_config:
     config:

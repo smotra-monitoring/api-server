@@ -512,6 +512,12 @@ type PluginResult struct {
 	Success        bool          `json:"success"`
 }
 
+// PurgeSessionsResponse defines model for PurgeSessionsResponse.
+type PurgeSessionsResponse struct {
+	// RevokedCount Number of sessions revoked
+	RevokedCount int `json:"revoked_count"`
+}
+
 // RegistrationStatus Status of agent registration
 type RegistrationStatus string
 
@@ -562,6 +568,35 @@ type ServerConfig struct {
 
 	// VerifyTls Enable TLS verification
 	VerifyTls bool `json:"verify_tls"`
+}
+
+// Session defines model for Session.
+type Session struct {
+	CreatedAt time.Time `json:"created_at"`
+
+	// ExpiresAt Hard expiry of the session
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Id UUID version 7 as per RFC 4122
+	Id UUIDv7 `json:"id"`
+
+	// IpAddress Client IP recorded when the session was created
+	IpAddress *string `json:"ip_address,omitempty"`
+
+	// IsCurrent True for the session that made this request
+	IsCurrent  bool      `json:"is_current"`
+	LastUsedAt time.Time `json:"last_used_at"`
+
+	// Provider Identity provider used to sign in
+	Provider string `json:"provider"`
+
+	// UserAgent Client User-Agent recorded when the session was created
+	UserAgent *string `json:"user_agent,omitempty"`
+}
+
+// SessionListResponse defines model for SessionListResponse.
+type SessionListResponse struct {
+	Sessions []Session `json:"sessions"`
 }
 
 // StorageConfig defines model for StorageConfig.
@@ -686,6 +721,9 @@ type AgentId = UUIDv7
 
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
+
+// Forbidden defines model for Forbidden.
+type Forbidden = Error
 
 // InternalServerError defines model for InternalServerError.
 type InternalServerError = Error
@@ -1053,6 +1091,15 @@ type ServerInterface interface {
 	// Get current user information
 	// (GET /auth/userinfo)
 	GetUserInfo(w http.ResponseWriter, r *http.Request)
+	// Purge all other sessions
+	// (DELETE /sessions)
+	PurgeSessions(w http.ResponseWriter, r *http.Request)
+	// List active sessions
+	// (GET /sessions)
+	ListSessions(w http.ResponseWriter, r *http.Request)
+	// Purge a specific session
+	// (DELETE /sessions/{session_id})
+	PurgeSession(w http.ResponseWriter, r *http.Request, sessionId UUIDv7)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -1140,6 +1187,24 @@ func (_ Unimplemented) AuthRefresh(w http.ResponseWriter, r *http.Request) {
 // Get current user information
 // (GET /auth/userinfo)
 func (_ Unimplemented) GetUserInfo(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Purge all other sessions
+// (DELETE /sessions)
+func (_ Unimplemented) PurgeSessions(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List active sessions
+// (GET /sessions)
+func (_ Unimplemented) ListSessions(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Purge a specific session
+// (DELETE /sessions/{session_id})
+func (_ Unimplemented) PurgeSession(w http.ResponseWriter, r *http.Request, sessionId UUIDv7) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1588,6 +1653,77 @@ func (siw *ServerInterfaceWrapper) GetUserInfo(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// PurgeSessions operation middleware
+func (siw *ServerInterfaceWrapper) PurgeSessions(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, OAuth2AuthorizationCodeScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PurgeSessions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSessions operation middleware
+func (siw *ServerInterfaceWrapper) ListSessions(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, OAuth2AuthorizationCodeScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSessions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PurgeSession operation middleware
+func (siw *ServerInterfaceWrapper) PurgeSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "session_id" -------------
+	var sessionId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "session_id", chi.URLParam(r, "session_id"), &sessionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "session_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, OAuth2AuthorizationCodeScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PurgeSession(w, r, sessionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -1743,11 +1879,22 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/auth/userinfo", wrapper.GetUserInfo)
 	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/sessions", wrapper.PurgeSessions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/sessions", wrapper.ListSessions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/sessions/{session_id}", wrapper.PurgeSession)
+	})
 
 	return r
 }
 
 type BadRequestJSONResponse Error
+
+type ForbiddenJSONResponse Error
 
 type InternalServerErrorJSONResponse Error
 
@@ -2349,6 +2496,141 @@ func (response GetUserInfo401JSONResponse) VisitGetUserInfoResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type PurgeSessionsRequestObject struct {
+}
+
+type PurgeSessionsResponseObject interface {
+	VisitPurgeSessionsResponse(w http.ResponseWriter) error
+}
+
+type PurgeSessions200JSONResponse PurgeSessionsResponse
+
+func (response PurgeSessions200JSONResponse) VisitPurgeSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PurgeSessions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PurgeSessions401JSONResponse) VisitPurgeSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PurgeSessions500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response PurgeSessions500JSONResponse) VisitPurgeSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSessionsRequestObject struct {
+}
+
+type ListSessionsResponseObject interface {
+	VisitListSessionsResponse(w http.ResponseWriter) error
+}
+
+type ListSessions200JSONResponse SessionListResponse
+
+func (response ListSessions200JSONResponse) VisitListSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSessions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSessions401JSONResponse) VisitListSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSessions500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListSessions500JSONResponse) VisitListSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PurgeSessionRequestObject struct {
+	SessionId UUIDv7 `json:"session_id"`
+}
+
+type PurgeSessionResponseObject interface {
+	VisitPurgeSessionResponse(w http.ResponseWriter) error
+}
+
+type PurgeSession204Response struct {
+}
+
+func (response PurgeSession204Response) VisitPurgeSessionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PurgeSession400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PurgeSession400JSONResponse) VisitPurgeSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PurgeSession401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PurgeSession401JSONResponse) VisitPurgeSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PurgeSession403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response PurgeSession403JSONResponse) VisitPurgeSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PurgeSession404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PurgeSession404JSONResponse) VisitPurgeSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PurgeSession500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response PurgeSession500JSONResponse) VisitPurgeSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Claim an agent (Web UI)
@@ -2393,6 +2675,15 @@ type StrictServerInterface interface {
 	// Get current user information
 	// (GET /auth/userinfo)
 	GetUserInfo(ctx context.Context, request GetUserInfoRequestObject) (GetUserInfoResponseObject, error)
+	// Purge all other sessions
+	// (DELETE /sessions)
+	PurgeSessions(ctx context.Context, request PurgeSessionsRequestObject) (PurgeSessionsResponseObject, error)
+	// List active sessions
+	// (GET /sessions)
+	ListSessions(ctx context.Context, request ListSessionsRequestObject) (ListSessionsResponseObject, error)
+	// Purge a specific session
+	// (DELETE /sessions/{session_id})
+	PurgeSession(ctx context.Context, request PurgeSessionRequestObject) (PurgeSessionResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -2820,6 +3111,80 @@ func (sh *strictHandler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetUserInfoResponseObject); ok {
 		if err := validResponse.VisitGetUserInfoResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PurgeSessions operation middleware
+func (sh *strictHandler) PurgeSessions(w http.ResponseWriter, r *http.Request) {
+	var request PurgeSessionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PurgeSessions(ctx, request.(PurgeSessionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PurgeSessions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PurgeSessionsResponseObject); ok {
+		if err := validResponse.VisitPurgeSessionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSessions operation middleware
+func (sh *strictHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	var request ListSessionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSessions(ctx, request.(ListSessionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSessions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSessionsResponseObject); ok {
+		if err := validResponse.VisitListSessionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PurgeSession operation middleware
+func (sh *strictHandler) PurgeSession(w http.ResponseWriter, r *http.Request, sessionId UUIDv7) {
+	var request PurgeSessionRequestObject
+
+	request.SessionId = sessionId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PurgeSession(ctx, request.(PurgeSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PurgeSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PurgeSessionResponseObject); ok {
+		if err := validResponse.VisitPurgeSessionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -264,6 +264,27 @@ func TestConfig_Validate_MissingFrontendCallbackURL(t *testing.T) {
 	}
 }
 
+func TestConfig_Validate_TrustedProxies(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		proxies []string
+		wantErr bool
+	}{
+		{"empty", nil, false},
+		{"cidr and ip", []string{"10.0.0.0/8", "192.168.1.1", "fd00::/8"}, false},
+		{"hostname rejected", []string{"proxy.example.com"}, true},
+		{"bad mask rejected", []string{"10.0.0.0/33"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Default()
+			cfg.Server.TrustedProxies = tc.proxies
+			if err := cfg.Validate(); (err != nil) != tc.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestConfig_Validate_ValidConfig(t *testing.T) {
 	cfg := Default()
 	// Default() already sets FrontendCallbackURL and ServerCallbackURL.

@@ -90,6 +90,7 @@ This change will also require change in OpenAPI `TracerouteCheck.result.total_ti
   - [x] POST /v1/auth/oauth2/revoke — proxy token revocation
   - [x] GET /v1/auth/userinfo — proxy userinfo request
   - [x] POST /v1/auth/logout — redirect to IDP end-session
+  - [x] Session list / purge — GET /v1/sessions, DELETE /v1/sessions/{session_id}, DELETE /v1/sessions (client IP and user agent tracked per session)
   - [x] OIDC discovery for type=oidc providers
   - [x] Static endpoint config for type=static providers (GitHub)
   - [x] SSRF protection via IP-range validation

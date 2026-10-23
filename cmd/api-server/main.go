@@ -82,6 +82,7 @@ func main() {
 	r.Use(middleware.Logger(log))
 	r.Use(middleware.Recovery(log))
 	r.Use(middleware.CORS(cfg.CORS.Origin))
+	r.Use(middleware.ClientInfoMiddleware(cfg.Server.TrustedProxies))
 	httpMetrics := middleware.NewHTTPMetrics()
 	r.Use(httpMetrics.Middleware)
 

@@ -6,6 +6,8 @@ server:
     idle_timeout: 2m0s
     shutdown_timeout: 30s
     environment: production
+    # CIDRs of reverse proxies / ingress whose X-Forwarded-For is trusted for client IP
+    # trusted_proxies: ["10.0.0.0/8"]
 database_type: postgres
 postgres_config:
     config:

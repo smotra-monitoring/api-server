@@ -480,6 +480,8 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 		idpTokenExpiry = sql.NullTime{Time: now.Add(time.Duration(idpTok.ExpiresIn) * time.Second), Valid: true}
 	}
 
+	clientInfo := middleware.ClientInfoFromContext(ctx)
+
 	_, err = q.CreateSession(ctx, queries.CreateSessionParams{
 		ID:                 uuid.Must(uuid.NewV7()).String(),
 		UserID:             userID,
@@ -493,6 +495,8 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 		Oauth2IDToken:      sql.NullString{String: idpTok.IDToken, Valid: idpTok.IDToken != ""},
 		Oauth2Scope:        sql.NullString{String: idpTok.Scope, Valid: idpTok.Scope != ""},
 		Oauth2TokenType:    idpTok.TokenType,
+		IpAddress:          nullString(clientInfo.IPAddress),
+		UserAgent:          nullString(clientInfo.UserAgent),
 	})
 	if err != nil {
 		h.log.ErrorContext(ctx, "CreateSession failed", slog.String("error", err.Error()))
@@ -501,7 +505,12 @@ func (h *Handler) Oauth2Token(ctx context.Context, req api.Oauth2TokenRequestObj
 		}}, nil
 	}
 
-	h.log.InfoContext(ctx, "session created", slog.String("user_id", userID), slog.String("provider", providerName))
+	h.log.InfoContext(ctx, "session created",
+		slog.String("user_id", userID),
+		slog.String("provider", providerName),
+		slog.String("ip_address", clientInfo.IPAddress),
+		slog.String("user_agent", clientInfo.UserAgent),
+	)
 
 	return api.Oauth2Token200JSONResponse(api.TokenResponse{
 		OpaqueToken: plaintext,
@@ -655,6 +664,8 @@ func (h *Handler) AuthRefresh(ctx context.Context, _ api.AuthRefreshRequestObjec
 	}
 
 	// Create new session inheriting IDP tokens from old session.
+	clientInfo := middleware.ClientInfoFromContext(ctx)
+
 	_, err = q.CreateSession(ctx, queries.CreateSessionParams{
 		ID:                 uuid.Must(uuid.NewV7()).String(),
 		UserID:             oldSession.UserID,
@@ -668,6 +679,8 @@ func (h *Handler) AuthRefresh(ctx context.Context, _ api.AuthRefreshRequestObjec
 		Oauth2IDToken:      oldSession.Oauth2IDToken,
 		Oauth2Scope:        oldSession.Oauth2Scope,
 		Oauth2TokenType:    oldSession.Oauth2TokenType,
+		IpAddress:          nullString(clientInfo.IPAddress),
+		UserAgent:          nullString(clientInfo.UserAgent),
 	})
 	if err != nil {
 		h.log.ErrorContext(ctx, "refresh: CreateSession failed", slog.String("error", err.Error()))
@@ -679,7 +692,11 @@ func (h *Handler) AuthRefresh(ctx context.Context, _ api.AuthRefreshRequestObjec
 	// Revoke the old session.
 	_ = q.RevokeSession(ctx, oldSession.ID)
 
-	h.log.InfoContext(ctx, "session refreshed", slog.String("user_id", oldSession.UserID))
+	h.log.InfoContext(ctx, "session refreshed",
+		slog.String("user_id", oldSession.UserID),
+		slog.String("old_session_id", oldSession.ID),
+		slog.String("ip_address", clientInfo.IPAddress),
+	)
 
 	return api.AuthRefresh200JSONResponse(api.TokenResponse{
 		OpaqueToken: plaintext,
@@ -789,6 +806,10 @@ func (h *Handler) Logout(ctx context.Context, req api.LogoutRequestObject) (api.
 }
 
 // ─── helpers ───────────────────────────────────────────────────────────────────
+
+func nullString(s string) sql.NullString {
+	return sql.NullString{String: s, Valid: s != ""}
+}
 
 // fetchUserInfoFromIDP fetches user identity claims from the provider's userinfo endpoint.
 // Used as a fallback when extractUserClaims cannot parse a JWT (e.g. opaque access tokens).

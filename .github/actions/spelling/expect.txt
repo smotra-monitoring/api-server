@@ -4,6 +4,7 @@ benchmem
 blocklist
 Bulima
 Bulma
+CIDRs
 CLA
 codegen
 connmaxidletime
@@ -36,6 +37,7 @@ maxidleconns
 maxopenconns
 mcp
 modelcontextprotocol
+Mozilla
 myfeature
 myidp
 oaexample

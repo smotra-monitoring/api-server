@@ -172,6 +172,8 @@ type Session struct {
 	ExpiresAt                time.Time
 	LastUsedAt               time.Time
 	Revoked                  int64
+	IpAddress                sql.NullString
+	UserAgent                sql.NullString
 	Oauth2Provider           string
 	Oauth2AccessToken        string
 	Oauth2RefreshToken       sql.NullString

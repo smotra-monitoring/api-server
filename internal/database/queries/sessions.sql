@@ -11,8 +11,10 @@ INSERT INTO sessions (
     oauth2_token_expiry,
     oauth2_id_token,
     oauth2_scope,
-    oauth2_token_type
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    oauth2_token_type,
+    ip_address,
+    user_agent
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetSessionByTokenHash :one
@@ -39,6 +41,29 @@ WHERE id = ?;
 UPDATE sessions
 SET revoked = 1
 WHERE id = ?;
+
+-- name: ListActiveSessionsByUserID :many
+SELECT * FROM sessions
+WHERE user_id = ?
+  AND revoked = 0
+  AND sliding_expires_at > datetime('now')
+  AND expires_at > datetime('now')
+ORDER BY last_used_at DESC;
+
+-- name: RevokeSessionByIDForUser :execrows
+-- Ownership is enforced in the WHERE clause; returns 0 rows if not owned or already revoked.
+UPDATE sessions
+SET revoked = 1
+WHERE id = ?
+  AND user_id = ?
+  AND revoked = 0;
+
+-- name: RevokeOtherSessionsForUser :execrows
+UPDATE sessions
+SET revoked = 1
+WHERE user_id = ?
+  AND id <> ?
+  AND revoked = 0;
 
 -- name: UpdateSessionOAuth2Tokens :exec
 -- Updates IDP tokens after a transparent refresh.

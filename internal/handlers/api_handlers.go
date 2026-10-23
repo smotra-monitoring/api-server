@@ -34,6 +34,7 @@ import (
 	"github.com/smotra-monitoring/server/internal/handlers/agent_submit_results"
 	"github.com/smotra-monitoring/server/internal/handlers/auth"
 	"github.com/smotra-monitoring/server/internal/handlers/metrics"
+	"github.com/smotra-monitoring/server/internal/handlers/sessions"
 	"github.com/smotra-monitoring/server/internal/logger"
 )
 
@@ -48,6 +49,7 @@ type APIHandler struct {
 	agent_submit_results *agent_submit_results.Handler
 	agent_heartbeat      *agent_heartbeat.Handler
 	agent_list           *agent_list.Handler
+	sessions             *sessions.Handler
 }
 
 // NewAPIHandler creates a new combined handler
@@ -60,6 +62,7 @@ func NewAPIHandler(logger *logger.Logger, db database.Database, cfg *config.Conf
 	submitResultsHandler := agent_submit_results.NewHandler(logger, db)
 	heartbeatHandler := agent_heartbeat.NewHandler(logger, db)
 	agentListHandler := agent_list.NewHandler(logger, db)
+	sessionsHandler := sessions.NewHandler(logger, db)
 
 	// Register handlers as metrics providers
 	metricsHandler.RegisterMetricsProvider(configHandler)
@@ -70,6 +73,7 @@ func NewAPIHandler(logger *logger.Logger, db database.Database, cfg *config.Conf
 	metricsHandler.RegisterMetricsProvider(submitResultsHandler)
 	metricsHandler.RegisterMetricsProvider(heartbeatHandler)
 	metricsHandler.RegisterMetricsProvider(agentListHandler)
+	metricsHandler.RegisterMetricsProvider(sessionsHandler)
 
 	// Note: Claim-related handlers use string metrics, not metrics provider interface
 	// Their metrics are exposed through a different mechanism
@@ -84,6 +88,7 @@ func NewAPIHandler(logger *logger.Logger, db database.Database, cfg *config.Conf
 		agent_heartbeat:      heartbeatHandler,
 		auth:                 authHandler,
 		agent_list:           agentListHandler,
+		sessions:             sessionsHandler,
 	}
 }
 
@@ -150,4 +155,18 @@ func (h *APIHandler) Logout(ctx context.Context, request api.LogoutRequestObject
 
 func (h *APIHandler) AuthRefresh(ctx context.Context, request api.AuthRefreshRequestObject) (api.AuthRefreshResponseObject, error) {
 	return h.auth.AuthRefresh(ctx, request)
+}
+
+// ─── Session management handlers ───────────────────────────────────────────────
+
+func (h *APIHandler) ListSessions(ctx context.Context, request api.ListSessionsRequestObject) (api.ListSessionsResponseObject, error) {
+	return h.sessions.ListSessions(ctx, request)
+}
+
+func (h *APIHandler) PurgeSessions(ctx context.Context, request api.PurgeSessionsRequestObject) (api.PurgeSessionsResponseObject, error) {
+	return h.sessions.PurgeSessions(ctx, request)
+}
+
+func (h *APIHandler) PurgeSession(ctx context.Context, request api.PurgeSessionRequestObject) (api.PurgeSessionResponseObject, error) {
+	return h.sessions.PurgeSession(ctx, request)
 }
