@@ -127,7 +127,7 @@ Each login creates a server-side session that records the client IP address and 
 | `DELETE` | `/v1/sessions/{session_id}` | Purge one session |
 | `DELETE` | `/v1/sessions` | Purge all active sessions except the current one |
 
-A session is *active* when it is not revoked and neither `sliding_expires_at` nor `expires_at` has passed. Purging revokes the session (`revoked = 1`); the row is kept for auditing and its token stops working immediately.
+A session is *active* when it is not revoked and both (`sliding_expires_at` and `expires_at`) are in the future. Purging revokes the session (`revoked = 1`); the row is kept for auditing and its token stops working immediately.
 
 ### GET /v1/sessions
 
