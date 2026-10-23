@@ -38,309 +38,137 @@ func NewAuthenticatedHandler(logger *logger.Logger, db database.Database, cfg *c
 	return h
 }
 
-// GetAgentConfiguration wraps the configuration handler with authentication
-func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, request api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
+var (
+	agentNoAuth      = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "No authentication provided"}
+	agentInvalidAuth = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Invalid authentication"}
+	agentIDMismatch  = api.InternalServerErrorJSONResponse{Error: "forbidden", Message: "Access denied due to internal server error"}
+)
+
+// requireAgent checks that ctx carries authentication for agentID, recording auth metrics and logging failures.
+// It returns the 401 body, or the 503 body for an agent ID mismatch; both are nil on success.
+func (h *AuthenticatedHandler) requireAgent(ctx context.Context, endpoint, agentID string) (*api.UnauthorizedJSONResponse, *api.InternalServerErrorJSONResponse) {
 	h.authAttemptsTotal.Add(1)
 
-	// Check if authentication is present in context
-	authInfo := ctx.Value(middleware.AuthContextKey)
-	if authInfo == nil {
+	raw := ctx.Value(middleware.AuthContextKey)
+	if raw == nil {
 		h.authNoAuthTotal.Add(1)
-		h.logger.Warn("No authentication provided for agent configuration endpoint", "agent", request.AgentId.String())
-		return api.GetAgentConfiguration401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "No authentication provided",
-			},
-		}, nil
+		h.logger.Warn("No authentication provided", "endpoint", endpoint, "agent", agentID)
+		return &agentNoAuth, nil
 	}
 
-	ctxInfo, ok := authInfo.(*middleware.AuthInfo)
-	if !ok || !ctxInfo.Authenticated {
+	authInfo, ok := raw.(*middleware.AuthInfo)
+	if !ok || authInfo == nil || !authInfo.Authenticated {
 		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication for agent configuration endpoint", "agent", request.AgentId.String())
-		return api.GetAgentConfiguration401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Invalid authentication",
-			},
-		}, nil
+		h.logger.Warn("Invalid authentication", "endpoint", endpoint, "agent", agentID)
+		return &agentInvalidAuth, nil
 	}
 
-	// Verify that the authenticated agent matches the requested agent
-	reqAgentID := request.AgentId.String()
-	if ctxInfo.AgentID != reqAgentID {
+	if authInfo.AgentID != agentID {
 		h.authAgentIDMismatchTotal.Add(1)
 		h.logger.Warn("Agent ID mismatch in authentication",
-			"authenticated_agent", ctxInfo.AgentID,
-			"requested_agent", reqAgentID,
+			"endpoint", endpoint,
+			"authenticated_agent", authInfo.AgentID,
+			"requested_agent", agentID,
 		)
-		return api.GetAgentConfiguration503JSONResponse{
-			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
-				Error:   "forbidden",
-				Message: "Access denied due to internal server error",
-			},
-		}, nil
+		return nil, &agentIDMismatch
 	}
 
-	// Authentication successful, delegate to the actual handler
 	h.authSuccessTotal.Add(1)
+	return nil, nil
+}
+
+// GetAgentConfiguration wraps the configuration handler with authentication
+func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, request api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
+	if unauth, serverErr := h.requireAgent(ctx, "agent_configuration", request.AgentId.String()); unauth != nil {
+		return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
+	} else if serverErr != nil {
+		return api.GetAgentConfiguration503JSONResponse{InternalServerErrorJSONResponse: *serverErr}, nil
+	}
 	return h.APIHandler.GetAgentConfiguration(ctx, request)
 }
 
 // SubmitAgentResults wraps the submit results handler with authentication
 func (h *AuthenticatedHandler) SubmitAgentResults(ctx context.Context, request api.SubmitAgentResultsRequestObject) (api.SubmitAgentResultsResponseObject, error) {
-	h.authAttemptsTotal.Add(1)
-
-	authInfo := ctx.Value(middleware.AuthContextKey)
-	if authInfo == nil {
-		h.authNoAuthTotal.Add(1)
-		h.logger.Warn("No authentication provided for submit results endpoint", "agent", request.AgentId.String())
-		return api.SubmitAgentResults401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "No authentication provided",
-			},
-		}, nil
+	if unauth, serverErr := h.requireAgent(ctx, "submit_results", request.AgentId.String()); unauth != nil {
+		return api.SubmitAgentResults401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
+	} else if serverErr != nil {
+		return api.SubmitAgentResults503JSONResponse{InternalServerErrorJSONResponse: *serverErr}, nil
 	}
-
-	ctxInfo, ok := authInfo.(*middleware.AuthInfo)
-	if !ok || !ctxInfo.Authenticated {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication for submit results endpoint", "agent", request.AgentId.String())
-		return api.SubmitAgentResults401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Invalid authentication",
-			},
-		}, nil
-	}
-
-	if ctxInfo.AgentID != request.AgentId.String() {
-		h.authAgentIDMismatchTotal.Add(1)
-		h.logger.Warn("Agent ID mismatch in submit results authentication",
-			"authenticated_agent", ctxInfo.AgentID,
-			"requested_agent", request.AgentId.String(),
-		)
-		return api.SubmitAgentResults503JSONResponse{
-			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
-				Error:   "forbidden",
-				Message: "Access denied due to internal server error",
-			},
-		}, nil
-	}
-
-	h.authSuccessTotal.Add(1)
 	return h.APIHandler.SubmitAgentResults(ctx, request)
 }
 
 // SendAgentHeartbeat wraps the heartbeat handler with authentication
 func (h *AuthenticatedHandler) SendAgentHeartbeat(ctx context.Context, request api.SendAgentHeartbeatRequestObject) (api.SendAgentHeartbeatResponseObject, error) {
-	h.authAttemptsTotal.Add(1)
-
-	authInfo := ctx.Value(middleware.AuthContextKey)
-	if authInfo == nil {
-		h.authNoAuthTotal.Add(1)
-		h.logger.Warn("No authentication provided for heartbeat endpoint", "agent", request.AgentId.String())
-		return api.SendAgentHeartbeat401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "No authentication provided",
-			},
-		}, nil
+	if unauth, serverErr := h.requireAgent(ctx, "heartbeat", request.AgentId.String()); unauth != nil {
+		return api.SendAgentHeartbeat401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
+	} else if serverErr != nil {
+		return api.SendAgentHeartbeat503JSONResponse{InternalServerErrorJSONResponse: *serverErr}, nil
 	}
-
-	ctxInfo, ok := authInfo.(*middleware.AuthInfo)
-	if !ok || !ctxInfo.Authenticated {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication for heartbeat endpoint", "agent", request.AgentId.String())
-		return api.SendAgentHeartbeat401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Invalid authentication",
-			},
-		}, nil
-	}
-
-	if ctxInfo.AgentID != request.AgentId.String() {
-		h.authAgentIDMismatchTotal.Add(1)
-		h.logger.Warn("Agent ID mismatch in heartbeat authentication",
-			"authenticated_agent", ctxInfo.AgentID,
-			"requested_agent", request.AgentId.String(),
-		)
-		return api.SendAgentHeartbeat503JSONResponse{
-			InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
-				Error:   "forbidden",
-				Message: "Access denied due to internal server error",
-			},
-		}, nil
-	}
-
-	h.authSuccessTotal.Add(1)
 	return h.APIHandler.SendAgentHeartbeat(ctx, request)
 }
 
-// Oauth2Revoke wraps the revoke handler with authentication.
-func (h *AuthenticatedHandler) Oauth2Revoke(ctx context.Context, request api.Oauth2RevokeRequestObject) (api.Oauth2RevokeResponseObject, error) {
+// requireOAuth2User reports whether ctx carries an authenticated OAuth2 session with a user ID,
+// recording auth metrics and logging the reason when it does not.
+func (h *AuthenticatedHandler) requireOAuth2User(ctx context.Context, endpoint string) bool {
 	h.authAttemptsTotal.Add(1)
 
 	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
 	if !ok || authInfo == nil || !authInfo.Authenticated {
 		h.authNoAuthTotal.Add(1)
-		return api.Oauth2Revoke401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
+		return false
 	}
-
 	if authInfo.AuthType != "oauth2" {
 		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication type for oauth2 revoke", "auth_type", authInfo.AuthType)
-		return api.Oauth2Revoke401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
+		h.logger.Warn("Invalid authentication type", "endpoint", endpoint, "auth_type", authInfo.AuthType)
+		return false
 	}
-
 	if authInfo.UserID == "" {
 		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing user ID in authentication info for oauth2 revoke")
-		return api.Oauth2Revoke401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
+		h.logger.Warn("Missing user ID in authentication info", "endpoint", endpoint)
+		return false
+	}
+
+	if authInfo.SessionID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing session ID in authentication info", "endpoint", endpoint)
+		return false
 	}
 
 	h.authSuccessTotal.Add(1)
+	return true
+}
+
+var sessionUnauthorized = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Valid session required"}
+
+// Oauth2Revoke wraps the revoke handler with authentication.
+func (h *AuthenticatedHandler) Oauth2Revoke(ctx context.Context, request api.Oauth2RevokeRequestObject) (api.Oauth2RevokeResponseObject, error) {
+	if !h.requireOAuth2User(ctx, "oauth2_revoke") {
+		return api.Oauth2Revoke401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	}
 	return h.APIHandler.Oauth2Revoke(ctx, request)
 }
 
 // AuthRefresh wraps the refresh handler with authentication.
 func (h *AuthenticatedHandler) AuthRefresh(ctx context.Context, request api.AuthRefreshRequestObject) (api.AuthRefreshResponseObject, error) {
-	h.authAttemptsTotal.Add(1)
-
-	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
-	if !ok || authInfo == nil || !authInfo.Authenticated || authInfo.SessionID == "" {
-		h.authNoAuthTotal.Add(1)
-		return api.AuthRefresh401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
+	if !h.requireOAuth2User(ctx, "auth_refresh") {
+		return api.AuthRefresh401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
 	}
-
-	if authInfo.AuthType != "oauth2" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication type for refresh", "auth_type", authInfo.AuthType)
-		return api.AuthRefresh401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	if authInfo.UserID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing user ID in authentication info for refresh")
-		return api.AuthRefresh401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	h.authSuccessTotal.Add(1)
 	return h.APIHandler.AuthRefresh(ctx, request)
 }
 
 // Logout wraps the logout handler with authentication.
 func (h *AuthenticatedHandler) Logout(ctx context.Context, request api.LogoutRequestObject) (api.LogoutResponseObject, error) {
-	h.authAttemptsTotal.Add(1)
-
-	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
-	if !ok || authInfo == nil || !authInfo.Authenticated {
-		h.authNoAuthTotal.Add(1)
-		return api.Logout401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
+	if !h.requireOAuth2User(ctx, "logout") {
+		return api.Logout401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
 	}
-
-	if authInfo.AuthType != "oauth2" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication type for logout", "auth_type", authInfo.AuthType)
-		return api.Logout401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	if authInfo.UserID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing user ID in authentication info for logout")
-		return api.Logout401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	h.authSuccessTotal.Add(1)
 	return h.APIHandler.Logout(ctx, request)
 }
 
 // GetUserInfo wraps the userinfo handler with authentication.
 func (h *AuthenticatedHandler) GetUserInfo(ctx context.Context, request api.GetUserInfoRequestObject) (api.GetUserInfoResponseObject, error) {
-	h.authAttemptsTotal.Add(1)
-
-	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
-	if !ok || authInfo == nil || !authInfo.Authenticated {
-		h.authNoAuthTotal.Add(1)
-		return api.GetUserInfo401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
+	if !h.requireOAuth2User(ctx, "userinfo") {
+		return api.GetUserInfo401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
 	}
-
-	if authInfo.AuthType != "oauth2" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication type for userinfo", "auth_type", authInfo.AuthType)
-		return api.GetUserInfo401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	if authInfo.UserID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing user ID in authentication info for userinfo")
-		return api.GetUserInfo401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	h.authSuccessTotal.Add(1)
 	return h.APIHandler.GetUserInfo(ctx, request)
 }
 
@@ -348,42 +176,9 @@ func (h *AuthenticatedHandler) GetUserInfo(ctx context.Context, request api.GetU
 // Only OAuth2-authenticated users (web sessions) may claim agents.
 // Agent API keys are explicitly rejected.
 func (h *AuthenticatedHandler) PostClaimAgent(ctx context.Context, request api.PostClaimAgentRequestObject) (api.PostClaimAgentResponseObject, error) {
-	h.authAttemptsTotal.Add(1)
-
-	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
-	if !ok || authInfo == nil || !authInfo.Authenticated {
-		h.authNoAuthTotal.Add(1)
-		return api.PostClaimAgent401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
+	if !h.requireOAuth2User(ctx, "claim_agent") {
+		return api.PostClaimAgent401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
 	}
-
-	if authInfo.AuthType != "oauth2" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication type for claim endpoint", "auth_type", authInfo.AuthType)
-		return api.PostClaimAgent401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	if authInfo.UserID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing user ID in authentication info for claim endpoint")
-		return api.PostClaimAgent401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	h.authSuccessTotal.Add(1)
 	return h.APIHandler.PostClaimAgent(ctx, request)
 }
 
@@ -391,43 +186,34 @@ func (h *AuthenticatedHandler) PostClaimAgent(ctx context.Context, request api.P
 // Only OAuth2-authenticated users (web sessions) may access this endpoint.
 // Agent API keys are explicitly rejected.
 func (h *AuthenticatedHandler) ListAgents(ctx context.Context, request api.ListAgentsRequestObject) (api.ListAgentsResponseObject, error) {
-	h.authAttemptsTotal.Add(1)
-
-	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
-	if !ok || authInfo == nil || !authInfo.Authenticated {
-		h.authNoAuthTotal.Add(1)
-		return api.ListAgents401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
+	if !h.requireOAuth2User(ctx, "list_agents") {
+		return api.ListAgents401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
 	}
-
-	if authInfo.AuthType != "oauth2" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication type for agent list", "auth_type", authInfo.AuthType)
-		return api.ListAgents401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	if authInfo.UserID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing user ID in authentication info for agent list")
-		return api.ListAgents401JSONResponse{
-			UnauthorizedJSONResponse: api.UnauthorizedJSONResponse{
-				Error:   "unauthorized",
-				Message: "Valid session required",
-			},
-		}, nil
-	}
-
-	h.authSuccessTotal.Add(1)
 	return h.APIHandler.ListAgents(ctx, request)
+}
+
+// ListSessions wraps the session list handler; OAuth2 sessions only.
+func (h *AuthenticatedHandler) ListSessions(ctx context.Context, request api.ListSessionsRequestObject) (api.ListSessionsResponseObject, error) {
+	if !h.requireOAuth2User(ctx, "list_sessions") {
+		return api.ListSessions401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	}
+	return h.APIHandler.ListSessions(ctx, request)
+}
+
+// PurgeSession wraps the single-session purge handler; OAuth2 sessions only.
+func (h *AuthenticatedHandler) PurgeSession(ctx context.Context, request api.PurgeSessionRequestObject) (api.PurgeSessionResponseObject, error) {
+	if !h.requireOAuth2User(ctx, "purge_session") {
+		return api.PurgeSession401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	}
+	return h.APIHandler.PurgeSession(ctx, request)
+}
+
+// PurgeSessions wraps the purge-all handler; OAuth2 sessions only.
+func (h *AuthenticatedHandler) PurgeSessions(ctx context.Context, request api.PurgeSessionsRequestObject) (api.PurgeSessionsResponseObject, error) {
+	if !h.requireOAuth2User(ctx, "purge_sessions") {
+		return api.PurgeSessions401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	}
+	return h.APIHandler.PurgeSessions(ctx, request)
 }
 
 // GetMetrics returns current authentication metrics in Prometheus format

@@ -86,8 +86,16 @@ The project includes comprehensive unit tests and integration tests for all majo
 
 15. **internal/handlers** (top-level) - Route separation
     - `routes_separation_integration_test.go` verifies health endpoints are only at root (never under `/v1`) and API endpoints are only under `/v1`
+    - `authenticated_handler_sessions_test.go` verifies the session endpoints reject unauthenticated, agent-key and user-less callers, and exist only under `/v1`
 
-16. **internal/testutil** - Test utilities and helpers
+16. **internal/handlers/sessions** - Session list / purge
+    - Unit tests for metrics output format, per-path counter increments and concurrent increments
+    - Integration tests (SQLite, two users) for listing only own active sessions, purge by owner (204), other user (403), unknown/already purged (404), invalid UUID (400), purge-all keeping the current session, and revoked tokens being rejected by `OAuth2Auth`
+    - Session metrics (`smotra_sessions_*_total`): `list`, `list_success`, `list_failure`, `purge`, `purge_success`, `purge_failure`, `purge_bad_request`, `purge_forbidden`, `purge_not_found`, `purge_all`, `purge_all_success`, `purge_all_failure`, `revoked`
+
+17. **internal/middleware** client info - `client_info_test.go` covers client IP resolution (trusted proxy / spoofed `X-Forwarded-For` / IPv6) and user-agent truncation; `internal/handlers/auth/session_client_info_test.go` verifies IP and user agent are persisted on token exchange and refresh
+
+18. **internal/testutil** - Test utilities and helpers
    - Mock database implementation
    - Test configuration helpers
    - Test database setup utilities

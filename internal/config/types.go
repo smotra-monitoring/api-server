@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -29,6 +30,10 @@ type ServerConfig struct {
 	IdleTimeout     time.Duration `json:"idle_timeout" yaml:"idle_timeout"`
 	ShutdownTimeout time.Duration `json:"shutdown_timeout" yaml:"shutdown_timeout"`
 	Environment     string        `json:"environment" yaml:"environment"` // development, staging, production
+
+	// TrustedProxies lists CIDRs (or bare IPs) of reverse proxies whose X-Forwarded-For
+	// header is trusted when determining the client IP. Empty means use RemoteAddr only.
+	TrustedProxies []string `json:"trusted_proxies,omitempty" yaml:"trusted_proxies,omitempty"`
 }
 
 // LoggingConfig holds logging configuration
@@ -119,6 +124,11 @@ func (c *Config) Validate() error {
 	// Server validation
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
 		return fmt.Errorf("invalid server port: %d", c.Server.Port)
+	}
+	for _, p := range c.Server.TrustedProxies {
+		if _, _, err := net.ParseCIDR(p); err != nil && net.ParseIP(p) == nil {
+			return fmt.Errorf("invalid server.trusted_proxies entry %q: must be a CIDR or IP address", p)
+		}
 	}
 
 	// Database validation

@@ -117,6 +117,68 @@ JSON body:
 - If the provider supports end-session (OIDC), returns `302` to the IDP end-session endpoint.
 - If the provider does not support end-session (e.g. GitHub), returns `200` with a message.
 
+## Session Management
+
+Each login creates a server-side session that records the client IP address and `User-Agent` at creation time. Users can list and purge their own sessions. All three endpoints require an OAuth2 session (agent API keys get `401`).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/sessions` | List the caller's active sessions |
+| `DELETE` | `/v1/sessions/{session_id}` | Purge one session |
+| `DELETE` | `/v1/sessions` | Purge all active sessions except the current one |
+
+A session is *active* when it is not revoked and neither `sliding_expires_at` nor `expires_at` has passed. Purging revokes the session (`revoked = 1`); the row is kept for auditing and its token stops working immediately.
+
+### GET /v1/sessions
+
+```json
+{
+  "sessions": [
+    {
+      "id": "0197f96c-b278-7f64-a32f-dae3cabe1ff0",
+      "created_at": "2026-10-20T09:12:00Z",
+      "last_used_at": "2026-10-22T08:01:13Z",
+      "expires_at": "2027-01-18T09:12:00Z",
+      "ip_address": "203.0.113.7",
+      "user_agent": "Mozilla/5.0 ...",
+      "provider": "github",
+      "is_current": true
+    }
+  ]
+}
+```
+
+`ip_address` and `user_agent` are omitted for sessions created without client info.
+
+### DELETE /v1/sessions/{session_id}
+
+| Status | Meaning |
+|--------|---------|
+| `204` | Session purged (the current session may be purged, which logs the caller out) |
+| `400` | `session_id` is not a valid UUID |
+| `401` | Missing or non-OAuth2 authentication |
+| `403` | Session belongs to another user (nothing is changed) |
+| `404` | Session does not exist, or is already revoked/expired |
+
+### DELETE /v1/sessions
+
+Returns `200` with `{"revoked_count": N}`. The session making the request is kept; use `POST /v1/auth/logout` to end it.
+
+### Audit logging
+
+Every list/purge is logged (`slog`, component `sessions`) with `user_id`, `session_id`, `ip_address` and outcome. Attempts to purge another user's session are logged at `WARN`. Session creation and refresh logs include the client IP and user agent. Tokens and token hashes are never logged.
+
+### Client IP detection
+
+The client IP is the TCP peer address (`RemoteAddr`). Behind a reverse proxy or ingress, list the proxy CIDRs in `server.trusted_proxies`; `X-Forwarded-For` is then honoured only when the direct peer is in that list, using the right-most address that is not itself a trusted proxy.
+
+```yaml
+server:
+  trusted_proxies: ["10.0.0.0/8"]
+```
+
+The stored user agent is truncated to 512 bytes.
+
 ## Configuration
 
 The `auth` section in the config file:
@@ -158,6 +220,7 @@ auth:
 | `providers.<name>.userinfo_endpoint` | type=static | Userinfo endpoint URL. |
 | `providers.<name>.revocation_endpoint` | No | Token revocation endpoint. If unset, revocation is a no-op. |
 | `providers.<name>.end_session_endpoint` | No | OIDC end-session endpoint. If unset, logout returns 200 instead of 302. |
+| `server.trusted_proxies` | No | CIDRs/IPs of reverse proxies whose `X-Forwarded-For` is trusted for session client IP. Empty = use the TCP peer address. |
 
 ## Built-in Providers
 

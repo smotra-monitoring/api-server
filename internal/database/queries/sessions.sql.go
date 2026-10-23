@@ -24,9 +24,11 @@ INSERT INTO sessions (
     oauth2_token_expiry,
     oauth2_id_token,
     oauth2_scope,
-    oauth2_token_type
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, user_id, token_hash, created_at, sliding_expires_at, expires_at, last_used_at, revoked, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at
+    oauth2_token_type,
+    ip_address,
+    user_agent
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, user_id, token_hash, created_at, sliding_expires_at, expires_at, last_used_at, revoked, ip_address, user_agent, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at
 `
 
 type CreateSessionParams struct {
@@ -42,6 +44,8 @@ type CreateSessionParams struct {
 	Oauth2IDToken      sql.NullString
 	Oauth2Scope        sql.NullString
 	Oauth2TokenType    string
+	IpAddress          sql.NullString
+	UserAgent          sql.NullString
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
@@ -58,6 +62,8 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		arg.Oauth2IDToken,
 		arg.Oauth2Scope,
 		arg.Oauth2TokenType,
+		arg.IpAddress,
+		arg.UserAgent,
 	)
 	var i Session
 	err := row.Scan(
@@ -69,6 +75,8 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.ExpiresAt,
 		&i.LastUsedAt,
 		&i.Revoked,
+		&i.IpAddress,
+		&i.UserAgent,
 		&i.Oauth2Provider,
 		&i.Oauth2AccessToken,
 		&i.Oauth2RefreshToken,
@@ -83,7 +91,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 }
 
 const getSessionByID = `-- name: GetSessionByID :one
-SELECT id, user_id, token_hash, created_at, sliding_expires_at, expires_at, last_used_at, revoked, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at FROM sessions
+SELECT id, user_id, token_hash, created_at, sliding_expires_at, expires_at, last_used_at, revoked, ip_address, user_agent, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at FROM sessions
 WHERE id = ?
 LIMIT 1
 `
@@ -100,6 +108,8 @@ func (q *Queries) GetSessionByID(ctx context.Context, id string) (Session, error
 		&i.ExpiresAt,
 		&i.LastUsedAt,
 		&i.Revoked,
+		&i.IpAddress,
+		&i.UserAgent,
 		&i.Oauth2Provider,
 		&i.Oauth2AccessToken,
 		&i.Oauth2RefreshToken,
@@ -114,7 +124,7 @@ func (q *Queries) GetSessionByID(ctx context.Context, id string) (Session, error
 }
 
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
-SELECT id, user_id, token_hash, created_at, sliding_expires_at, expires_at, last_used_at, revoked, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at FROM sessions
+SELECT id, user_id, token_hash, created_at, sliding_expires_at, expires_at, last_used_at, revoked, ip_address, user_agent, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at FROM sessions
 WHERE token_hash = ?
   AND revoked = 0
   AND sliding_expires_at > datetime('now')
@@ -136,6 +146,8 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 		&i.ExpiresAt,
 		&i.LastUsedAt,
 		&i.Revoked,
+		&i.IpAddress,
+		&i.UserAgent,
 		&i.Oauth2Provider,
 		&i.Oauth2AccessToken,
 		&i.Oauth2RefreshToken,
@@ -149,6 +161,79 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 	return i, err
 }
 
+const listActiveSessionsByUserID = `-- name: ListActiveSessionsByUserID :many
+SELECT id, user_id, token_hash, created_at, sliding_expires_at, expires_at, last_used_at, revoked, ip_address, user_agent, oauth2_provider, oauth2_access_token, oauth2_refresh_token, oauth2_token_expiry, oauth2_id_token, oauth2_scope, oauth2_token_type, oauth2_token_refresh_count, oauth2_token_refresh_last_at FROM sessions
+WHERE user_id = ?
+  AND revoked = 0
+  AND sliding_expires_at > datetime('now')
+  AND expires_at > datetime('now')
+ORDER BY last_used_at DESC
+`
+
+func (q *Queries) ListActiveSessionsByUserID(ctx context.Context, userID string) ([]Session, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveSessionsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Session
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TokenHash,
+			&i.CreatedAt,
+			&i.SlidingExpiresAt,
+			&i.ExpiresAt,
+			&i.LastUsedAt,
+			&i.Revoked,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.Oauth2Provider,
+			&i.Oauth2AccessToken,
+			&i.Oauth2RefreshToken,
+			&i.Oauth2TokenExpiry,
+			&i.Oauth2IDToken,
+			&i.Oauth2Scope,
+			&i.Oauth2TokenType,
+			&i.Oauth2TokenRefreshCount,
+			&i.Oauth2TokenRefreshLastAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const revokeOtherSessionsForUser = `-- name: RevokeOtherSessionsForUser :execrows
+UPDATE sessions
+SET revoked = 1
+WHERE user_id = ?
+  AND id <> ?
+  AND revoked = 0
+`
+
+type RevokeOtherSessionsForUserParams struct {
+	UserID string
+	ID     string
+}
+
+func (q *Queries) RevokeOtherSessionsForUser(ctx context.Context, arg RevokeOtherSessionsForUserParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeOtherSessionsForUser, arg.UserID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const revokeSession = `-- name: RevokeSession :exec
 UPDATE sessions
 SET revoked = 1
@@ -158,6 +243,28 @@ WHERE id = ?
 func (q *Queries) RevokeSession(ctx context.Context, id string) error {
 	_, err := q.db.ExecContext(ctx, revokeSession, id)
 	return err
+}
+
+const revokeSessionByIDForUser = `-- name: RevokeSessionByIDForUser :execrows
+UPDATE sessions
+SET revoked = 1
+WHERE id = ?
+  AND user_id = ?
+  AND revoked = 0
+`
+
+type RevokeSessionByIDForUserParams struct {
+	ID     string
+	UserID string
+}
+
+// Ownership is enforced in the WHERE clause; returns 0 rows if not owned or already revoked.
+func (q *Queries) RevokeSessionByIDForUser(ctx context.Context, arg RevokeSessionByIDForUserParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeSessionByIDForUser, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateSessionLastUsed = `-- name: UpdateSessionLastUsed :exec

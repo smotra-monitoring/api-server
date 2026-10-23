@@ -79,6 +79,7 @@ Location: `internal/handlers/`
 - `agent_submit_results/` — `POST /v1/agent/{agentId}/results`
 - `agent_heartbeat/` — `POST /v1/agent/{agentId}/heartbeat`
 - `auth/` — OAuth2 relay (`GET /v1/auth/oauth2/authorize`, `GET /v1/auth/oauth2/callback`, `POST /v1/auth/oauth2/token`, `POST /v1/auth/oauth2/revoke`, `GET /v1/auth/userinfo`, `POST /v1/auth/logout`)
+- `sessions/` — `GET /v1/sessions`, `DELETE /v1/sessions/{session_id}`, `DELETE /v1/sessions` (OAuth2 users only; wrapped by `AuthenticatedHandler`)
 
 Note: `auth/` handlers are registered through `APIHandler` but do **not** require authentication themselves — they are the mechanism by which users authenticate. They must **not** be wrapped with `AuthenticatedHandler` checks.
 

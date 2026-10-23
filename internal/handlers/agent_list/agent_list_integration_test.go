@@ -66,6 +66,15 @@ func (s *testServerImpl) GetUserInfo(ctx context.Context, req api.GetUserInfoReq
 func (s *testServerImpl) Logout(ctx context.Context, req api.LogoutRequestObject) (api.LogoutResponseObject, error) {
 	return nil, nil
 }
+func (s *testServerImpl) ListSessions(ctx context.Context, req api.ListSessionsRequestObject) (api.ListSessionsResponseObject, error) {
+	return nil, nil
+}
+func (s *testServerImpl) PurgeSessions(ctx context.Context, req api.PurgeSessionsRequestObject) (api.PurgeSessionsResponseObject, error) {
+	return nil, nil
+}
+func (s *testServerImpl) PurgeSession(ctx context.Context, req api.PurgeSessionRequestObject) (api.PurgeSessionResponseObject, error) {
+	return nil, nil
+}
 func (s *testServerImpl) AuthRefresh(ctx context.Context, req api.AuthRefreshRequestObject) (api.AuthRefreshResponseObject, error) {
 	return nil, nil
 }

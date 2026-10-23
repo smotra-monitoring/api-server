@@ -41,6 +41,15 @@ func (t *testServerImpl) Logout(ctx context.Context, request api.LogoutRequestOb
 	return nil, nil
 }
 
+func (t *testServerImpl) ListSessions(ctx context.Context, req api.ListSessionsRequestObject) (api.ListSessionsResponseObject, error) {
+	return nil, nil
+}
+func (t *testServerImpl) PurgeSessions(ctx context.Context, req api.PurgeSessionsRequestObject) (api.PurgeSessionsResponseObject, error) {
+	return nil, nil
+}
+func (t *testServerImpl) PurgeSession(ctx context.Context, req api.PurgeSessionRequestObject) (api.PurgeSessionResponseObject, error) {
+	return nil, nil
+}
 func (t *testServerImpl) AuthRefresh(ctx context.Context, req api.AuthRefreshRequestObject) (api.AuthRefreshResponseObject, error) {
 	return nil, nil
 }

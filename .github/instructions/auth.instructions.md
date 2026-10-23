@@ -183,10 +183,16 @@ Built-in provider defaults are defined in the `defaultProviders` map in `auth.go
 | `GET /v1/auth/userinfo` | `GetUserInfo` | **Yes** (oauth2) |
 | `POST /v1/auth/refresh` | `AuthRefresh` | **Yes** (oauth2, SessionID required) |
 | `POST /v1/auth/logout` | `Logout` | **Yes** (oauth2) |
+| `GET /v1/sessions` | `ListSessions` | **Yes** (oauth2) |
+| `DELETE /v1/sessions/{session_id}` | `PurgeSession` | **Yes** (oauth2) |
+| `DELETE /v1/sessions` | `PurgeSessions` | **Yes** (oauth2) |
+
+The `sessions/` handler package implements the last three; wrappers share `requireOAuth2User` in `authenticated_handler.go`. Ownership is enforced in the handler (403 for another user's session, 404 for unknown/inactive) and in the SQL `WHERE user_id = ?` of the revoke query.
 
 ### Session Management
 
-- `sessions` table: stores `token_hash`, `user_id`, `oauth2_*` IDP tokens, `expires_at`, `absolute_expires_at`
+- `sessions` table: stores `token_hash`, `user_id`, `oauth2_*` IDP tokens, `expires_at`, `absolute_expires_at`, `ip_address`, `user_agent`, `revoked`
+- Client IP / User-Agent come from `middleware.ClientInfoMiddleware` (`server.trusted_proxies` controls `X-Forwarded-For` trust); read with `middleware.ClientInfoFromContext`
 - `oauth2_pending_states` table: temporary records for in-flight auth codes (10-minute TTL)
 - `Oauth2Token` creates a session; `AuthRefresh` rotates (revoke-old + create-new); `Logout` and `Oauth2Revoke` revoke sessions
 
