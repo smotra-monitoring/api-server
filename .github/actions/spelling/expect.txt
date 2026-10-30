@@ -14,6 +14,7 @@ cosmtrek
 coverprofile
 createdb
 ctx
+CWE
 dedup
 deregistration
 Entra
@@ -21,7 +22,6 @@ google
 googleusercontent
 gotestsum
 Grafana
-greenlit
 healthz
 httpget
 IDPs
@@ -45,8 +45,10 @@ oapi
 oauth
 oidc
 openapi
+OWASP
 PKCE
 postgre
+refactors
 reqwest
 roadmap
 Screenshots
