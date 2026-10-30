@@ -187,25 +187,7 @@ go build -ldflags "-X main.version=1.0.0" -o bin/smotra-server cmd/api-server/ma
 - [features/monitoring-results.md](features/monitoring-results.md) - Results submission and heartbeat reference
 
 ## Contributing
-This is an open-source project, and we deeply value the community's interest. However, due to the high volume of automated and machine-generated code currently being submitted, we are significantly narrowing our intake process to maintain code quality and project stability.
-
-### Current PR Policy
-To ensure our maintainers can focus on meaningful improvements:
-
-- **General Pull Requests:** We are currently not accepting unsolicited PRs, particularly those containing generated code.
-
-- **Exceptions:** Critical bug fixes or major feature enhancements are still considered on a case-by-case basis.
-
-- **CLA Requirement:** If an exception is made for your contribution, you must sign our Contributor License Agreement (CLA) before any code can be reviewed or merged.
-
-### How to Help
-If you’ve found a bug or have a great idea:
-
-- **Open an Issue:** Please start by searching existing issues or creating a new one to discuss your proposal.
-
-- **Wait for Feedback:** Do not spend time on a PR until a maintainer has greenlit the approach in the issue comments.
-
-- **Follow the Workflow:** Once approved, you may fork the repo, work in a feature branch, and submit your PR (with tests!) for final review.
+Contributions are accepted only under the rules in [CONTRIBUTING.md](../CONTRIBUTING.md): features via `SKILL.md`, bug fixes via GitHub issues, and security fixes with full vulnerability details. Use the matching PR template.
 
 See the [User Guide](features/GUIDE.md) for testing requirements and code standards.
 
