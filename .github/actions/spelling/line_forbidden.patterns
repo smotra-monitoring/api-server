@@ -105,7 +105,7 @@
 \b(?:coarse|fine) grained\b
 
 # s.b. neither/nor -- or reword
-\bnot\b[^.?!"/(]+\bnor\b
+\bnot\b[^.?!"/(]+\bnor\bp
 
 # probably a double negative
 # s.b. neither/nor (plus rewording the beginning)
