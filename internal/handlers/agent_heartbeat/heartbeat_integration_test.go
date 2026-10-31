@@ -254,8 +254,6 @@ func TestHeartbeat_Integration_StoresAgentStatus(t *testing.T) {
 	}
 
 	var (
-		agentVersion      string
-		configVersion     int
 		isRunning         int
 		checksPerformed   int
 		checksSuccessful  int
@@ -266,22 +264,16 @@ func TestHeartbeat_Integration_StoresAgentStatus(t *testing.T) {
 		cacheLen          int
 	)
 	err := db.DB().QueryRowContext(context.Background(), `
-		SELECT agent_version, config_version, is_running,
+		SELECT is_running,
 		       checks_performed, checks_successful, checks_failed,
 		       failed_report_count, server_connected, cache_capacity, cache_len
 		FROM agent_vitals WHERE agent_id = ?`, agentID.String()).Scan(
-		&agentVersion, &configVersion, &isRunning,
+		&isRunning,
 		&checksPerformed, &checksSuccessful, &checksFailed,
 		&failedReportCount, &serverConnected, &cacheCapacity, &cacheLen,
 	)
 	if err != nil {
 		t.Fatalf("query agent_status fields: %v", err)
-	}
-	if agentVersion != "1.2.3" {
-		t.Errorf("agent_version = %q, want 1.2.3", agentVersion)
-	}
-	if configVersion != 7 {
-		t.Errorf("config_version = %d, want 7", configVersion)
 	}
 	if isRunning != 1 {
 		t.Errorf("is_running = %d, want 1", isRunning)
@@ -306,5 +298,141 @@ func TestHeartbeat_Integration_StoresAgentStatus(t *testing.T) {
 	}
 	if cacheLen != 12 {
 		t.Errorf("cache_len = %d, want 12", cacheLen)
+	}
+
+	// Versions live on the agents row, not in the vitals time series.
+	var agentVersion string
+	var configVersionCurrent int
+	if err := db.DB().QueryRowContext(context.Background(),
+		`SELECT agent_version, config_version_current FROM agents WHERE id = ?`, agentID.String(),
+	).Scan(&agentVersion, &configVersionCurrent); err != nil {
+		t.Fatalf("query agents versions: %v", err)
+	}
+	if agentVersion != "1.2.3" {
+		t.Errorf("agents.agent_version = %q, want 1.2.3", agentVersion)
+	}
+	if configVersionCurrent != 7 {
+		t.Errorf("agents.config_version_current = %d, want 7", configVersionCurrent)
+	}
+
+	rows, err := db.DB().QueryContext(context.Background(), `SELECT * FROM agent_vitals LIMIT 0`)
+	if err != nil {
+		t.Fatalf("query agent_vitals columns: %v", err)
+	}
+	defer rows.Close()
+	cols, err := rows.Columns()
+	if err != nil {
+		t.Fatalf("read agent_vitals columns: %v", err)
+	}
+	for _, c := range cols {
+		if c == "agent_version" || c == "config_version" {
+			t.Errorf("agent_vitals must not contain column %q", c)
+		}
+	}
+}
+
+func versionHeartbeat(agentVersion string, configVersion int) *api.AgentHeartbeat {
+	now := time.Now().UTC()
+	return &api.AgentHeartbeat{
+		Timestamp:    now,
+		HealthStatus: api.Healthy,
+		Metrics: api.AgentMetrics{
+			CpuUsagePercent:  10.0,
+			MemoryUsageMb:    512.0,
+			MemoryTotalMb:    4096.0,
+			SystemUptimeSecs: 3600,
+			AgentUptimeSecs:  1800,
+		},
+		AgentStatus: api.AgentStatus{
+			AgentVersion:     agentVersion,
+			ConfigVersion:    configVersion,
+			IsRunning:        true,
+			StartedAt:        now.Add(-30 * time.Minute),
+			ChecksPerformed:  10,
+			ChecksSuccessful: 10,
+			ReportedAt:       now.Add(-time.Minute),
+			ServerConnected:  true,
+			CacheStats:       api.AgentCacheStats{Capacity: 1000, Len: 0},
+		},
+	}
+}
+
+func readAgentVersions(t *testing.T, db database.Database, agentID uuid.UUID) (agentVersion *string, desired int, current *int) {
+	t.Helper()
+	if err := db.DB().QueryRowContext(context.Background(),
+		`SELECT agent_version, config_version_desired, config_version_current FROM agents WHERE id = ?`,
+		agentID.String(),
+	).Scan(&agentVersion, &desired, &current); err != nil {
+		t.Fatalf("query agent versions: %v", err)
+	}
+	return agentVersion, desired, current
+}
+
+// Regression: an agent upgrade must not bump config_version_desired.
+func TestHeartbeat_Integration_AgentVersionChange_DoesNotBumpDesiredConfigVersion(t *testing.T) {
+	db, agentID := setupRealDB(t)
+	router := setupTestRouter(NewHandler(logger.Default(), db))
+
+	_, desiredBefore, currentBefore := readAgentVersions(t, db, agentID)
+	if currentBefore != nil {
+		t.Fatalf("config_version_current = %d before first heartbeat, want NULL", *currentBefore)
+	}
+
+	for _, v := range []string{"0.1.0", "0.2.0"} {
+		if rr := postHeartbeat(t, router, agentID, versionHeartbeat(v, desiredBefore)); rr.Code != http.StatusNoContent {
+			t.Fatalf("expected 204, got %d: %s", rr.Code, rr.Body.String())
+		}
+	}
+
+	agentVersion, desiredAfter, current := readAgentVersions(t, db, agentID)
+	if agentVersion == nil || *agentVersion != "0.2.0" {
+		t.Errorf("agent_version = %v, want 0.2.0", agentVersion)
+	}
+	if desiredAfter != desiredBefore {
+		t.Errorf("config_version_desired = %d, want unchanged %d", desiredAfter, desiredBefore)
+	}
+	if current == nil || *current != desiredBefore {
+		t.Errorf("config_version_current = %v, want %d", current, desiredBefore)
+	}
+}
+
+func TestHeartbeat_Integration_EmptyAgentVersion_KeepsStoredValue(t *testing.T) {
+	db, agentID := setupRealDB(t)
+	router := setupTestRouter(NewHandler(logger.Default(), db))
+
+	postHeartbeat(t, router, agentID, versionHeartbeat("1.0.0", 1))
+	postHeartbeat(t, router, agentID, versionHeartbeat("", 1))
+
+	agentVersion, _, _ := readAgentVersions(t, db, agentID)
+	if agentVersion == nil || *agentVersion != "1.0.0" {
+		t.Errorf("agent_version = %v, want 1.0.0", agentVersion)
+	}
+}
+
+func TestHeartbeat_Integration_ConfigDrift_DetectedAndResolved(t *testing.T) {
+	db, agentID := setupRealDB(t)
+	router := setupTestRouter(NewHandler(logger.Default(), db))
+
+	_, desired, _ := readAgentVersions(t, db, agentID)
+	postHeartbeat(t, router, agentID, versionHeartbeat("1.0.0", desired))
+
+	// A core agent change bumps the desired version via trg_agents_updated.
+	if _, err := db.DB().ExecContext(context.Background(),
+		`UPDATE agents SET base_config = ? WHERE id = ?`, `{"changed":true}`, agentID.String()); err != nil {
+		t.Fatalf("update base_config: %v", err)
+	}
+
+	_, newDesired, current := readAgentVersions(t, db, agentID)
+	if newDesired <= desired {
+		t.Fatalf("config_version_desired = %d, want > %d", newDesired, desired)
+	}
+	if current == nil || *current != desired {
+		t.Fatalf("config_version_current = %v, want %d (drift)", current, desired)
+	}
+
+	postHeartbeat(t, router, agentID, versionHeartbeat("1.0.0", newDesired))
+	_, _, current = readAgentVersions(t, db, agentID)
+	if current == nil || *current != newDesired {
+		t.Errorf("config_version_current = %v, want %d after catch-up", current, newDesired)
 	}
 }

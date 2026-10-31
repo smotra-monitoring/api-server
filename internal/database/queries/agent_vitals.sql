@@ -8,8 +8,6 @@ INSERT INTO agent_vitals (
     system_uptime_secs,
     agent_uptime_secs,
     reported_at,
-    agent_version,
-    config_version,
     is_running,
     started_at,
     stopped_at,
@@ -20,11 +18,11 @@ INSERT INTO agent_vitals (
     server_connected,
     cache_capacity,
     cache_len
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetLatestAgentVitals :one
 SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, agent_uptime_secs, reported_at, received_at,
-       agent_version, config_version, is_running, started_at, stopped_at,
+       is_running, started_at, stopped_at,
        checks_performed, checks_successful, checks_failed,
        failed_report_count, server_connected, cache_capacity, cache_len
 FROM agent_vitals
@@ -34,7 +32,7 @@ LIMIT 1;
 
 -- name: GetAgentVitalsHistory :many
 SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, agent_uptime_secs, reported_at, received_at,
-       agent_version, config_version, is_running, started_at, stopped_at,
+       is_running, started_at, stopped_at,
        checks_performed, checks_successful, checks_failed,
        failed_report_count, server_connected, cache_capacity, cache_len
 FROM agent_vitals

@@ -162,7 +162,7 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 
 	// Build the response
 	config := api.AgentConfig{
-		Version:    int32(configRow.ConfigVersion), // Convert from int to int32
+		Version:    int32(configRow.ConfigVersionDesired), // Convert from int to int32
 		AgentId:    agentUUID,
 		AgentName:  configRow.Name,
 		Tags:       agentTags,
@@ -173,7 +173,7 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 	}
 
 	h.getConfigurationSuccess.Add(1)
-	h.logger.Info("Agent configuration retrieved", "agent_id", agentID, "config_version", configRow.ConfigVersion)
+	h.logger.Info("Agent configuration retrieved", "agent_id", agentID, "config_version", configRow.ConfigVersionDesired)
 
 	return api.GetAgentConfiguration200JSONResponse(config), nil
 }

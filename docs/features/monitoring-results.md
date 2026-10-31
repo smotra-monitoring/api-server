@@ -171,7 +171,7 @@ Hops with no responding router have an empty `successLatencies` array.
 
 ## POST /v1/agent/{agentId}/heartbeat
 
-Send a vitals and status snapshot. The server always updates `last_seen_at` on the agent record and stores the heartbeat data (system metrics + agent operational status). Heartbeats should be sent at a regular interval (e.g. every 30–60 seconds).
+Send a vitals and status snapshot. The server always updates `last_seen_at`, `agent_version` and `config_version_current` on the agent record and stores the heartbeat data (system metrics + agent operational status). Heartbeats should be sent at a regular interval (e.g. every 30–60 seconds).
 
 ### Request
 
@@ -255,7 +255,21 @@ X-Agent-API-Key: <api-key>
 
 ### Storage
 
-All heartbeat fields are stored in the `agent_vitals` time-series table alongside the system metrics. This allows historical queries to correlate resource usage with agent operational state.
+The heartbeat is split by how often the data changes:
+
+- **`agents` row (current state)** — `last_seen_at`, `agent_version` (an empty value keeps the stored one) and `config_version_current` (from `agent_status.config_version`) are updated in a single statement. Neither `agent_version` nor `config_version_current` bumps `config_version_desired`, so an agent upgrade or a heartbeat never triggers a config re-fetch.
+- **`agent_vitals` (time series)** — system metrics and the remaining `agent_status` fields (`is_running`, `started_at`, `stopped_at`, check counters, `failed_report_count`, `server_connected`, cache stats). This allows historical queries to correlate resource usage with agent operational state.
+
+### Config drift
+
+`GET /v1/agents` returns both versions per agent:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `configVersionDesired` | int | Version the server wants the agent to run; bumped by DB triggers on any config-relevant change |
+| `configVersionCurrent` | int \| null | Version last reported by the agent in a heartbeat; `null` until the first heartbeat |
+
+`configVersionCurrent < configVersionDesired` means the agent has not yet applied the latest configuration.
 
 ### Response
 
