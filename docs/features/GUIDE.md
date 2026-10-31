@@ -716,7 +716,7 @@ Content-Type: application/json
 - Report generation and export
 
 ## Contributing
-Contributions are accepted only under the rules in [CONTRIBUTING.md](../../CONTRIBUTING.md): features via `SKILL.md`, bug fixes via GitHub issues, and security fixes with full vulnerability details. Use the matching PR template.
+Contributions are accepted only under the rules in [CONTRIBUTING.md](../CONTRIBUTING.md): features via `SKILL.md`, bug fixes via GitHub issues, and security fixes with full vulnerability details. Use the matching PR template.
 
 ### Code Style
 - Follow standard Go conventions and idioms

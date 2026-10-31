@@ -187,7 +187,7 @@ go build -ldflags "-X main.version=1.0.0" -o bin/smotra-server cmd/api-server/ma
 - [features/monitoring-results.md](features/monitoring-results.md) - Results submission and heartbeat reference
 
 ## Contributing
-Contributions are accepted only under the rules in [CONTRIBUTING.md](../CONTRIBUTING.md): features via `SKILL.md`, bug fixes via GitHub issues, and security fixes with full vulnerability details. Use the matching PR template.
+Contributions are accepted only under the rules in [CONTRIBUTING.md](CONTRIBUTING.md): features via `SKILL.md`, bug fixes via GitHub issues, and security fixes with full vulnerability details. Use the matching PR template.
 
 See the [User Guide](features/GUIDE.md) for testing requirements and code standards.
 
