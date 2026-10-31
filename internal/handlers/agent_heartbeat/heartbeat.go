@@ -55,12 +55,14 @@ func (h *Handler) Handle(ctx context.Context, req api.SendAgentHeartbeatRequestO
 
 	q := queries.New(h.db.DB())
 
-	// Always update last_seen_at — non-fatal if it fails.
-	if err := q.UpdateAgentLastSeen(ctx, queries.UpdateAgentLastSeenParams{
-		LastSeenAt: sql.NullTime{Time: receivedAt, Valid: true},
-		ID:         agentID,
+	// Always record heartbeat state — non-fatal if it fails.
+	if err := q.UpdateAgentHeartbeatState(ctx, queries.UpdateAgentHeartbeatStateParams{
+		LastSeenAt:           sql.NullTime{Time: receivedAt, Valid: true},
+		AgentVersion:         req.Body.AgentStatus.AgentVersion,
+		ConfigVersionCurrent: sql.NullInt64{Int64: int64(req.Body.AgentStatus.ConfigVersion), Valid: true},
+		ID:                   agentID,
 	}); err != nil {
-		h.logger.WarnContext(ctx, "Failed to update agent last_seen_at",
+		h.logger.WarnContext(ctx, "Failed to update agent heartbeat state",
 			slog.String("agent_id", agentID),
 			slog.String("error", err.Error()),
 		)
@@ -97,8 +99,6 @@ func (h *Handler) storeVitals(ctx context.Context, q *queries.Queries, agentID s
 		SystemUptimeSecs: sql.NullInt64{Int64: body.Metrics.SystemUptimeSecs, Valid: true},
 		AgentUptimeSecs:  sql.NullInt64{Int64: body.Metrics.AgentUptimeSecs, Valid: true},
 		// AgentStatus fields
-		AgentVersion:      sql.NullString{String: body.AgentStatus.AgentVersion, Valid: true},
-		ConfigVersion:     sql.NullInt64{Int64: int64(body.AgentStatus.ConfigVersion), Valid: true},
 		IsRunning:         sql.NullInt64{Int64: boolToInt64(body.AgentStatus.IsRunning), Valid: true},
 		StartedAt:         sql.NullTime{Time: body.AgentStatus.StartedAt, Valid: true},
 		StoppedAt:         sql.NullTime{Time: derefTime(body.AgentStatus.StoppedAt), Valid: body.AgentStatus.StoppedAt != nil},

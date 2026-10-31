@@ -216,6 +216,65 @@ func TestListAgents_Integration_Success(t *testing.T) {
 	}
 }
 
+func TestListAgents_Integration_ConfigVersions_DesiredAndCurrent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	db, sessionToken, _, _ := setupDB(t)
+	ctx := context.Background()
+
+	// Mark agent-alpha as having reported config version 1 via heartbeat.
+	var alphaID string
+	if err := db.DB().QueryRowContext(ctx, `SELECT id FROM agents WHERE name = 'agent-alpha'`).Scan(&alphaID); err != nil {
+		t.Fatalf("find agent-alpha: %v", err)
+	}
+	if err := queries.New(db.DB()).UpdateAgentHeartbeatState(ctx, queries.UpdateAgentHeartbeatStateParams{
+		LastSeenAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
+		AgentVersion:         "1.0.0",
+		ConfigVersionCurrent: sql.NullInt64{Int64: 1, Valid: true},
+		ID:                   alphaID,
+	}); err != nil {
+		t.Fatalf("update heartbeat state: %v", err)
+	}
+
+	router := setupRouter(db, NewHandler(logger.Default(), db))
+	req := httptest.NewRequest(http.MethodGet, "/agents", nil)
+	req.Header.Set("Authorization", "Bearer "+sessionToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	var raw struct {
+		Agents []map[string]any `json:"agents"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+
+	for _, a := range raw.Agents {
+		if _, ok := a["configVersion"]; ok {
+			t.Errorf("agent %v still exposes legacy configVersion", a["name"])
+		}
+		if desired, ok := a["configVersionDesired"].(float64); !ok || desired < 1 {
+			t.Errorf("agent %v configVersionDesired = %v, want >= 1", a["name"], a["configVersionDesired"])
+		}
+		current, present := a["configVersionCurrent"]
+		switch a["name"] {
+		case "agent-alpha":
+			if current != float64(1) {
+				t.Errorf("agent-alpha configVersionCurrent = %v, want 1", current)
+			}
+		case "agent-beta":
+			if !present || current != nil {
+				t.Errorf("agent-beta configVersionCurrent = %v (present=%v), want null before first heartbeat", current, present)
+			}
+		}
+	}
+}
+
 func TestListAgents_Integration_PaginationPage2(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")

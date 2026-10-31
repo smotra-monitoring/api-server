@@ -101,8 +101,13 @@ type Agent struct {
 	// AgentVersion Version of the agent software, null if not yet reported
 	AgentVersion *string `json:"agentVersion"`
 
-	// ConfigVersion Current configuration version
-	ConfigVersion int `json:"configVersion"`
+	// ConfigVersionCurrent Configuration version last reported by the agent in a heartbeat, null if the agent
+	// has not sent one yet. Lower than configVersionDesired means the agent has not
+	// applied the latest configuration.
+	ConfigVersionCurrent *int `json:"configVersionCurrent"`
+
+	// ConfigVersionDesired Configuration version the server wants the agent to run
+	ConfigVersionDesired int `json:"configVersionDesired"`
 
 	// CreatedAt Timestamp when the agent was registered
 	CreatedAt time.Time `json:"createdAt"`

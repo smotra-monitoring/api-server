@@ -15,7 +15,8 @@ type Agent struct {
 	Name                  string
 	ApiKeyHash            string
 	BaseConfig            string
-	ConfigVersion         int64
+	ConfigVersionDesired  int64
+	ConfigVersionCurrent  sql.NullInt64
 	AgentVersion          sql.NullString
 	IpAddressesJson       string
 	LastSeenAt            sql.NullTime
@@ -48,8 +49,6 @@ type AgentTag struct {
 type AgentVital struct {
 	ID                string
 	AgentID           string
-	AgentVersion      sql.NullString
-	ConfigVersion     sql.NullInt64
 	IsRunning         sql.NullInt64
 	ChecksPerformed   sql.NullInt64
 	ChecksSuccessful  sql.NullInt64

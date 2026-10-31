@@ -103,7 +103,7 @@ func TestHandle_NilBody_Returns400(t *testing.T) {
 }
 
 func TestHandle_WithVitals_IncrementsVitalsCounter_OnMockDB(t *testing.T) {
-	// Empty SQLite (no schema): UpdateAgentLastSeen fails with "no such table" (logged),
+	// Empty SQLite (no schema): UpdateAgentHeartbeatState fails with "no such table" (logged),
 	// then InsertAgentVitals also fails → handler returns 503.
 	h := NewHandler(logger.Default(), mockDBWithSQLite(t))
 	resp, err := h.Handle(context.Background(), api.SendAgentHeartbeatRequestObject{

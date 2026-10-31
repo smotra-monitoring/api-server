@@ -92,15 +92,15 @@ func (q *Queries) CreateAgentFromClaim(ctx context.Context, arg CreateAgentFromC
 }
 
 const getAgentConfigurationBase = `-- name: GetAgentConfigurationBase :one
-SELECT id, config_version, name, base_config FROM agents WHERE id = ?
+SELECT id, config_version_desired, name, base_config FROM agents WHERE id = ?
 LIMIT 1
 `
 
 type GetAgentConfigurationBaseRow struct {
-	ID            string
-	ConfigVersion int64
-	Name          string
-	BaseConfig    string
+	ID                   string
+	ConfigVersionDesired int64
+	Name                 string
+	BaseConfig           string
 }
 
 func (q *Queries) GetAgentConfigurationBase(ctx context.Context, id string) (GetAgentConfigurationBaseRow, error) {
@@ -108,7 +108,7 @@ func (q *Queries) GetAgentConfigurationBase(ctx context.Context, id string) (Get
 	var i GetAgentConfigurationBaseRow
 	err := row.Scan(
 		&i.ID,
-		&i.ConfigVersion,
+		&i.ConfigVersionDesired,
 		&i.Name,
 		&i.BaseConfig,
 	)
@@ -174,7 +174,7 @@ func (q *Queries) GetEndpointTags(ctx context.Context, endpointID string) ([]str
 }
 
 const listAgentsByWorkspace = `-- name: ListAgentsByWorkspace :many
-SELECT a.id, a.workspace_id, a.name, a.config_version, a.agent_version,
+SELECT a.id, a.workspace_id, a.name, a.config_version_desired, a.config_version_current, a.agent_version,
        a.ip_addresses_json, a.last_seen_at, a.last_result_submitted_at,
        a.updated_at, a.created_at
 FROM agents a
@@ -193,7 +193,8 @@ type ListAgentsByWorkspaceRow struct {
 	ID                    string
 	WorkspaceID           string
 	Name                  string
-	ConfigVersion         int64
+	ConfigVersionDesired  int64
+	ConfigVersionCurrent  sql.NullInt64
 	AgentVersion          sql.NullString
 	IpAddressesJson       string
 	LastSeenAt            sql.NullTime
@@ -216,7 +217,8 @@ func (q *Queries) ListAgentsByWorkspace(ctx context.Context, arg ListAgentsByWor
 			&i.ID,
 			&i.WorkspaceID,
 			&i.Name,
-			&i.ConfigVersion,
+			&i.ConfigVersionDesired,
+			&i.ConfigVersionCurrent,
 			&i.AgentVersion,
 			&i.IpAddressesJson,
 			&i.LastSeenAt,
@@ -239,18 +241,45 @@ func (q *Queries) ListAgentsByWorkspace(ctx context.Context, arg ListAgentsByWor
 
 const updateAgentConfiguration = `-- name: UpdateAgentConfiguration :exec
 UPDATE agents
-SET config_version = ?, base_config = ?
+SET config_version_desired = ?, base_config = ?
 WHERE id = ?
 `
 
 type UpdateAgentConfigurationParams struct {
-	ConfigVersion int64
-	BaseConfig    string
-	ID            string
+	ConfigVersionDesired int64
+	BaseConfig           string
+	ID                   string
 }
 
 func (q *Queries) UpdateAgentConfiguration(ctx context.Context, arg UpdateAgentConfigurationParams) error {
-	_, err := q.db.ExecContext(ctx, updateAgentConfiguration, arg.ConfigVersion, arg.BaseConfig, arg.ID)
+	_, err := q.db.ExecContext(ctx, updateAgentConfiguration, arg.ConfigVersionDesired, arg.BaseConfig, arg.ID)
+	return err
+}
+
+const updateAgentHeartbeatState = `-- name: UpdateAgentHeartbeatState :exec
+UPDATE agents
+SET last_seen_at = ?1,
+    agent_version = COALESCE(NULLIF(CAST(?2 AS TEXT), ''), agent_version),
+    config_version_current = ?3
+WHERE id = ?4
+`
+
+type UpdateAgentHeartbeatStateParams struct {
+	LastSeenAt           sql.NullTime
+	AgentVersion         string
+	ConfigVersionCurrent sql.NullInt64
+	ID                   string
+}
+
+// Records heartbeat time plus the agent-reported versions in one statement.
+// An empty reported agent_version keeps the stored value.
+func (q *Queries) UpdateAgentHeartbeatState(ctx context.Context, arg UpdateAgentHeartbeatStateParams) error {
+	_, err := q.db.ExecContext(ctx, updateAgentHeartbeatState,
+		arg.LastSeenAt,
+		arg.AgentVersion,
+		arg.ConfigVersionCurrent,
+		arg.ID,
+	)
 	return err
 }
 

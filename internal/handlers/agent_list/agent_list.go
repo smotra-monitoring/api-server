@@ -160,12 +160,17 @@ func (h *Handler) Handle(ctx context.Context, req api.ListAgentsRequestObject) (
 // rowToItem converts a database row to an API response item.
 func (h *Handler) rowToItem(row queries.ListAgentsByWorkspaceRow) api.Agent {
 	item := api.Agent{
-		Id:            api.UUIDv7(uuid.MustParse(row.ID)),
-		WorkspaceId:   row.WorkspaceID,
-		Name:          row.Name,
-		ConfigVersion: int(row.ConfigVersion),
-		CreatedAt:     row.CreatedAt,
-		UpdatedAt:     row.UpdatedAt,
+		Id:                   api.UUIDv7(uuid.MustParse(row.ID)),
+		WorkspaceId:          row.WorkspaceID,
+		Name:                 row.Name,
+		ConfigVersionDesired: int(row.ConfigVersionDesired),
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+	}
+
+	if row.ConfigVersionCurrent.Valid {
+		current := int(row.ConfigVersionCurrent.Int64)
+		item.ConfigVersionCurrent = &current
 	}
 
 	if row.AgentVersion.Valid {

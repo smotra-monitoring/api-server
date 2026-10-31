@@ -1,5 +1,5 @@
 -- name: GetAgentConfigurationBase :one
-SELECT id, config_version, name, base_config FROM agents WHERE id = ?
+SELECT id, config_version_desired, name, base_config FROM agents WHERE id = ?
 LIMIT 1;
 
 -- name: CreateAgent :one
@@ -28,7 +28,7 @@ WHERE at.agent_id = ? AND t.scope IN ('agent', 'global');
 
 -- name: UpdateAgentConfiguration :exec
 UPDATE agents
-SET config_version = ?, base_config = ?
+SET config_version_desired = ?, base_config = ?
 WHERE id = ?;
 
 -- name: GetEndpointTags :many
@@ -42,12 +42,21 @@ SELECT id, api_key_hash FROM agents WHERE id = ?;
 -- name: UpdateAgentLastSeen :exec
 UPDATE agents SET last_seen_at = ? WHERE id = ?;
 
+-- name: UpdateAgentHeartbeatState :exec
+-- Records heartbeat time plus the agent-reported versions in one statement.
+-- An empty reported agent_version keeps the stored value.
+UPDATE agents
+SET last_seen_at = sqlc.arg(last_seen_at),
+    agent_version = COALESCE(NULLIF(CAST(sqlc.arg(agent_version) AS TEXT), ''), agent_version),
+    config_version_current = sqlc.arg(config_version_current)
+WHERE id = sqlc.arg(id);
+
 -- name: UpdateAgentLastResultSubmittedAt :exec
 UPDATE agents SET last_result_submitted_at = ? WHERE id = ?;
 
 -- name: ListAgentsByWorkspace :many
 -- Returns paginated agents belonging to a workspace.
-SELECT a.id, a.workspace_id, a.name, a.config_version, a.agent_version,
+SELECT a.id, a.workspace_id, a.name, a.config_version_desired, a.config_version_current, a.agent_version,
        a.ip_addresses_json, a.last_seen_at, a.last_result_submitted_at,
        a.updated_at, a.created_at
 FROM agents a

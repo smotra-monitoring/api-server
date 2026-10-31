@@ -13,7 +13,7 @@ import (
 
 const getAgentVitalsHistory = `-- name: GetAgentVitalsHistory :many
 SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, agent_uptime_secs, reported_at, received_at,
-       agent_version, config_version, is_running, started_at, stopped_at,
+       is_running, started_at, stopped_at,
        checks_performed, checks_successful, checks_failed,
        failed_report_count, server_connected, cache_capacity, cache_len
 FROM agent_vitals
@@ -39,8 +39,6 @@ type GetAgentVitalsHistoryRow struct {
 	AgentUptimeSecs   sql.NullInt64
 	ReportedAt        time.Time
 	ReceivedAt        time.Time
-	AgentVersion      sql.NullString
-	ConfigVersion     sql.NullInt64
 	IsRunning         sql.NullInt64
 	StartedAt         sql.NullTime
 	StoppedAt         sql.NullTime
@@ -72,8 +70,6 @@ func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsH
 			&i.AgentUptimeSecs,
 			&i.ReportedAt,
 			&i.ReceivedAt,
-			&i.AgentVersion,
-			&i.ConfigVersion,
 			&i.IsRunning,
 			&i.StartedAt,
 			&i.StoppedAt,
@@ -100,7 +96,7 @@ func (q *Queries) GetAgentVitalsHistory(ctx context.Context, arg GetAgentVitalsH
 
 const getLatestAgentVitals = `-- name: GetLatestAgentVitals :one
 SELECT id, agent_id, cpu_pct, mem_used_mb, mem_total_mb, system_uptime_secs, agent_uptime_secs, reported_at, received_at,
-       agent_version, config_version, is_running, started_at, stopped_at,
+       is_running, started_at, stopped_at,
        checks_performed, checks_successful, checks_failed,
        failed_report_count, server_connected, cache_capacity, cache_len
 FROM agent_vitals
@@ -119,8 +115,6 @@ type GetLatestAgentVitalsRow struct {
 	AgentUptimeSecs   sql.NullInt64
 	ReportedAt        time.Time
 	ReceivedAt        time.Time
-	AgentVersion      sql.NullString
-	ConfigVersion     sql.NullInt64
 	IsRunning         sql.NullInt64
 	StartedAt         sql.NullTime
 	StoppedAt         sql.NullTime
@@ -146,8 +140,6 @@ func (q *Queries) GetLatestAgentVitals(ctx context.Context, agentID string) (Get
 		&i.AgentUptimeSecs,
 		&i.ReportedAt,
 		&i.ReceivedAt,
-		&i.AgentVersion,
-		&i.ConfigVersion,
 		&i.IsRunning,
 		&i.StartedAt,
 		&i.StoppedAt,
@@ -172,8 +164,6 @@ INSERT INTO agent_vitals (
     system_uptime_secs,
     agent_uptime_secs,
     reported_at,
-    agent_version,
-    config_version,
     is_running,
     started_at,
     stopped_at,
@@ -184,7 +174,7 @@ INSERT INTO agent_vitals (
     server_connected,
     cache_capacity,
     cache_len
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertAgentVitalsParams struct {
@@ -196,8 +186,6 @@ type InsertAgentVitalsParams struct {
 	SystemUptimeSecs  sql.NullInt64
 	AgentUptimeSecs   sql.NullInt64
 	ReportedAt        time.Time
-	AgentVersion      sql.NullString
-	ConfigVersion     sql.NullInt64
 	IsRunning         sql.NullInt64
 	StartedAt         sql.NullTime
 	StoppedAt         sql.NullTime
@@ -220,8 +208,6 @@ func (q *Queries) InsertAgentVitals(ctx context.Context, arg InsertAgentVitalsPa
 		arg.SystemUptimeSecs,
 		arg.AgentUptimeSecs,
 		arg.ReportedAt,
-		arg.AgentVersion,
-		arg.ConfigVersion,
 		arg.IsRunning,
 		arg.StartedAt,
 		arg.StoppedAt,
