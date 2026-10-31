@@ -13,9 +13,9 @@ Thank you for your interest in contributing. To keep quality high and maintainer
 
 | Type | How to contribute | PR template |
 | --- | --- | --- |
-| Feature | Via a skill file (`SKILL.md`), see below | [feature.md](.github/PULL_REQUEST_TEMPLATE/feature.md) |
-| Bug fix | Report as a GitHub issue first, then fix | [bugfix.md](.github/PULL_REQUEST_TEMPLATE/bugfix.md) |
-| Security | Full vulnerability report with reproduction | [security.md](.github/PULL_REQUEST_TEMPLATE/security.md) |
+| Feature | Via a skill file (`SKILL.md`), see below | [feature.md](../.github/PULL_REQUEST_TEMPLATE/feature.md) |
+| Bug fix | Report as a GitHub issue first, then fix | [bugfix.md](../.github/PULL_REQUEST_TEMPLATE/bugfix.md) |
+| Security | Full vulnerability report with reproduction | [security.md](../.github/PULL_REQUEST_TEMPLATE/security.md) |
 
 To open a PR with a specific template, append `?template=<file>` to the GitHub compare URL, for example `?template=bugfix.md`.
 
@@ -24,11 +24,11 @@ To open a PR with a specific template, append `?template=<file>` to the GitHub c
 Feature PRs are accepted **only** as a skill file. Pull requests that add feature code without a skill file are closed.
 
 1. Open a feature-request issue and get maintainer approval.
-2. Add `.github/skills/<feature-name>/SKILL.md` describing the feature. See the existing skills in [.github/skills](.github/skills) for the format (YAML front matter with `name` and `description`, followed by the instructions).
+2. Add `.github/skills/<feature-name>/SKILL.md` describing the feature. See the existing skills in [.github/skills](../.github/skills) for the format (YAML front matter with `name` and `description`, followed by the instructions).
 3. The skill must state:
    - the purpose and scope of the feature, and what is explicitly out of scope;
    - affected components (API spec, database schema, handlers, config);
-   - the step-by-step implementation procedure, following [.github/copilot-instructions.md](.github/copilot-instructions.md) and the files in [.github/instructions](.github/instructions);
+   - the step-by-step implementation procedure, following [.github/copilot-instructions.md](../.github/copilot-instructions.md) and the files in [.github/instructions](../.github/instructions);
    - required tests (unit and integration), metrics, and documentation updates;
    - acceptance criteria that a reviewer can verify.
 4. Reference the approved issue and the skill file in the PR (the feature template enforces this).
@@ -73,11 +73,11 @@ Security PRs missing any item are closed.
 
 - Follow standard Go conventions and idioms.
 - Tests are mandatory: unit tests (`<name>_test.go`) and integration tests (`<name>_integration_test.go`) alongside the code. Bug fixes need a regression test.
-- New features must add Prometheus metrics, as described in [.github/instructions/metrics.instructions.md](.github/instructions/metrics.instructions.md).
+- New features must add Prometheus metrics, as described in [.github/instructions/metrics.instructions.md](../.github/instructions/metrics.instructions.md).
 - Generated code (`api.gen.go`, sqlc output) must be regenerated with `just generate-oapi` and `just generate-sqlc`, never edited by hand.
-- Update the documentation in [docs](docs) when behaviour changes.
+- Update the documentation in [docs](.) when behaviour changes.
 
-See the [User Guide](docs/features/GUIDE.md) and [Testing guide](docs/TESTING.md) for details.
+See the [User Guide](features/GUIDE.md) and [Testing guide](TESTING.md) for details.
 
 ## What gets a PR closed
 
@@ -91,4 +91,4 @@ See the [User Guide](docs/features/GUIDE.md) and [Testing guide](docs/TESTING.md
 
 ## License
 
-By contributing you agree that your contributions are licensed under the terms in [LICENSE](LICENSE).
+By contributing you agree that your contributions are licensed under the terms in [LICENSE](../LICENSE).
