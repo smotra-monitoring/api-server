@@ -266,10 +266,10 @@ The heartbeat is split by how often the data changes:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `configVersionDesired` | int | Version the server wants the agent to run; bumped by DB triggers on any config-relevant change |
-| `configVersionCurrent` | int \| null | Version last reported by the agent in a heartbeat; `null` until the first heartbeat |
+| `config_version_desired` | int | Version the server wants the agent to run; bumped by DB triggers on any config-relevant change |
+| `config_version_current` | int \| null | Version last reported by the agent in a heartbeat; `null` until the first heartbeat |
 
-`configVersionCurrent < configVersionDesired` means the agent has not yet applied the latest configuration.
+`config_version_current < config_version_desired` means the agent has not yet applied the latest configuration.
 
 ### Response
 

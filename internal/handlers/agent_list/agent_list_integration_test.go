@@ -258,10 +258,10 @@ func TestListAgents_Integration_ConfigVersions_DesiredAndCurrent(t *testing.T) {
 		if _, ok := a["configVersion"]; ok {
 			t.Errorf("agent %v still exposes legacy configVersion", a["name"])
 		}
-		if desired, ok := a["configVersionDesired"].(float64); !ok || desired < 1 {
-			t.Errorf("agent %v configVersionDesired = %v, want >= 1", a["name"], a["configVersionDesired"])
+		if desired, ok := a["config_version_desired"].(float64); !ok || desired < 1 {
+			t.Errorf("agent %v configVersionDesired = %v, want >= 1", a["name"], a["config_version_desired"])
 		}
-		current, present := a["configVersionCurrent"]
+		current, present := a["config_version_current"]
 		switch a["name"] {
 		case "agent-alpha":
 			if current != float64(1) {

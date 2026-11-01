@@ -99,39 +99,39 @@ const (
 // Agent defines model for Agent.
 type Agent struct {
 	// AgentVersion Version of the agent software, null if not yet reported
-	AgentVersion *string `json:"agentVersion"`
+	AgentVersion *string `json:"agent_version"`
 
 	// ConfigVersionCurrent Configuration version last reported by the agent in a heartbeat, null if the agent
-	// has not sent one yet. Lower than configVersionDesired means the agent has not
+	// has not sent one yet. Lower than config_version_desired means the agent has not
 	// applied the latest configuration.
-	ConfigVersionCurrent *int `json:"configVersionCurrent"`
+	ConfigVersionCurrent *int `json:"config_version_current"`
 
 	// ConfigVersionDesired Configuration version the server wants the agent to run
-	ConfigVersionDesired int `json:"configVersionDesired"`
+	ConfigVersionDesired int `json:"config_version_desired"`
 
 	// CreatedAt Timestamp when the agent was registered
-	CreatedAt time.Time `json:"createdAt"`
+	CreatedAt time.Time `json:"created_at"`
 
 	// Id UUID version 7 as per RFC 4122
 	Id UUIDv7 `json:"id"`
 
 	// IpAddresses Network interfaces reported by the agent
-	IpAddresses *[]AgentNetworkInterface `json:"ipAddresses,omitempty"`
+	IpAddresses *[]AgentNetworkInterface `json:"ip_addresses,omitempty"`
 
 	// LastResultSubmittedAt Timestamp of the last monitoring result submission
-	LastResultSubmittedAt *time.Time `json:"lastResultSubmittedAt"`
+	LastResultSubmittedAt *time.Time `json:"last_result_submitted_at"`
 
 	// LastSeenAt Timestamp of the last heartbeat received from the agent
-	LastSeenAt *time.Time `json:"lastSeenAt"`
+	LastSeenAt *time.Time `json:"last_seen_at"`
 
 	// Name Human-readable agent name
 	Name string `json:"name"`
 
 	// UpdatedAt Timestamp when the agent record was last updated
-	UpdatedAt time.Time `json:"updatedAt"`
+	UpdatedAt time.Time `json:"updated_at"`
 
 	// WorkspaceId Workspace this agent belongs to
-	WorkspaceId string `json:"workspaceId"`
+	WorkspaceId string `json:"workspace_id"`
 }
 
 // AgentCacheStats defines model for AgentCacheStats.
@@ -225,13 +225,13 @@ type AgentNetworkInterface struct {
 // AgentRegistrationResponse defines model for AgentRegistrationResponse.
 type AgentRegistrationResponse struct {
 	// ClaimUrl URL for user to claim the agent (web UI)
-	ClaimUrl string `json:"claimUrl"`
+	ClaimUrl string `json:"claim_url"`
 
 	// ExpiresAt When the claim token expires (RFC3339)
-	ExpiresAt time.Time `json:"expiresAt"`
+	ExpiresAt time.Time `json:"expires_at"`
 
 	// PollUrl URL for agent to poll for claim status
-	PollUrl string `json:"pollUrl"`
+	PollUrl string `json:"poll_url"`
 
 	// Status Status of agent registration
 	Status RegistrationStatus `json:"status"`
@@ -240,13 +240,13 @@ type AgentRegistrationResponse struct {
 // AgentSelfRegistration defines model for AgentSelfRegistration.
 type AgentSelfRegistration struct {
 	// AgentId UUID version 7 as per RFC 4122
-	AgentId UUIDv7 `json:"agentId"`
+	AgentId UUIDv7 `json:"agent_id"`
 
 	// AgentVersion Version of the agent software
-	AgentVersion string `json:"agentVersion"`
+	AgentVersion string `json:"agent_version"`
 
 	// ClaimTokenHash SHA-256 hash of the claim token (plain token shown in agent logs for user)
-	ClaimTokenHash string `json:"claimTokenHash"`
+	ClaimTokenHash string `json:"claim_token_hash"`
 
 	// Hostname System hostname of the machine running the agent
 	Hostname string `json:"hostname"`
@@ -257,7 +257,7 @@ type AgentSelfRegistration struct {
 	// select the preferred one during the claim process. The entry with
 	// recommended=true reflects the OS-selected source IP for connections toward
 	// the server (determined via routing table, no traffic sent).
-	IpAddresses []AgentNetworkInterface `json:"ipAddresses"`
+	IpAddresses []AgentNetworkInterface `json:"ip_addresses"`
 }
 
 // AgentStatus defines model for AgentStatus.
@@ -312,10 +312,10 @@ type CheckType struct {
 // ClaimAgentRequest defines model for ClaimAgentRequest.
 type ClaimAgentRequest struct {
 	// AgentId UUID version 7 as per RFC 4122
-	AgentId UUIDv7 `json:"agentId"`
+	AgentId UUIDv7 `json:"agent_id"`
 
 	// ClaimToken Claim token from agent logs
-	ClaimToken string `json:"claimToken"`
+	ClaimToken string `json:"claim_token"`
 
 	// Name Human-readable name for the agent (defaults to hostname if not provided)
 	Name *string `json:"name,omitempty"`
@@ -324,7 +324,7 @@ type ClaimAgentRequest struct {
 // ClaimAgentResponse defines model for ClaimAgentResponse.
 type ClaimAgentResponse struct {
 	// AgentId UUID version 7 as per RFC 4122
-	AgentId UUIDv7 `json:"agentId"`
+	AgentId UUIDv7 `json:"agent_id"`
 
 	// Message Human-readable message
 	Message string `json:"message"`
@@ -345,10 +345,10 @@ type ClaimResponseStatus string
 // ClaimStatusClaimed defines model for ClaimStatusClaimed.
 type ClaimStatusClaimed struct {
 	// ApiKey API key for authenticated requests (one-time delivery)
-	ApiKey string `json:"apiKey"`
+	ApiKey string `json:"api_key"`
 
 	// ConfigUrl URL to fetch agent configuration
-	ConfigUrl string `json:"configUrl"`
+	ConfigUrl string `json:"config_url"`
 
 	// Status Claimed status
 	Status ClaimStatusClaimedEnum `json:"status"`
@@ -360,10 +360,10 @@ type ClaimStatusClaimedEnum string
 // ClaimStatusPending defines model for ClaimStatusPending.
 type ClaimStatusPending struct {
 	// ExpiresAt When the claim token expires (RFC3339)
-	ExpiresAt time.Time `json:"expiresAt"`
+	ExpiresAt time.Time `json:"expires_at"`
 
 	// PollIn Seconds until next poll (server-controlled backoff)
-	PollIn int32 `json:"pollIn"`
+	PollIn int32 `json:"poll_in"`
 
 	// Status Pending claim status
 	Status ClaimStatusPendingEnum `json:"status"`
