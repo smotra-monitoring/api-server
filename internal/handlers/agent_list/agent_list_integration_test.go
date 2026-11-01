@@ -184,7 +184,7 @@ func TestListAgents_Integration_Success(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	db, sessionToken, _, _ := setupDB(t)
+	db, sessionToken, workspaceID, _ := setupDB(t)
 	handler := NewHandler(logger.Default(), db)
 	router := setupRouter(db, handler)
 
@@ -204,6 +204,11 @@ func TestListAgents_Integration_Success(t *testing.T) {
 
 	if len(resp.Agents) != 2 {
 		t.Errorf("expected 2 agents, got %d", len(resp.Agents))
+	}
+	for _, a := range resp.Agents {
+		if got := uuid.UUID(a.WorkspaceId).String(); got != workspaceID {
+			t.Errorf("agent %s workspace_id = %s, want %s", a.Name, got, workspaceID)
+		}
 	}
 	if resp.Pagination.TotalItems != 2 {
 		t.Errorf("expected total_items=2, got %d", resp.Pagination.TotalItems)

@@ -161,7 +161,7 @@ func (h *Handler) Handle(ctx context.Context, req api.ListAgentsRequestObject) (
 func (h *Handler) rowToItem(row queries.ListAgentsByWorkspaceRow) api.Agent {
 	item := api.Agent{
 		Id:                   api.UUIDv7(uuid.MustParse(row.ID)),
-		WorkspaceId:          row.WorkspaceID,
+		WorkspaceId:          api.UUIDv7(uuid.MustParse(row.WorkspaceID)),
 		Name:                 row.Name,
 		ConfigVersionDesired: int(row.ConfigVersionDesired),
 		CreatedAt:            row.CreatedAt,
