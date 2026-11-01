@@ -130,8 +130,8 @@ type Agent struct {
 	// UpdatedAt Timestamp when the agent record was last updated
 	UpdatedAt time.Time `json:"updated_at"`
 
-	// WorkspaceId Workspace this agent belongs to
-	WorkspaceId string `json:"workspace_id"`
+	// WorkspaceId UUID version 7 as per RFC 4122
+	WorkspaceId UUIDv7 `json:"workspace_id"`
 }
 
 // AgentCacheStats defines model for AgentCacheStats.
