@@ -109,8 +109,8 @@ func TestNewClaimStatus200Response_PendingWithExpiresAt(t *testing.T) {
 	}
 
 	// Verify expiresAt field exists and is not empty
-	if expiresAtStr, ok := result["expiresAt"].(string); !ok || expiresAtStr == "" {
-		t.Errorf("Expected expiresAt to be present, got %v", result["expiresAt"])
+	if expiresAtStr, ok := result["expires_at"].(string); !ok || expiresAtStr == "" {
+		t.Errorf("Expected expiresAt to be present, got %v", result["expires_at"])
 	} else {
 		// Parse the time to verify it's valid RFC3339
 		parsedTime, err := time.Parse(time.RFC3339, expiresAtStr)
@@ -215,8 +215,8 @@ func TestNewClaimStatus200Response_PendingWithPollIn(t *testing.T) {
 	}
 
 	// Verify pollIn field
-	if pollIn, ok := result["pollIn"].(float64); !ok {
-		t.Errorf("Expected pollIn to be present as number, got %v (type %T)", result["pollIn"], result["pollIn"])
+	if pollIn, ok := result["poll_in"].(float64); !ok {
+		t.Errorf("Expected pollIn to be present as number, got %v (type %T)", result["poll_in"], result["poll_in"])
 	} else if int32(pollIn) != 30 {
 		t.Errorf("Expected pollIn to be 30, got %v", pollIn)
 	}

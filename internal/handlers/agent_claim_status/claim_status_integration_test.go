@@ -173,8 +173,8 @@ func TestGetAgentClaimStatus_Integration_PendingClaim(t *testing.T) {
 	}
 
 	// Verify expiresAt field is present
-	if expiresAtStr, ok := response["expiresAt"].(string); !ok || expiresAtStr == "" {
-		t.Errorf("Expected expiresAt to be present, got %v", response["expiresAt"])
+	if expiresAtStr, ok := response["expires_at"].(string); !ok || expiresAtStr == "" {
+		t.Errorf("Expected expiresAt to be present, got %v", response["expires_at"])
 	} else {
 		// Parse the time to verify it's valid RFC3339
 		parsedTime, err := time.Parse(time.RFC3339, expiresAtStr)
@@ -190,8 +190,8 @@ func TestGetAgentClaimStatus_Integration_PendingClaim(t *testing.T) {
 	}
 
 	// Verify pollIn field is present (first poll should be initial interval: 5s)
-	if pollIn, ok := response["pollIn"].(float64); !ok {
-		t.Errorf("Expected pollIn to be present as number, got %v (type %T)", response["pollIn"], response["pollIn"])
+	if pollIn, ok := response["poll_in"].(float64); !ok {
+		t.Errorf("Expected pollIn to be present as number, got %v (type %T)", response["poll_in"], response["poll_in"])
 	} else if int(pollIn) != 5 {
 		t.Errorf("Expected pollIn to be 5 (initial interval), got %v", pollIn)
 	}
@@ -211,8 +211,8 @@ func TestGetAgentClaimStatus_Integration_PendingClaim(t *testing.T) {
 	}
 
 	// Second poll should increment (5 + 1×5 = 10)
-	if pollIn2, ok := response2["pollIn"].(float64); !ok {
-		t.Errorf("Second poll: Expected pollIn to be present as number, got %v", response2["pollIn"])
+	if pollIn2, ok := response2["poll_in"].(float64); !ok {
+		t.Errorf("Second poll: Expected pollIn to be present as number, got %v", response2["poll_in"])
 	} else if int(pollIn2) != 10 {
 		t.Errorf("Second poll: Expected pollIn to be 10 (5 + 1×5), got %v", pollIn2)
 	}

@@ -62,17 +62,17 @@ The server implements a secure workflow for agent onboarding:
 curl -X POST http://localhost:8080/agent/register \
   -H "Content-Type: application/json" \
   -d '{
-    "agentId": "019c1234-5678-7abc-def0-123456789abc",
-    "claimTokenHash": "a3f5b2c8d1e9f4a7b6c5d2e1f8a9b4c7...",
+    "agent_id": "019c1234-5678-7abc-def0-123456789abc",
+    "claim_token_hash": "a3f5b2c8d1e9f4a7b6c5d2e1f8a9b4c7...",
     "hostname": "prod-web-01",
-    "agentVersion": "1.0.0"
+    "agent_version": "1.0.0"
   }'
 
 # Response includes poll URL and claim URL
 # {
 #   "status": "pending_claim",
-#   "pollUrl": "/agents/019c1234-5678-7abc-def0-123456789abc/claim-status",
-#   "claimUrl": "https://yoursite.com/claim"
+#   "poll_url": "/agents/019c1234-5678-7abc-def0-123456789abc/claim-status",
+#   "claim_url": "https://yoursite.com/claim"
 # }
 ```
 
@@ -86,7 +86,7 @@ curl http://localhost:8080/agents/019c1234-5678-7abc-def0-123456789abc/claim-sta
 # { "status": "pending" }
 
 # Returns API key once (after admin claims):
-# { "status": "claimed", "apiKey": "sk_live_..." }
+# { "status": "claimed", "api_key": "sk_live_..." }
 
 # Subsequent polls return pending (key already delivered):
 # { "status": "pending" }
@@ -102,8 +102,8 @@ curl -X POST http://localhost:8080/agents/claim \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <admin-token>" \
   -d '{
-    "agentId": "019c1234-5678-7abc-def0-123456789abc",
-    "claimToken": "original-token-from-agent",
+    "agent_id": "019c1234-5678-7abc-def0-123456789abc",
+    "claim_token": "original-token-from-agent",
     "name": "Production Web Server 01"
   }'
 ```
@@ -149,7 +149,7 @@ curl -X POST http://localhost:8080/v1/agent/019c1234-5678-7abc-def0-123456789abc
   -d '{
     "cpuUsagePercent": 12.5,
     "memoryUsagePercent": 45.2,
-    "agentVersion": "1.0.0",
+    "agent_version": "1.0.0",
     "uptimeSeconds": 86400
   }'
 ```
