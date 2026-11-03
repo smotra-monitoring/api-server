@@ -233,18 +233,19 @@ func TestHeartbeat_Integration_StoresAgentStatus(t *testing.T) {
 			AgentUptimeSecs:  50,
 		},
 		AgentStatus: api.AgentStatus{
-			AgentVersion:      "1.2.3",
-			ConfigVersion:     7,
-			IsRunning:         true,
-			StartedAt:         now.Add(-2 * time.Hour),
-			StoppedAt:         nil,
-			ChecksPerformed:   200,
-			ChecksSuccessful:  195,
-			ChecksFailed:      5,
-			ReportedAt:        now.Add(-10 * time.Second),
-			FailedReportCount: 1,
-			ServerConnected:   true,
-			CacheStats:        api.AgentCacheStats{Capacity: 500, Len: 12},
+			AgentVersion:       "1.2.3",
+			ConfigVersion:      7,
+			IsRunning:          true,
+			StartedAt:          now.Add(-2 * time.Hour),
+			StoppedAt:          nil,
+			ChecksPerformed:    200,
+			ChecksSuccessful:   195,
+			ChecksFailed:       5,
+			ReportedAt:         now.Add(-10 * time.Second),
+			FailedReportCount:  1,
+			DroppedResultCount: 7,
+			ServerConnected:    true,
+			CacheStats:         api.AgentCacheStats{Capacity: 500, Len: 12},
 		},
 	}
 
@@ -254,23 +255,24 @@ func TestHeartbeat_Integration_StoresAgentStatus(t *testing.T) {
 	}
 
 	var (
-		isRunning         int
-		checksPerformed   int
-		checksSuccessful  int
-		checksFailed      int
-		failedReportCount int
-		serverConnected   int
-		cacheCapacity     int
-		cacheLen          int
+		isRunning          int
+		checksPerformed    int
+		checksSuccessful   int
+		checksFailed       int
+		failedReportCount  int
+		droppedResultCount int
+		serverConnected    int
+		cacheCapacity      int
+		cacheLen           int
 	)
 	err := db.DB().QueryRowContext(context.Background(), `
 		SELECT is_running,
 		       checks_performed, checks_successful, checks_failed,
-		       failed_report_count, server_connected, cache_capacity, cache_len
+		       failed_report_count, dropped_result_count, server_connected, cache_capacity, cache_len
 		FROM agent_vitals WHERE agent_id = ?`, agentID.String()).Scan(
 		&isRunning,
 		&checksPerformed, &checksSuccessful, &checksFailed,
-		&failedReportCount, &serverConnected, &cacheCapacity, &cacheLen,
+		&failedReportCount, &droppedResultCount, &serverConnected, &cacheCapacity, &cacheLen,
 	)
 	if err != nil {
 		t.Fatalf("query agent_status fields: %v", err)
@@ -289,6 +291,9 @@ func TestHeartbeat_Integration_StoresAgentStatus(t *testing.T) {
 	}
 	if failedReportCount != 1 {
 		t.Errorf("failed_report_count = %d, want 1", failedReportCount)
+	}
+	if droppedResultCount != 7 {
+		t.Errorf("dropped_result_count = %d, want 7", droppedResultCount)
 	}
 	if serverConnected != 1 {
 		t.Errorf("server_connected = %d, want 1", serverConnected)

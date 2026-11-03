@@ -203,6 +203,7 @@ X-Agent-API-Key: <api-key>
     "checks_failed": 2,
     "reported_at": "2024-01-15T10:29:30Z",
     "failed_report_count": 0,
+    "dropped_result_count": 0,
     "server_connected": true,
     "cache_stats": {
       "capacity": 1000,
@@ -243,6 +244,7 @@ X-Agent-API-Key: <api-key>
 | `checks_failed` | int | Yes | Number of checks that failed |
 | `reported_at` | string (RFC3339) | Yes | Timestamp of the last report sent by the agent |
 | `failed_report_count` | int | Yes | Number of consecutive failed report attempts |
+| `dropped_result_count` | int | Yes | Number of results discarded because the server permanently rejected them (HTTP 400/422) |
 | `server_connected` | bool | Yes | Whether the agent currently has a live connection to the server |
 | `cache_stats` | object | Yes | Local result cache statistics |
 
@@ -258,7 +260,7 @@ X-Agent-API-Key: <api-key>
 The heartbeat is split by how often the data changes:
 
 - **`agents` row (current state)** — `last_seen_at`, `agent_version` (an empty value keeps the stored one) and `config_version_current` (from `agent_status.config_version`) are updated in a single statement. Neither `agent_version` nor `config_version_current` bumps `config_version_desired`, so an agent upgrade or a heartbeat never triggers a config re-fetch.
-- **`agent_vitals` (time series)** — system metrics and the remaining `agent_status` fields (`is_running`, `started_at`, `stopped_at`, check counters, `failed_report_count`, `server_connected`, cache stats). This allows historical queries to correlate resource usage with agent operational state.
+- **`agent_vitals` (time series)** — system metrics and the remaining `agent_status` fields (`is_running`, `started_at`, `stopped_at`, check counters, `failed_report_count`, `dropped_result_count`, `server_connected`, cache stats). This allows historical queries to correlate resource usage with agent operational state.
 
 ### Config drift
 

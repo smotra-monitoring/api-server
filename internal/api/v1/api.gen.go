@@ -278,6 +278,9 @@ type AgentStatus struct {
 	// ConfigVersion Version of the agent configuration
 	ConfigVersion int `json:"config_version"`
 
+	// DroppedResultCount Number of results discarded because the server permanently rejected them (HTTP 400/422)
+	DroppedResultCount int `json:"dropped_result_count"`
+
 	// FailedReportCount Number of consecutive failed report attempts
 	FailedReportCount int `json:"failed_report_count"`
 
