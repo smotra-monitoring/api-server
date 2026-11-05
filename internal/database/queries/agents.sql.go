@@ -256,12 +256,13 @@ func (q *Queries) UpdateAgentConfiguration(ctx context.Context, arg UpdateAgentC
 	return err
 }
 
-const updateAgentHeartbeatState = `-- name: UpdateAgentHeartbeatState :exec
+const updateAgentHeartbeatState = `-- name: UpdateAgentHeartbeatState :one
 UPDATE agents
 SET last_seen_at = ?1,
     agent_version = COALESCE(NULLIF(CAST(?2 AS TEXT), ''), agent_version),
     config_version_current = ?3
 WHERE id = ?4
+RETURNING config_version_desired
 `
 
 type UpdateAgentHeartbeatStateParams struct {
@@ -273,14 +274,17 @@ type UpdateAgentHeartbeatStateParams struct {
 
 // Records heartbeat time plus the agent-reported versions in one statement.
 // An empty reported agent_version keeps the stored value.
-func (q *Queries) UpdateAgentHeartbeatState(ctx context.Context, arg UpdateAgentHeartbeatStateParams) error {
-	_, err := q.db.ExecContext(ctx, updateAgentHeartbeatState,
+// Returns the server-side desired config version so the heartbeat can answer with it.
+func (q *Queries) UpdateAgentHeartbeatState(ctx context.Context, arg UpdateAgentHeartbeatStateParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, updateAgentHeartbeatState,
 		arg.LastSeenAt,
 		arg.AgentVersion,
 		arg.ConfigVersionCurrent,
 		arg.ID,
 	)
-	return err
+	var config_version_desired int64
+	err := row.Scan(&config_version_desired)
+	return config_version_desired, err
 }
 
 const updateAgentLastResultSubmittedAt = `-- name: UpdateAgentLastResultSubmittedAt :exec

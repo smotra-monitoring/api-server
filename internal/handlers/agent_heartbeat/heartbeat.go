@@ -25,6 +25,9 @@ type Handler struct {
 	heartbeatSuccessTotal  atomic.Uint64
 	heartbeatFailureTotal  atomic.Uint64
 	vitalsStoredTotal      atomic.Uint64
+	// Must be incremented by every non-fatal DB error branch in Handle().
+	heartbeatNonFatalErrorTotal  atomic.Uint64
+	heartbeatConfigOutdatedTotal atomic.Uint64
 }
 
 // NewHandler creates a new heartbeat handler.
@@ -56,16 +59,20 @@ func (h *Handler) Handle(ctx context.Context, req api.SendAgentHeartbeatRequestO
 	q := queries.New(h.db.DB())
 
 	// Always record heartbeat state — non-fatal if it fails.
-	if err := q.UpdateAgentHeartbeatState(ctx, queries.UpdateAgentHeartbeatStateParams{
+	configVersionDesired, stateErr := q.UpdateAgentHeartbeatState(ctx, queries.UpdateAgentHeartbeatStateParams{
 		LastSeenAt:           sql.NullTime{Time: receivedAt, Valid: true},
 		AgentVersion:         req.Body.AgentStatus.AgentVersion,
 		ConfigVersionCurrent: sql.NullInt64{Int64: int64(req.Body.AgentStatus.ConfigVersion), Valid: true},
 		ID:                   agentID,
-	}); err != nil {
+	})
+	if stateErr != nil {
+		h.heartbeatNonFatalErrorTotal.Add(1)
 		h.logger.WarnContext(ctx, "Failed to update agent heartbeat state",
 			slog.String("agent_id", agentID),
-			slog.String("error", err.Error()),
+			slog.String("error", stateErr.Error()),
 		)
+	} else if configVersionDesired > int64(req.Body.AgentStatus.ConfigVersion) {
+		h.heartbeatConfigOutdatedTotal.Add(1)
 	}
 
 	// Always store vitals — cpu/memory are required fields.
@@ -85,7 +92,12 @@ func (h *Handler) Handle(ctx context.Context, req api.SendAgentHeartbeatRequestO
 	h.vitalsStoredTotal.Add(1)
 
 	h.heartbeatSuccessTotal.Add(1)
-	return api.SendAgentHeartbeat204Response{}, nil
+
+	// Desired version is unknown when the state update failed; legacy 204 carries none.
+	if stateErr != nil {
+		return api.SendAgentHeartbeat204Response{}, nil
+	}
+	return api.SendAgentHeartbeat200JSONResponse{ConfigVersionDesired: int32(configVersionDesired)}, nil
 }
 
 func (h *Handler) storeVitals(ctx context.Context, q *queries.Queries, agentID string, body *api.AgentHeartbeat) error {
@@ -150,6 +162,14 @@ func (h *Handler) GetMetrics() string {
 	out += "# HELP smotra_agent_vitals_stored_total Vitals snapshots stored from heartbeats\n"
 	out += "# TYPE smotra_agent_vitals_stored_total counter\n"
 	out += fmt.Sprintf("smotra_agent_vitals_stored_total %d\n", h.vitalsStoredTotal.Load())
+
+	out += "# HELP smotra_agent_heartbeat_non_fatal_error_total Heartbeat DB errors that did not fail the request\n"
+	out += "# TYPE smotra_agent_heartbeat_non_fatal_error_total counter\n"
+	out += fmt.Sprintf("smotra_agent_heartbeat_non_fatal_error_total %d\n", h.heartbeatNonFatalErrorTotal.Load())
+
+	out += "# HELP smotra_agent_heartbeat_config_outdated_total Heartbeats from agents running an older config version than desired\n"
+	out += "# TYPE smotra_agent_heartbeat_config_outdated_total counter\n"
+	out += fmt.Sprintf("smotra_agent_heartbeat_config_outdated_total %d\n", h.heartbeatConfigOutdatedTotal.Load())
 
 	return out
 }

@@ -76,6 +76,8 @@ func TestGetMetrics_ContainsAllCounters(t *testing.T) {
 		"smotra_agent_heartbeat_success_total",
 		"smotra_agent_heartbeat_failure_total",
 		"smotra_agent_vitals_stored_total",
+		"smotra_agent_heartbeat_non_fatal_error_total",
+		"smotra_agent_heartbeat_config_outdated_total",
 	} {
 		if !strings.Contains(out, key) {
 			t.Errorf("missing metric %q in GetMetrics output", key)
@@ -121,5 +123,8 @@ func TestHandle_WithVitals_IncrementsVitalsCounter_OnMockDB(t *testing.T) {
 	}
 	if h.heartbeatFailureTotal.Load() != 1 {
 		t.Error("failure counter not incremented")
+	}
+	if h.heartbeatNonFatalErrorTotal.Load() != 1 {
+		t.Errorf("non-fatal error counter = %d, want 1", h.heartbeatNonFatalErrorTotal.Load())
 	}
 }

@@ -275,16 +275,26 @@ The heartbeat is split by how often the data changes:
 
 ### Response
 
-**204 No Content** — heartbeat accepted.  
+**200 OK** — heartbeat accepted; the body carries the configuration version the server wants the agent to run:
+
+```json
+{ "config_version_desired": 3 }
+```
+
+When `config_version_desired` is higher than the agent's own `agent_status.config_version`, the agent fetches `GET /v1/agent/{agentId}/configuration`.
+
+**204 No Content** — heartbeat accepted but the agent state update failed, so no version is available. Agents must treat it as "no version info" and keep their current configuration.  
 **400 Bad Request** — missing or invalid body.  
 **401 Unauthorized** — missing or invalid API key.  
-**503 Service Unavailable** — database error or agent ID mismatch.
+**503 Service Unavailable** — failed to store the vitals snapshot.
 
 ### Prometheus Metrics
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `smotra_heartbeat_attempts_total` | counter | Total heartbeat submissions |
-| `smotra_heartbeat_success_total` | counter | Heartbeats processed successfully |
-| `smotra_heartbeat_failure_total` | counter | Heartbeats rejected (auth or DB error) |
-| `smotra_heartbeat_vitals_stored_total` | counter | Vitals snapshots written to database |
+| `smotra_agent_heartbeat_attempts_total` | counter | Total heartbeat submissions |
+| `smotra_agent_heartbeat_success_total` | counter | Heartbeats processed successfully (200 or 204) |
+| `smotra_agent_heartbeat_failure_total` | counter | Heartbeats rejected (400 or 503) |
+| `smotra_agent_vitals_stored_total` | counter | Vitals snapshots written to database |
+| `smotra_agent_heartbeat_non_fatal_error_total` | counter | Heartbeat DB errors that did not fail the request (e.g. agent state update; response falls back to 204) |
+| `smotra_agent_heartbeat_config_outdated_total` | counter | Heartbeats from agents reporting a config version lower than `config_version_desired` |

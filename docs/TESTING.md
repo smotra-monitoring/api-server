@@ -69,7 +69,7 @@ The project includes comprehensive unit tests and integration tests for all majo
     - Unit tests for pending/claimed/delivered state transitions
     - Integration tests including one-time API key delivery
 
-12. **internal/handlers/agent_heartbeat** - Agent heartbeat and vitals submission
+12. **internal/handlers/agent_heartbeat** - Agent heartbeat and vitals submission; asserts the `config_version_desired` response (200), the 204 fallback when the state update fails, and the `smotra_agent_heartbeat_non_fatal_error_total` counter
     - Unit tests with mock database
     - Integration tests with real HTTP server and authentication
     - Tests for `last_seen_at` update and vitals storage

@@ -234,7 +234,7 @@ func TestListAgents_Integration_ConfigVersions_DesiredAndCurrent(t *testing.T) {
 	if err := db.DB().QueryRowContext(ctx, `SELECT id FROM agents WHERE name = 'agent-alpha'`).Scan(&alphaID); err != nil {
 		t.Fatalf("find agent-alpha: %v", err)
 	}
-	if err := queries.New(db.DB()).UpdateAgentHeartbeatState(ctx, queries.UpdateAgentHeartbeatStateParams{
+	if _, err := queries.New(db.DB()).UpdateAgentHeartbeatState(ctx, queries.UpdateAgentHeartbeatStateParams{
 		LastSeenAt:           sql.NullTime{Time: time.Now().UTC(), Valid: true},
 		AgentVersion:         "1.0.0",
 		ConfigVersionCurrent: sql.NullInt64{Int64: 1, Valid: true},

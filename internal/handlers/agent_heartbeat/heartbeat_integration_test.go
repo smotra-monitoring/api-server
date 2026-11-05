@@ -149,8 +149,8 @@ func TestHeartbeat_Integration_WithVitals_StoresSnapshot(t *testing.T) {
 	}
 
 	rr := postHeartbeat(t, router, agentID, body)
-	if rr.Code != http.StatusNoContent {
-		t.Fatalf("expected 204, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
 	var count int
@@ -250,8 +250,8 @@ func TestHeartbeat_Integration_StoresAgentStatus(t *testing.T) {
 	}
 
 	rr := postHeartbeat(t, router, agentID, body)
-	if rr.Code != http.StatusNoContent {
-		t.Fatalf("expected 204, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
 	var (
@@ -384,8 +384,8 @@ func TestHeartbeat_Integration_AgentVersionChange_DoesNotBumpDesiredConfigVersio
 	}
 
 	for _, v := range []string{"0.1.0", "0.2.0"} {
-		if rr := postHeartbeat(t, router, agentID, versionHeartbeat(v, desiredBefore)); rr.Code != http.StatusNoContent {
-			t.Fatalf("expected 204, got %d: %s", rr.Code, rr.Body.String())
+		if rr := postHeartbeat(t, router, agentID, versionHeartbeat(v, desiredBefore)); rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 		}
 	}
 
@@ -439,5 +439,69 @@ func TestHeartbeat_Integration_ConfigDrift_DetectedAndResolved(t *testing.T) {
 	_, _, current = readAgentVersions(t, db, agentID)
 	if current == nil || *current != newDesired {
 		t.Errorf("config_version_current = %v, want %d after catch-up", current, newDesired)
+	}
+}
+
+func decodeDesired(t *testing.T, rr *httptest.ResponseRecorder) int32 {
+	t.Helper()
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp api.AgentHeartbeatResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return resp.ConfigVersionDesired
+}
+
+func TestHeartbeat_Integration_ReturnsConfigVersionDesired(t *testing.T) {
+	db, agentID := setupRealDB(t)
+	h := NewHandler(logger.Default(), db)
+	router := setupTestRouter(h)
+
+	_, desired, _ := readAgentVersions(t, db, agentID)
+	if got := decodeDesired(t, postHeartbeat(t, router, agentID, versionHeartbeat("1.0.0", desired))); int(got) != desired {
+		t.Errorf("config_version_desired = %d, want %d", got, desired)
+	}
+	if h.heartbeatConfigOutdatedTotal.Load() != 0 {
+		t.Errorf("config outdated counter = %d, want 0 for an up-to-date agent", h.heartbeatConfigOutdatedTotal.Load())
+	}
+
+	// A core agent change bumps the desired version via trg_agents_updated.
+	if _, err := db.DB().ExecContext(context.Background(),
+		`UPDATE agents SET base_config = ? WHERE id = ?`, `{"changed":true}`, agentID.String()); err != nil {
+		t.Fatalf("update base_config: %v", err)
+	}
+	_, newDesired, _ := readAgentVersions(t, db, agentID)
+
+	if got := decodeDesired(t, postHeartbeat(t, router, agentID, versionHeartbeat("1.0.0", desired))); int(got) != newDesired {
+		t.Errorf("config_version_desired = %d, want %d after bump", got, newDesired)
+	}
+	if h.heartbeatConfigOutdatedTotal.Load() != 1 {
+		t.Errorf("config outdated counter = %d, want 1 for a lagging agent", h.heartbeatConfigOutdatedTotal.Load())
+	}
+	if h.heartbeatNonFatalErrorTotal.Load() != 0 {
+		t.Errorf("non-fatal error counter = %d, want 0", h.heartbeatNonFatalErrorTotal.Load())
+	}
+}
+
+// A failed state update leaves no version to report, so the handler falls back to the legacy 204.
+func TestHeartbeat_Integration_StateUpdateFails_Returns204AndCountsNonFatalError(t *testing.T) {
+	db, agentID := setupRealDB(t)
+	h := NewHandler(logger.Default(), db)
+	router := setupTestRouter(h)
+
+	if _, err := db.DB().ExecContext(context.Background(),
+		`CREATE TRIGGER trg_test_block_agents_update BEFORE UPDATE ON agents
+		 BEGIN SELECT RAISE(ABORT, 'blocked'); END`); err != nil {
+		t.Fatalf("create blocking trigger: %v", err)
+	}
+
+	rr := postHeartbeat(t, router, agentID, versionHeartbeat("1.0.0", 1))
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if h.heartbeatNonFatalErrorTotal.Load() != 1 {
+		t.Errorf("non-fatal error counter = %d, want 1", h.heartbeatNonFatalErrorTotal.Load())
 	}
 }
