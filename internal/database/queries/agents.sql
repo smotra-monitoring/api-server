@@ -42,14 +42,16 @@ SELECT id, api_key_hash FROM agents WHERE id = ?;
 -- name: UpdateAgentLastSeen :exec
 UPDATE agents SET last_seen_at = ? WHERE id = ?;
 
--- name: UpdateAgentHeartbeatState :exec
+-- name: UpdateAgentHeartbeatState :one
 -- Records heartbeat time plus the agent-reported versions in one statement.
 -- An empty reported agent_version keeps the stored value.
+-- Returns the server-side desired config version so the heartbeat can answer with it.
 UPDATE agents
 SET last_seen_at = sqlc.arg(last_seen_at),
     agent_version = COALESCE(NULLIF(CAST(sqlc.arg(agent_version) AS TEXT), ''), agent_version),
     config_version_current = sqlc.arg(config_version_current)
-WHERE id = sqlc.arg(id);
+WHERE id = sqlc.arg(id)
+RETURNING config_version_desired;
 
 -- name: UpdateAgentLastResultSubmittedAt :exec
 UPDATE agents SET last_result_submitted_at = ? WHERE id = ?;

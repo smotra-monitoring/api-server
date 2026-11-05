@@ -154,7 +154,7 @@ curl -X POST http://localhost:8080/v1/agent/019c1234-5678-7abc-def0-123456789abc
   }'
 ```
 
-Returns `204 No Content` on success.
+Returns `200 OK` with `{"config_version_desired": N}` on success. If `N` is higher than the agent's current config version, the agent fetches its configuration. A legacy `204 No Content` (no version) is returned when the agent state update fails.
 
 ### 7. Using PostgreSQL (Production)
 
