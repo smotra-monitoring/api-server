@@ -180,6 +180,13 @@ type AgentHeartbeat struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+// AgentHeartbeatResponse defines model for AgentHeartbeatResponse.
+type AgentHeartbeatResponse struct {
+	// ConfigVersionDesired Configuration version the server wants the agent to run. When higher than the
+	// agent's current version, the agent fetches GET /agent/{agentId}/configuration.
+	ConfigVersionDesired int32 `json:"config_version_desired"`
+}
+
 // AgentListResponse defines model for AgentListResponse.
 type AgentListResponse struct {
 	Agents     []Agent    `json:"agents"`
@@ -2134,6 +2141,15 @@ type SendAgentHeartbeatRequestObject struct {
 
 type SendAgentHeartbeatResponseObject interface {
 	VisitSendAgentHeartbeatResponse(w http.ResponseWriter) error
+}
+
+type SendAgentHeartbeat200JSONResponse AgentHeartbeatResponse
+
+func (response SendAgentHeartbeat200JSONResponse) VisitSendAgentHeartbeatResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type SendAgentHeartbeat204Response struct {
