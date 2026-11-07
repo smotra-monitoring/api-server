@@ -13,8 +13,8 @@ import (
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
 
-// fakeLimiterService answers 429 for blocked IPs and 200 otherwise, like the real limiter.
-func fakeLimiterService(t *testing.T, blocked map[string]bool, calls *atomic.Int32) *httptest.Server {
+// fakeExternalChecker answers 429 for blocked IPs and 200 otherwise, like the real limiter.
+func fakeExternalChecker(t *testing.T, blocked map[string]bool, calls *atomic.Int32) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
@@ -68,7 +68,7 @@ func serve(h http.Handler, method, path, remote string) *httptest.ResponseRecord
 
 func TestRateLimitIntegration_BlockedIPNeverReachesHandlers(t *testing.T) {
 	var limiterCalls, reached atomic.Int32
-	svc := fakeLimiterService(t, map[string]bool{"203.0.113.5": true}, &limiterCalls)
+	svc := fakeExternalChecker(t, map[string]bool{"203.0.113.5": true}, &limiterCalls)
 	router := newRateLimitedRouter(svc.URL, true, &reached)
 
 	for _, tc := range []struct{ method, path string }{
@@ -97,9 +97,10 @@ func TestRateLimitIntegration_BlockedIPNeverReachesHandlers(t *testing.T) {
 
 func TestRateLimitIntegration_AllowedWhitelistedAndExempt(t *testing.T) {
 	var limiterCalls, reached atomic.Int32
-	svc := fakeLimiterService(t, map[string]bool{"203.0.113.5": true, "10.0.0.7": true}, &limiterCalls)
+	svc := fakeExternalChecker(t, map[string]bool{"203.0.113.5": true, "10.0.0.7": true}, &limiterCalls)
 	router := newRateLimitedRouter(svc.URL, true, &reached)
 
+	// Allowed IP is served normally.
 	if rec := serve(router, "GET", "/v1/agents", "198.51.100.1:1"); rec.Code != http.StatusOK {
 		t.Errorf("allowed IP code = %d, want 200", rec.Code)
 	}
@@ -115,14 +116,24 @@ func TestRateLimitIntegration_AllowedWhitelistedAndExempt(t *testing.T) {
 	if rec := serve(router, "GET", "/healthz", "203.0.113.5:1"); rec.Code != http.StatusOK {
 		t.Errorf("exempt path code = %d, want 200", rec.Code)
 	}
+
 	if limiterCalls.Load() != 1 {
 		t.Errorf("limiter calls = %d, want still 1", limiterCalls.Load())
+	}
+
+	// Normal path is blocked for a blocked IP, without any call.
+	if rec := serve(router, "GET", "/v1/agents", "203.0.113.5:1"); rec.Code != http.StatusTooManyRequests {
+		t.Errorf("normal path code = %d, want 429", rec.Code)
+	}
+
+	if limiterCalls.Load() != 2 {
+		t.Errorf("limiter calls = %d, want 2", limiterCalls.Load())
 	}
 }
 
 func TestRateLimitIntegration_LimiterDown(t *testing.T) {
 	var limiterCalls, reached atomic.Int32
-	svc := fakeLimiterService(t, nil, &limiterCalls)
+	svc := fakeExternalChecker(t, nil, &limiterCalls)
 	url := svc.URL
 	svc.Close()
 
