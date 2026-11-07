@@ -31,7 +31,8 @@ func loadFromFile(filepath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	cfg := &Config{}
+	// Only the rate limiter is pre-seeded so omitted keys keep their defaults.
+	cfg := &Config{RateLimiter: DefaultRateLimiterConfig()}
 
 	// Try YAML first, then JSON
 	err = yaml.Unmarshal(data, cfg)

@@ -185,6 +185,7 @@ go build -ldflags "-X main.version=1.0.0" -o bin/smotra-server cmd/api-server/ma
 - [features/authentication.md](features/authentication.md) - OAuth2/OIDC configuration reference
 - [features/agent-claiming.md](features/agent-claiming.md) - Agent claiming workflow deep-dive
 - [features/monitoring-results.md](features/monitoring-results.md) - Results submission and heartbeat reference
+- [features/rate-limiting.md](features/rate-limiting.md) - External rate limiter integration
 
 ## Contributing
 Contributions are accepted only under the rules in [CONTRIBUTING.md](CONTRIBUTING.md): features via `SKILL.md`, bug fixes via GitHub issues, and security fixes with full vulnerability details. Use the matching PR template.

@@ -37,3 +37,12 @@ agent:
     claim_poll_max_interval_secs: 30
 cors:
     origin: https://www.smotra.net
+rate_limiter:
+    enabled: true
+    url: http://rate-limiter.internal/check
+    timeout: 20ms          # 1ms-20ms
+    fail_open: true       # allow requests when the limiter is down
+    cache_429_sec: 15     # min 5
+    circuit_breaker_sec: 60  # min 5
+    exempt_paths: ["/healthz", "/metrics"]
+    whitelist_subnets: ["127.0.0.1/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]

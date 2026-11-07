@@ -3,7 +3,9 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/smotra-monitoring/server/internal/database"
@@ -19,6 +21,7 @@ type Config struct {
 	Auth           AuthConfig               `json:"auth" yaml:"auth"`
 	Agent          AgentConfig              `json:"agent" yaml:"agent"`
 	CORS           CORSConfig               `json:"cors,omitempty" yaml:"cors,omitempty"`
+	RateLimiter    RateLimiterConfig        `json:"rate_limiter" yaml:"rate_limiter"`
 }
 
 // ServerConfig holds server-specific configuration
@@ -99,6 +102,34 @@ type CORSConfig struct {
 	// Origin is the value set in the Access-Control-Allow-Origin response header.
 	// Leave empty to disable CORS headers entirely.
 	Origin string `json:"origin" yaml:"origin"`
+}
+
+// RateLimiterConfig configures the external rate-limiter service consulted for every request.
+type RateLimiterConfig struct {
+	// Enabled turns the rate limiter on. When false, all other fields are ignored.
+	Enabled bool `json:"enabled" yaml:"enabled"`
+
+	// URL of the limiter service; it receives GET with body {"ip":"<client-ip>"}
+	// and answers 200 (allow) or 429 (deny).
+	URL string `json:"url" yaml:"url"`
+
+	// Timeout bounds a single limiter call (1ms-20ms).
+	Timeout time.Duration `json:"timeout" yaml:"timeout"`
+
+	// FailOpen allows requests when the limiter errors or times out; otherwise they get 503.
+	FailOpen bool `json:"fail_open" yaml:"fail_open"`
+
+	// Cache429Sec is how long an IP denied by the limiter is rejected locally without a new call (min 5).
+	Cache429Sec int `json:"cache_429_sec" yaml:"cache_429_sec"`
+
+	// CircuitBreakerSec is how long the limiter is skipped after a failed call (min 5).
+	CircuitBreakerSec int `json:"circuit_breaker_sec" yaml:"circuit_breaker_sec"`
+
+	// ExemptPaths are URL path prefixes that bypass the limiter.
+	ExemptPaths []string `json:"exempt_paths,omitempty" yaml:"exempt_paths,omitempty"`
+
+	// WhitelistSubnets are CIDRs or bare IPs whose clients bypass the limiter.
+	WhitelistSubnets []string `json:"whitelist_subnets,omitempty" yaml:"whitelist_subnets,omitempty"`
 }
 
 // AgentConfig holds agent-related configuration
@@ -221,7 +252,53 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("claim poll max interval (%d) must be >= initial interval (%d)", c.Agent.ClaimPollMaxIntervalSecs, c.Agent.ClaimPollInitialIntervalSecs)
 	}
 
+	// Rate limiter validation (only enforced when enabled)
+	if err := c.RateLimiter.validate(); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+const (
+	minRateLimiterTimeout = 1 * time.Millisecond
+	maxRateLimiterTimeout = 20 * time.Millisecond
+	minCache429Secs       = 5
+	minCircuitBreakerSecs = 1
+)
+
+func validateIPList(field string, entries []string) error {
+	for _, p := range entries {
+		if _, _, err := net.ParseCIDR(p); err != nil && net.ParseIP(p) == nil {
+			return fmt.Errorf("invalid %s entry %q: must be a CIDR or IP address", field, p)
+		}
+	}
+	return nil
+}
+
+func (r RateLimiterConfig) validate() error {
+	if !r.Enabled {
+		return nil
+	}
+	u, err := url.Parse(r.URL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("rate_limiter.url must be an http(s) URL, got %q", r.URL)
+	}
+	if r.Timeout < minRateLimiterTimeout || r.Timeout > maxRateLimiterTimeout {
+		return fmt.Errorf("rate_limiter.timeout must be between %s and %s, got %s", minRateLimiterTimeout, maxRateLimiterTimeout, r.Timeout)
+	}
+	if r.Cache429Sec < minCache429Secs {
+		return fmt.Errorf("rate_limiter.cache_429_sec must be at least %d, got %d", minCache429Secs, r.Cache429Sec)
+	}
+	if r.CircuitBreakerSec < minCircuitBreakerSecs {
+		return fmt.Errorf("rate_limiter.circuit_breaker_sec must be at least %d, got %d", minCircuitBreakerSecs, r.CircuitBreakerSec)
+	}
+	for _, p := range r.ExemptPaths {
+		if !strings.HasPrefix(p, "/") {
+			return fmt.Errorf("invalid rate_limiter.exempt_paths entry %q: must start with /", p)
+		}
+	}
+	return validateIPList("rate_limiter.whitelist_subnets", r.WhitelistSubnets)
 }
 
 // Default returns a Config with sensible default values
@@ -236,6 +313,7 @@ func Default() *Config {
 		Auth:         DefaultAuthConfig(),
 		Agent:        DefaultAgentConfig(),
 		CORS:         DefaultCORSConfig(),
+		RateLimiter:  DefaultRateLimiterConfig(),
 	}
 
 	return &cfg
@@ -281,5 +359,16 @@ func DefaultAgentConfig() AgentConfig {
 func DefaultCORSConfig() CORSConfig {
 	return CORSConfig{
 		Origin: "", // empty = CORS headers disabled
+	}
+}
+
+func DefaultRateLimiterConfig() RateLimiterConfig {
+	return RateLimiterConfig{
+		Enabled:           false,
+		Timeout:           20 * time.Millisecond,
+		FailOpen:          true,
+		Cache429Sec:       15,
+		CircuitBreakerSec: 5,
+		ExemptPaths:       []string{"/healthz", "/metrics"},
 	}
 }

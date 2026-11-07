@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
@@ -17,6 +18,7 @@ import (
 	"github.com/smotra-monitoring/server/internal/handlers"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/middleware"
+	"github.com/smotra-monitoring/server/internal/ratelimit"
 )
 
 var appVersion = "dev"
@@ -74,6 +76,9 @@ func main() {
 
 	log.Info("database connection established", "type", cfg.DatabaseType)
 
+	// Create shared metrics handler
+	metricsHandler := handlers.NewMetricsHandler(log, appVersion)
+
 	// Create router
 	r := chi.NewRouter()
 
@@ -83,6 +88,18 @@ func main() {
 	r.Use(middleware.Recovery(log))
 	r.Use(middleware.CORS(cfg.CORS.Origin))
 	r.Use(middleware.ClientInfoMiddleware(cfg.Server.TrustedProxies))
+
+	var limiter *ratelimit.Limiter
+	if rl := cfg.RateLimiter; rl.Enabled {
+		limiter = ratelimit.NewLimiter(ratelimit.NewClient(rl.URL, rl.Timeout), ratelimit.Options{
+			FailOpen:       rl.FailOpen,
+			Cache429TTL:    time.Duration(rl.Cache429Sec) * time.Second,
+			BreakerTimeout: time.Duration(rl.CircuitBreakerSec) * time.Second,
+		})
+		r.Use(middleware.RateLimit(log, limiter, rl.ExemptPaths, rl.WhitelistSubnets))
+		log.Info("rate limiter enabled", "url", rl.URL, "timeout", rl.Timeout, "fail_open", rl.FailOpen)
+	}
+
 	httpMetrics := middleware.NewHTTPMetrics()
 	r.Use(httpMetrics.Middleware)
 
@@ -91,10 +108,11 @@ func main() {
 	r.Use(middleware.AgentAPIKeyAuth(log, db))
 	r.Use(middleware.OAuth2Auth(log, db))
 
-	// Create shared metrics handler
-	metricsHandler := handlers.NewMetricsHandler(log, appVersion)
 	metricsHandler.RegisterMetricsProvider(httpMetrics)
 	metricsHandler.RegisterMetricsProvider(database.NewDBMetrics(db))
+	if limiter != nil {
+		metricsHandler.RegisterMetricsProvider(limiter)
+	}
 
 	// Register Health handler
 	healthHandler := handlers.NewHealthHandler(log, db, cfg, appVersion, metricsHandler)
