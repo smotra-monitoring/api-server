@@ -308,6 +308,17 @@ auth:
 - `auth.frontend_callback_url`: Frontend URL to redirect to after IDP callback
 - `auth.providers`: Map of provider name to OAuth2 configuration
 
+#### Rate Limiter
+- See [docs/features/rate-limiting.md](rate-limiting.md) for the full reference.
+- `rate_limiter.enabled`: Enable the external rate limiter (default: false)
+- `rate_limiter.url`: Limiter service URL (required when enabled)
+- `rate_limiter.timeout`: Per-call timeout, 1ms-20ms (default: 5ms)
+- `rate_limiter.fail_open`: Allow requests when the limiter fails (default: true)
+- `rate_limiter.cache_429_sec`: Local 429 cache TTL, min 5 (default: 15)
+- `rate_limiter.circuit_breaker_sec`: Skip the limiter this long after a failure, min 5 (default: 60)
+- `rate_limiter.exempt_paths`: Path prefixes that bypass the limiter (default: `/healthz`, `/metrics`)
+- `rate_limiter.whitelist_subnets`: CIDRs/IPs that bypass the limiter (default: empty)
+
 ## Building for Production
 
 ```bash

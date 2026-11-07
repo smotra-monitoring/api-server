@@ -95,7 +95,11 @@ The project includes comprehensive unit tests and integration tests for all majo
 
 17. **internal/middleware** client info - `client_info_test.go` covers client IP resolution (trusted proxy / spoofed `X-Forwarded-For` / IPv6) and user-agent truncation; `internal/handlers/auth/session_client_info_test.go` verifies IP and user agent are persisted on token exchange and refresh
 
-18. **internal/testutil** - Test utilities and helpers
+18. **internal/ratelimit** and **internal/middleware** rate limiting - `ratelimit_test.go` (limiter package) covers the HTTP client (200/429/error status mapping, GET with `{"ip":...}` body, timeout, connection refused), the 429 cache (TTL, per-IP, bounded size), the circuit breaker, fail-open/closed and concurrent use; `ratelimit_test.go` and `ratelimit_integration_test.go` (middleware) cover 429/503 responses, `Retry-After`, exempt paths, `whitelist_subnets` (including the trusted-proxy `X-Forwarded-For` spoofing case) and a full chi router with a fake limiter service
+    - Metrics (`smotra_ratelimiter_*`): `checks_total`, `allowed_total`, `denied_total`, `cache_hits_total`, `errors_total`, `breaker_skips_total`, `fail_open_total`, `whitelisted_total`, `blocked_entries` (gauge), `blocked_utilization_ratio` (gauge), `call_duration_seconds` (summary)
+    - See [features/rate-limiting.md](features/rate-limiting.md)
+
+19. **internal/testutil** - Test utilities and helpers
    - Mock database implementation
    - Test configuration helpers
    - Test database setup utilities

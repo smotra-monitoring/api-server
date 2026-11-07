@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/smotra-monitoring/server/internal/database"
 	"gopkg.in/yaml.v3"
@@ -142,6 +143,48 @@ func TestLoadAndValidate_DatabasePasswordEnvOverride(t *testing.T) {
 
 	if cfg.PostgresConfig.Password != "from-env" {
 		t.Errorf("Expected password from-env, got %s", cfg.PostgresConfig.Password)
+	}
+}
+
+func TestLoadAndValidate_InvalidDatabaseType(t *testing.T) {
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "config.yaml")
+
+	defaultConfig := Default()
+	defaultConfig.DatabaseType = "mysql"
+
+	yamlContent, err := yaml.Marshal(defaultConfig)
+	if err != nil {
+		t.Fatalf("Failed to marshal config: %v", err)
+	}
+	if err := os.WriteFile(configFile, yamlContent, 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	_, err = LoadAndValidate(configFile)
+	if err == nil {
+		t.Error("Expected error for invalid database type, got nil")
+	}
+}
+
+func TestLoadAndValidate_EmptyDatabaseType(t *testing.T) {
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "config.yaml")
+
+	defaultConfig := Default()
+	defaultConfig.DatabaseType = ""
+
+	yamlContent, err := yaml.Marshal(defaultConfig)
+	if err != nil {
+		t.Fatalf("Failed to marshal config: %v", err)
+	}
+	if err := os.WriteFile(configFile, yamlContent, 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	_, err = LoadAndValidate(configFile)
+	if err == nil {
+		t.Error("Expected error for empty database type, got nil")
 	}
 }
 
@@ -358,5 +401,137 @@ func TestConfig_Validate_AllLogFormats(t *testing.T) {
 				t.Errorf("Expected %s to be valid log format, got error: %v", format, err)
 			}
 		})
+	}
+}
+
+func enabledRateLimiterConfig() *Config {
+	cfg := Default()
+	cfg.RateLimiter.Enabled = true
+	cfg.RateLimiter.URL = "http://127.0.0.1:9000/check"
+	return cfg
+}
+
+func TestDefaultRateLimiterConfig(t *testing.T) {
+	rl := Default().RateLimiter
+
+	if rl.Enabled {
+		t.Error("rate limiter must be disabled by default")
+	}
+	if rl.Timeout != 20*time.Millisecond {
+		t.Errorf("Timeout = %s, want 20ms", rl.Timeout)
+	}
+	if !rl.FailOpen {
+		t.Error("FailOpen must default to true")
+	}
+	if rl.Cache429Sec != 15 || rl.CircuitBreakerSec != 5 {
+		t.Errorf("got cache_429_sec=%d circuit_breaker_sec=%d, want 15 and 5", rl.Cache429Sec, rl.CircuitBreakerSec)
+	}
+	if len(rl.ExemptPaths) != 2 || rl.ExemptPaths[0] != "/healthz" || rl.ExemptPaths[1] != "/metrics" {
+		t.Errorf("ExemptPaths = %v, want [/healthz /metrics]", rl.ExemptPaths)
+	}
+	if err := Default().Validate(); err != nil {
+		t.Errorf("default config must be valid: %v", err)
+	}
+}
+
+func TestConfig_Validate_RateLimiter(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		mutate  func(*RateLimiterConfig)
+		wantErr bool
+	}{
+		{"enabled with defaults", func(*RateLimiterConfig) {}, false},
+		{"empty url", func(r *RateLimiterConfig) { r.URL = "" }, true},
+		{"non-http url", func(r *RateLimiterConfig) { r.URL = "ftp://host/x" }, true},
+		{"url without host", func(r *RateLimiterConfig) { r.URL = "http://" }, true},
+		{"timeout zero", func(r *RateLimiterConfig) { r.Timeout = 0 }, true},
+		{"timeout below min", func(r *RateLimiterConfig) { r.Timeout = 500 * time.Microsecond }, true},
+		{"timeout at min", func(r *RateLimiterConfig) { r.Timeout = time.Millisecond }, false},
+		{"timeout at max", func(r *RateLimiterConfig) { r.Timeout = 20 * time.Millisecond }, false},
+		{"timeout above max", func(r *RateLimiterConfig) { r.Timeout = 21 * time.Millisecond }, true},
+		{"cache_429_sec below min", func(r *RateLimiterConfig) { r.Cache429Sec = 4 }, true},
+		{"cache_429_sec at min", func(r *RateLimiterConfig) { r.Cache429Sec = 5 }, false},
+		{"circuit_breaker_sec below min", func(r *RateLimiterConfig) { r.CircuitBreakerSec = 0 }, true},
+		{"circuit_breaker_sec at min", func(r *RateLimiterConfig) { r.CircuitBreakerSec = 1 }, false},
+		{"exempt path without slash", func(r *RateLimiterConfig) { r.ExemptPaths = []string{"healthz"} }, true},
+		{"whitelist cidr and ip", func(r *RateLimiterConfig) { r.WhitelistSubnets = []string{"10.0.0.0/8", "192.168.1.1", "fd00::/8"} }, false},
+		{"whitelist bad mask", func(r *RateLimiterConfig) { r.WhitelistSubnets = []string{"10.0.0.0/33"} }, true},
+		{"whitelist hostname", func(r *RateLimiterConfig) { r.WhitelistSubnets = []string{"example.com"} }, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := enabledRateLimiterConfig()
+			tc.mutate(&cfg.RateLimiter)
+			if err := cfg.Validate(); (err != nil) != tc.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestConfig_Validate_RateLimiterDisabledIgnoresValues(t *testing.T) {
+	cfg := Default()
+	cfg.RateLimiter = RateLimiterConfig{Enabled: false, URL: "bogus", Timeout: time.Hour}
+
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("disabled rate limiter must not be validated: %v", err)
+	}
+}
+
+func TestLoadAndValidate_RateLimiterDefaultsApplied(t *testing.T) {
+	cfgFile := filepath.Join(t.TempDir(), "config.yaml")
+
+	// Start from a full valid config, then replace the rate_limiter section with a minimal one.
+	data, err := yaml.Marshal(Default())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var raw map[string]any
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	raw["rate_limiter"] = map[string]any{"enabled": true, "url": "http://127.0.0.1:9000/check"}
+	data, err = yaml.Marshal(raw)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if err := os.WriteFile(cfgFile, data, 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	cfg, err := LoadAndValidate(cfgFile)
+	if err != nil {
+		t.Fatalf("LoadAndValidate: %v", err)
+	}
+
+	rl := cfg.RateLimiter
+	if !rl.Enabled || rl.Timeout != 20*time.Millisecond || !rl.FailOpen || rl.Cache429Sec != 15 || rl.CircuitBreakerSec != 5 {
+		t.Errorf("omitted keys must keep defaults, got %+v", rl)
+	}
+}
+
+func TestLoadAndValidate_RateLimiterYAMLOverrides(t *testing.T) {
+	cfgFile := filepath.Join(t.TempDir(), "config.yaml")
+
+	cfg := enabledRateLimiterConfig()
+	cfg.RateLimiter.Timeout = 10 * time.Millisecond
+	cfg.RateLimiter.FailOpen = false
+	cfg.RateLimiter.WhitelistSubnets = []string{"10.0.0.0/8"}
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if err := os.WriteFile(cfgFile, data, 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	loaded, err := LoadAndValidate(cfgFile)
+	if err != nil {
+		t.Fatalf("LoadAndValidate: %v", err)
+	}
+	if loaded.RateLimiter.Timeout != 10*time.Millisecond || loaded.RateLimiter.FailOpen {
+		t.Errorf("overrides not applied: %+v", loaded.RateLimiter)
+	}
+	if len(loaded.RateLimiter.WhitelistSubnets) != 1 || loaded.RateLimiter.WhitelistSubnets[0] != "10.0.0.0/8" {
+		t.Errorf("whitelist not loaded: %v", loaded.RateLimiter.WhitelistSubnets)
 	}
 }

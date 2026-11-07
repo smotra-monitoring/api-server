@@ -32,6 +32,9 @@
 This change will also require change in OpenAPI `TracerouteCheck.result.total_time_ms` field to `TracerouteCheck.result.latencies` and make it an array of latencies for each attempt. 
 
 ### Completed
+- [x] External rate limiter integration (sequential check, 429 cache, circuit breaker, `whitelist_subnets`) — see [features/rate-limiting.md](features/rate-limiting.md)
+- [ ] Rate limiter: per-endpoint cost, i.e. call the limiter several times for expensive endpoints so they consume more of a client's budget
+- [ ] Rate limiter: optionally open the circuit breaker only after N consecutive failures instead of the first one
 - [x] SQLite and PostgreSQL database support with interface abstraction
 - [x] Health check endpoints (health, ready, live)
 - [x] Prometheus metrics endpoint

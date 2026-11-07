@@ -44,3 +44,12 @@ agent:
     claim_poll_max_interval_secs: 30
 cors:
     origin: http://localhost:3000
+rate_limiter:
+    enabled: true
+    url: http://localhost:8082/check
+    timeout: 5ms          # 1ms-20ms
+    fail_open: true       # allow requests when the limiter is down
+    cache_429_sec: 5     # min 5
+    circuit_breaker_sec: 5  # min 5
+    exempt_paths: ["/healthz", "/metrics"]
+    whitelist_subnets: []
