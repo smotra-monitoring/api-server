@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,7 +10,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/smotra-monitoring/server/internal/ratelimit"
+	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
+	"github.com/smotra-monitoring/server/internal/config"
+	"github.com/smotra-monitoring/server/internal/handlers/metrics"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
 
@@ -35,17 +38,28 @@ func fakeExternalChecker(t *testing.T, blocked map[string]bool, calls *atomic.In
 	return srv
 }
 
-func newRateLimitedRouter(limiterURL string, failOpen bool, reached *atomic.Int32) http.Handler {
-	limiter := ratelimit.NewLimiter(ratelimit.NewClient(limiterURL, 20*time.Millisecond), ratelimit.Options{
-		FailOpen:       failOpen,
-		Cache429TTL:    15 * time.Second,
-		BreakerTimeout: 60 * time.Second,
-	})
+func newRateLimitedRouterWithMetrics(limiterURL string, failOpen bool, reached *atomic.Int32) (http.Handler, *metrics.Handler) {
+	cfg := config.RateLimiterConfig{
+		Enabled:           true,
+		URL:               limiterURL,
+		Timeout:           20 * time.Millisecond,
+		FailOpen:          failOpen,
+		Cache429Sec:       15,
+		CircuitBreakerSec: 60,
+		ExemptPaths:       []string{"/healthz"},
+		WhitelistSubnets:  []string{"10.0.0.0/8"},
+	}
+	return newRouterWithRateLimit(cfg, reached)
+}
+
+func newRouterWithRateLimit(cfg config.RateLimiterConfig, reached *atomic.Int32) (http.Handler, *metrics.Handler) {
+	log := testutil.NewSilentLogger()
+	registry := metrics.NewHandler(log, "test")
 
 	r := chi.NewRouter()
-	r.Use(RequestID(testutil.NewSilentLogger()))
+	r.Use(RequestID(log))
 	r.Use(ClientInfoMiddleware(nil))
-	r.Use(RateLimit(testutil.NewSilentLogger(), limiter, []string{"/healthz"}, []string{"10.0.0.0/8"}))
+	r.Use(RateLimit(log, cfg, registry))
 
 	handler := func(w http.ResponseWriter, _ *http.Request) {
 		reached.Add(1)
@@ -55,7 +69,16 @@ func newRateLimitedRouter(limiterURL string, failOpen bool, reached *atomic.Int3
 	r.Get("/v1/agents", handler)
 	r.Post("/v1/agent/register", handler)
 	r.Delete("/v1/sessions", handler)
-	return r
+	return r, registry
+}
+
+func scrapeMetrics(t *testing.T, registry *metrics.Handler) string {
+	t.Helper()
+	resp, err := registry.PrometheusMetrics(context.Background(), struct{}{})
+	if err != nil {
+		t.Fatalf("PrometheusMetrics: %v", err)
+	}
+	return string(resp.(healthAPI.PrometheusMetrics200TextResponse))
 }
 
 func serve(h http.Handler, method, path, remote string) *httptest.ResponseRecorder {
@@ -69,7 +92,7 @@ func serve(h http.Handler, method, path, remote string) *httptest.ResponseRecord
 func TestRateLimitIntegration_BlockedIPNeverReachesHandlers(t *testing.T) {
 	var limiterCalls, reached atomic.Int32
 	svc := fakeExternalChecker(t, map[string]bool{"203.0.113.5": true}, &limiterCalls)
-	router := newRateLimitedRouter(svc.URL, true, &reached)
+	router, _ := newRateLimitedRouterWithMetrics(svc.URL, true, &reached)
 
 	for _, tc := range []struct{ method, path string }{
 		{"GET", "/v1/agents"},
@@ -98,7 +121,7 @@ func TestRateLimitIntegration_BlockedIPNeverReachesHandlers(t *testing.T) {
 func TestRateLimitIntegration_AllowedWhitelistedAndExempt(t *testing.T) {
 	var limiterCalls, reached atomic.Int32
 	svc := fakeExternalChecker(t, map[string]bool{"203.0.113.5": true, "10.0.0.7": true}, &limiterCalls)
-	router := newRateLimitedRouter(svc.URL, true, &reached)
+	router, _ := newRateLimitedRouterWithMetrics(svc.URL, true, &reached)
 
 	// Allowed IP is served normally.
 	if rec := serve(router, "GET", "/v1/agents", "198.51.100.1:1"); rec.Code != http.StatusOK {
@@ -139,7 +162,7 @@ func TestRateLimitIntegration_LimiterDown(t *testing.T) {
 
 	t.Run("fail open", func(t *testing.T) {
 		reached.Store(0)
-		router := newRateLimitedRouter(url, true, &reached)
+		router, _ := newRateLimitedRouterWithMetrics(url, true, &reached)
 		for i := 0; i < 3; i++ {
 			if rec := serve(router, "GET", "/v1/agents", "198.51.100.1:1"); rec.Code != http.StatusOK {
 				t.Fatalf("code = %d, want 200", rec.Code)
@@ -152,7 +175,7 @@ func TestRateLimitIntegration_LimiterDown(t *testing.T) {
 
 	t.Run("fail closed", func(t *testing.T) {
 		reached.Store(0)
-		router := newRateLimitedRouter(url, false, &reached)
+		router, _ := newRateLimitedRouterWithMetrics(url, false, &reached)
 		if rec := serve(router, "GET", "/v1/agents", "198.51.100.1:1"); rec.Code != http.StatusServiceUnavailable {
 			t.Errorf("code = %d, want 503", rec.Code)
 		}
@@ -172,7 +195,7 @@ func TestRateLimitIntegration_LimiterTimeoutTripsBreaker(t *testing.T) {
 	defer slow.Close()
 	defer close(release)
 
-	router := newRateLimitedRouter(slow.URL, true, &reached)
+	router, _ := newRateLimitedRouterWithMetrics(slow.URL, true, &reached)
 	for i := 0; i < 3; i++ {
 		if rec := serve(router, "GET", "/v1/agents", "198.51.100.1:1"); rec.Code != http.StatusOK {
 			t.Fatalf("code = %d, want 200 (fail open)", rec.Code)

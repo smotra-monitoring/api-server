@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/smotra-monitoring/server/internal/netutil"
 )
 
 const (
@@ -29,7 +31,7 @@ func ClientInfoFromContext(ctx context.Context) ClientInfo {
 // X-Forwarded-For is honoured only when the direct peer is within trustedProxies
 // (CIDRs or bare IPs); invalid entries are ignored.
 func ClientInfoMiddleware(trustedProxies []string) func(next http.Handler) http.Handler {
-	nets := parseTrustedProxies(trustedProxies)
+	nets := netutil.ParseNets(trustedProxies)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			info := ClientInfo{
@@ -41,33 +43,6 @@ func ClientInfoMiddleware(trustedProxies []string) func(next http.Handler) http.
 	}
 }
 
-func parseTrustedProxies(entries []string) []*net.IPNet {
-	var nets []*net.IPNet
-	for _, e := range entries {
-		if _, n, err := net.ParseCIDR(e); err == nil {
-			nets = append(nets, n)
-			continue
-		}
-		if ip := net.ParseIP(e); ip != nil {
-			bits := 8 * len(ip.To16())
-			if v4 := ip.To4(); v4 != nil {
-				ip, bits = v4, 32
-			}
-			nets = append(nets, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
-		}
-	}
-	return nets
-}
-
-func isTrusted(ip net.IP, nets []*net.IPNet) bool {
-	for _, n := range nets {
-		if n.Contains(ip) {
-			return true
-		}
-	}
-	return false
-}
-
 func resolveClientIP(r *http.Request, trusted []*net.IPNet) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -77,7 +52,7 @@ func resolveClientIP(r *http.Request, trusted []*net.IPNet) string {
 	if remoteAddress == nil {
 		return ""
 	}
-	if len(trusted) == 0 || !isTrusted(remoteAddress, trusted) {
+	if len(trusted) == 0 || !netutil.Contains(remoteAddress, trusted) {
 		return remoteAddress.String()
 	}
 
@@ -88,7 +63,7 @@ func resolveClientIP(r *http.Request, trusted []*net.IPNet) string {
 		if ip == nil {
 			continue
 		}
-		if !isTrusted(ip, trusted) {
+		if !netutil.Contains(ip, trusted) {
 			return ip.String()
 		}
 	}

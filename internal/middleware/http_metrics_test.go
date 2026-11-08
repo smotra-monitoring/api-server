@@ -8,7 +8,7 @@ import (
 )
 
 func TestHTTPMetrics_CountsRequests(t *testing.T) {
-	m := NewHTTPMetrics()
+	m := newHTTPMetrics()
 
 	handler := m.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -30,7 +30,7 @@ func TestHTTPMetrics_CountsRequests(t *testing.T) {
 }
 
 func TestHTTPMetrics_CountsFailures(t *testing.T) {
-	m := NewHTTPMetrics()
+	m := newHTTPMetrics()
 
 	makeHandler := func(code int) http.Handler {
 		return m.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +54,7 @@ func TestHTTPMetrics_CountsFailures(t *testing.T) {
 }
 
 func TestHTTPMetrics_DefaultStatusIsSuccess(t *testing.T) {
-	m := NewHTTPMetrics()
+	m := newHTTPMetrics()
 
 	// Handler that does not call WriteHeader explicitly — defaults to 200
 	handler := m.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +69,7 @@ func TestHTTPMetrics_DefaultStatusIsSuccess(t *testing.T) {
 }
 
 func TestHTTPMetrics_GetMetrics_Format(t *testing.T) {
-	m := NewHTTPMetrics()
+	m := newHTTPMetrics()
 
 	handler := m.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

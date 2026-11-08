@@ -8,13 +8,14 @@ The server asks an external, low-latency rate-limiter service whether a client I
 request -> ClientInfoMiddleware (resolve IP) -> RateLimit -> auth middleware -> handler
 ```
 
-For every request the `RateLimit` middleware (`internal/middleware/ratelimit.go`) does the following, in order:
+The `RateLimit` middleware (`internal/middleware/ratelimit.go`) only passes the client IP and request path to `Limiter.Check` and turns the verdict into a response. All checks live in the limiter (`internal/ratelimit/limiter.go`), in this order:
 
 1. Path starts with an `exempt_paths` prefix: skip the check.
-2. Client IP is in `whitelist_subnets`: skip the check.
-3. IP has a cached 429 (see `cache_429_sec`): respond 429 without calling the limiter.
-4. Circuit breaker is open: skip the limiter and apply `fail_open`.
-5. Call the limiter. 200 allows the request, 429 rejects it, anything else (error, timeout, other status) is a failure.
+2. Client IP is unknown or unparsable: log a warning and skip the check.
+3. Client IP is in `whitelist_subnets`: skip the check.
+4. IP has a cached 429 (see `cache_429_sec`): respond 429 without calling the limiter.
+5. Circuit breaker is open: skip the limiter and apply `fail_open`.
+6. Call the limiter. 200 allows the request, 429 rejects it, anything else (error, timeout, other status) is a failure.
 
 A failure opens the circuit breaker for `circuit_breaker_sec`, then `fail_open` decides: `true` lets the request through, `false` returns 503.
 

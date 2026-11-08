@@ -33,7 +33,7 @@ func TestClient_Allow_StatusMapping(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			allowed, err := NewClient(srv.URL, time.Second).Allow(context.Background(), "1.2.3.4")
+			allowed, err := NewExternalChecker(srv.URL, time.Second).Allow(context.Background(), "1.2.3.4")
 			if allowed != tc.wantAllowed || (err != nil) != tc.wantErr {
 				t.Errorf("Allow() = (%v, %v), want allowed=%v err=%v", allowed, err, tc.wantAllowed, tc.wantErr)
 			}
@@ -52,7 +52,7 @@ func TestClient_Allow_SendsGetWithJSONBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := NewClient(srv.URL, time.Second).Allow(context.Background(), "203.0.113.7"); err != nil {
+	if _, err := NewExternalChecker(srv.URL, time.Second).Allow(context.Background(), "203.0.113.7"); err != nil {
 		t.Fatalf("Allow: %v", err)
 	}
 	if method != http.MethodGet {
@@ -75,7 +75,7 @@ func TestClient_Allow_Timeout(t *testing.T) {
 	defer close(release)
 
 	start := time.Now()
-	_, err := NewClient(srv.URL, 5*time.Millisecond).Allow(context.Background(), "1.2.3.4")
+	_, err := NewExternalChecker(srv.URL, 5*time.Millisecond).Allow(context.Background(), "1.2.3.4")
 	if err == nil {
 		t.Fatal("expected timeout error")
 	}
@@ -89,7 +89,7 @@ func TestClient_Allow_ConnectionRefused(t *testing.T) {
 	url := srv.URL
 	srv.Close()
 
-	if _, err := NewClient(url, 5*time.Millisecond).Allow(context.Background(), "1.2.3.4"); err == nil {
+	if _, err := NewExternalChecker(url, 5*time.Millisecond).Allow(context.Background(), "1.2.3.4"); err == nil {
 		t.Error("expected error when limiter is down")
 	}
 }
@@ -124,8 +124,16 @@ func (c *fakeClock) Advance(d time.Duration) {
 }
 
 func newTestLimiter(c Checker, failOpen bool) (*Limiter, *fakeClock) {
+	return newTestLimiterWithOptions(c, Options{FailOpen: failOpen})
+}
+
+const testPath = "/v1/x"
+
+func newTestLimiterWithOptions(c Checker, opts Options) (*Limiter, *fakeClock) {
 	clock := &fakeClock{t: time.Unix(1_700_000_000, 0)}
-	l := NewLimiter(c, Options{FailOpen: failOpen, Cache429TTL: 15 * time.Second, BreakerTimeout: 60 * time.Second})
+	opts.Cache429TTL = 15 * time.Second
+	opts.BreakerTimeout = 60 * time.Second
+	l := NewLimiter(c, opts)
 	l.now = clock.Now
 	return l, clock
 }
@@ -135,7 +143,7 @@ func TestLimiter_Allowed(t *testing.T) {
 	l, _ := newTestLimiter(fc, true)
 
 	for i := 0; i < 3; i++ {
-		if d := l.Check(context.Background(), "1.1.1.1"); d.Verdict != Allow {
+		if d := l.Check(context.Background(), "1.1.1.1", testPath); d.Verdict != Allow {
 			t.Fatalf("verdict = %v, want Allow", d.Verdict)
 		}
 	}
@@ -148,11 +156,11 @@ func TestLimiter_DenyIsCachedUntilTTL(t *testing.T) {
 	fc := &fakeChecker{allowed: false}
 	l, clock := newTestLimiter(fc, true)
 
-	if d := l.Check(context.Background(), "1.1.1.1"); d.Verdict != Deny || d.RetryAfter != 15*time.Second {
+	if d := l.Check(context.Background(), "1.1.1.1", testPath); d.Verdict != Deny || d.RetryAfter != 15*time.Second {
 		t.Fatalf("first decision = %+v", d)
 	}
 	clock.Advance(5 * time.Second)
-	d := l.Check(context.Background(), "1.1.1.1")
+	d := l.Check(context.Background(), "1.1.1.1", testPath)
 	if d.Verdict != Deny || d.RetryAfter != 10*time.Second {
 		t.Errorf("cached decision = %+v, want Deny with 10s left", d)
 	}
@@ -161,7 +169,7 @@ func TestLimiter_DenyIsCachedUntilTTL(t *testing.T) {
 	}
 
 	// Different IP is not affected by the cache.
-	l.Check(context.Background(), "2.2.2.2")
+	l.Check(context.Background(), "2.2.2.2", testPath)
 	if fc.calls.Load() != 2 {
 		t.Errorf("calls = %d, want 2 for a different IP", fc.calls.Load())
 	}
@@ -169,7 +177,7 @@ func TestLimiter_DenyIsCachedUntilTTL(t *testing.T) {
 	// After TTL the limiter is consulted again.
 	clock.Advance(11 * time.Second)
 	fc.allowed = true
-	if d := l.Check(context.Background(), "1.1.1.1"); d.Verdict != Allow {
+	if d := l.Check(context.Background(), "1.1.1.1", testPath); d.Verdict != Allow {
 		t.Errorf("after TTL verdict = %v, want Allow", d.Verdict)
 	}
 	if fc.calls.Load() != 3 {
@@ -181,7 +189,7 @@ func TestLimiter_FailOpen(t *testing.T) {
 	fc := &fakeChecker{err: errors.New("boom")}
 	l, _ := newTestLimiter(fc, true)
 
-	if d := l.Check(context.Background(), "1.1.1.1"); d.Verdict != Allow {
+	if d := l.Check(context.Background(), "1.1.1.1", testPath); d.Verdict != Allow {
 		t.Errorf("verdict = %v, want Allow when failing open", d.Verdict)
 	}
 	if l.failOpen.Load() != 1 || l.errors.Load() != 1 {
@@ -193,7 +201,7 @@ func TestLimiter_FailClosed(t *testing.T) {
 	fc := &fakeChecker{err: errors.New("boom")}
 	l, _ := newTestLimiter(fc, false)
 
-	if d := l.Check(context.Background(), "1.1.1.1"); d.Verdict != Unavailable {
+	if d := l.Check(context.Background(), "1.1.1.1", testPath); d.Verdict != Unavailable {
 		t.Errorf("verdict = %v, want Unavailable when failing closed", d.Verdict)
 	}
 }
@@ -202,9 +210,9 @@ func TestLimiter_CircuitBreaker(t *testing.T) {
 	fc := &fakeChecker{err: errors.New("boom")}
 	l, clock := newTestLimiter(fc, true)
 
-	l.Check(context.Background(), "1.1.1.1") // trips the breaker
-	l.Check(context.Background(), "2.2.2.2")
-	l.Check(context.Background(), "3.3.3.3")
+	l.Check(context.Background(), "1.1.1.1", testPath) // trips the breaker
+	l.Check(context.Background(), "2.2.2.2", testPath)
+	l.Check(context.Background(), "3.3.3.3", testPath)
 	if fc.calls.Load() != 1 {
 		t.Fatalf("calls = %d, want 1 while breaker is open", fc.calls.Load())
 	}
@@ -216,7 +224,7 @@ func TestLimiter_CircuitBreaker(t *testing.T) {
 	clock.Advance(61 * time.Second)
 	fc.err = nil
 	fc.allowed = true
-	if d := l.Check(context.Background(), "1.1.1.1"); d.Verdict != Allow {
+	if d := l.Check(context.Background(), "1.1.1.1", testPath); d.Verdict != Allow {
 		t.Errorf("verdict = %v, want Allow", d.Verdict)
 	}
 	if fc.calls.Load() != 2 {
@@ -228,11 +236,11 @@ func TestLimiter_CachedDenyWinsOverOpenBreaker(t *testing.T) {
 	fc := &fakeChecker{allowed: false}
 	l, _ := newTestLimiter(fc, true)
 
-	l.Check(context.Background(), "1.1.1.1") // cached 429
+	l.Check(context.Background(), "1.1.1.1", testPath) // cached 429
 	fc.err = errors.New("boom")
-	l.Check(context.Background(), "9.9.9.9") // trips breaker
+	l.Check(context.Background(), "9.9.9.9", testPath) // trips breaker
 
-	if d := l.Check(context.Background(), "1.1.1.1"); d.Verdict != Deny {
+	if d := l.Check(context.Background(), "1.1.1.1", testPath); d.Verdict != Deny {
 		t.Errorf("verdict = %v, want Deny from cache while breaker is open", d.Verdict)
 	}
 }
@@ -241,8 +249,8 @@ func TestLimiter_FailClosedWhileBreakerOpen(t *testing.T) {
 	fc := &fakeChecker{err: errors.New("boom")}
 	l, _ := newTestLimiter(fc, false)
 
-	l.Check(context.Background(), "1.1.1.1") // trips the breaker
-	if d := l.Check(context.Background(), "2.2.2.2"); d.Verdict != Unavailable {
+	l.Check(context.Background(), "1.1.1.1", testPath) // trips the breaker
+	if d := l.Check(context.Background(), "2.2.2.2", testPath); d.Verdict != Unavailable {
 		t.Errorf("verdict = %v, want Unavailable", d.Verdict)
 	}
 	if fc.calls.Load() != 1 {
@@ -303,27 +311,23 @@ func TestLimiter_ConcurrentChecks(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 100; j++ {
-				l.Check(context.Background(), "1.1.1.1")
-				l.RecordWhitelisted()
+				l.Check(context.Background(), "1.1.1.1", testPath)
 			}
 		}()
 	}
 	wg.Wait()
 
-	if l.checks.Load() != 5000 || l.whitelisted.Load() != 5000 {
-		t.Errorf("checks=%d whitelisted=%d, want 5000 each", l.checks.Load(), l.whitelisted.Load())
-	}
-	if l.denied.Load() != 5000 {
-		t.Errorf("denied=%d, want 5000", l.denied.Load())
+	if l.checks.Load() != 5000 || l.denied.Load() != 5000 {
+		t.Errorf("checks=%d denied=%d, want 5000 each", l.checks.Load(), l.denied.Load())
 	}
 }
 
 func TestLimiter_GetMetrics(t *testing.T) {
 	fc := &fakeChecker{allowed: false}
 	l, _ := newTestLimiter(fc, true)
-	l.Check(context.Background(), "1.1.1.1")
-	l.Check(context.Background(), "1.1.1.1")
-	l.RecordWhitelisted()
+	l.Check(context.Background(), "1.1.1.1", testPath)
+	l.Check(context.Background(), "1.1.1.1", testPath)
+	l.allowWhitelisted()
 
 	out := l.GetMetrics()
 	for _, want := range []string{

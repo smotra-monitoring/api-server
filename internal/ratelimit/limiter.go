@@ -3,9 +3,15 @@ package ratelimit
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/smotra-monitoring/server/internal/logger"
+	"github.com/smotra-monitoring/server/internal/netutil"
 )
 
 // maxCachedIPs bounds memory used by the local 429 cache during a flood from many addresses.
@@ -34,13 +40,22 @@ type Options struct {
 	FailOpen       bool
 	Cache429TTL    time.Duration
 	BreakerTimeout time.Duration
+
+	// ExemptPaths are URL path prefixes that bypass the limiter.
+	ExemptPaths []string
+	// WhitelistSubnets are CIDRs or bare IPs whose clients bypass the limiter.
+	WhitelistSubnets []string
+	// Logger is optional; nil discards log output.
+	Logger *logger.Logger
 }
 
 // Limiter combines the limiter client with a local 429 cache and a circuit breaker.
 type Limiter struct {
-	checker Checker
-	opts    Options
-	now     func() time.Time
+	checker   Checker
+	opts      Options
+	log       *logger.Logger
+	whitelist []*net.IPNet
+	now       func() time.Time
 
 	mu      sync.Mutex
 	blocked map[string]time.Time // ip -> expiry of the cached 429
@@ -61,52 +76,117 @@ type Limiter struct {
 
 // NewLimiter creates a Limiter around checker.
 func NewLimiter(checker Checker, opts Options) *Limiter {
+	log := opts.Logger
+	if log == nil {
+		log = logger.New(logger.Config{Level: "error", Output: io.Discard})
+	}
 	return &Limiter{
-		checker: checker,
-		opts:    opts,
-		now:     time.Now,
-		blocked: make(map[string]time.Time),
+		checker:   checker,
+		opts:      opts,
+		log:       log.WithComponent("ratelimit"),
+		whitelist: netutil.ParseNets(opts.WhitelistSubnets),
+		now:       time.Now,
+		blocked:   make(map[string]time.Time),
 	}
 }
 
-// RecordWhitelisted counts a request that bypassed the limiter via the whitelist.
-func (l *Limiter) RecordWhitelisted() {
-	l.whitelisted.Add(1)
-}
+// Check returns the decision for a request from clientIP to path.
+func (l *Limiter) Check(ctx context.Context, clientIP, path string) Decision {
+	if l.isExemptPath(path) {
+		return Decision{Verdict: Allow}
+	}
 
-// Check returns the decision for ip.
-func (l *Limiter) Check(ctx context.Context, ip string) Decision {
+	ip := net.ParseIP(clientIP)
+	if ip == nil {
+		return l.allowUnknownClient(clientIP, path)
+	}
+	if l.isWhitelisted(ip) {
+		return l.allowWhitelisted()
+	}
+
 	l.checks.Add(1)
+	key := ip.String()
 
-	if retry, ok := l.isCachedDenial(ip); ok {
-		l.cacheHits.Add(1)
-		l.denied.Add(1)
-		return Decision{Verdict: Deny, RetryAfter: retry}
+	if retry, ok := l.isCachedDenial(key); ok {
+		return l.denyFromCache(retry)
 	}
-
-	if until, ok := l.breakerUntil.Load().(time.Time); ok && l.now().Before(until) {
-		l.breakerSkips.Add(1)
-		return l.unavailable()
+	if l.isBreakerOpen() {
+		return l.skipDuringBreaker()
 	}
+	return l.askChecker(ctx, key)
+}
 
+func (l *Limiter) isExemptPath(path string) bool {
+	for _, prefix := range l.opts.ExemptPaths {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func (l *Limiter) isWhitelisted(ip net.IP) bool {
+	return netutil.Contains(ip, l.whitelist)
+}
+
+func (l *Limiter) isBreakerOpen() bool {
+	until, ok := l.breakerUntil.Load().(time.Time)
+	return ok && l.now().Before(until)
+}
+
+func (l *Limiter) allowUnknownClient(clientIP, path string) Decision {
+	l.log.Warn("rate limiter skipped: client IP unknown", "client_ip", clientIP, "path", path)
+	return Decision{Verdict: Allow}
+}
+
+func (l *Limiter) allowWhitelisted() Decision {
+	l.whitelisted.Add(1)
+	return Decision{Verdict: Allow}
+}
+
+func (l *Limiter) denyFromCache(retry time.Duration) Decision {
+	l.cacheHits.Add(1)
+	l.denied.Add(1)
+	return Decision{Verdict: Deny, RetryAfter: retry}
+}
+
+func (l *Limiter) skipDuringBreaker() Decision {
+	l.breakerSkips.Add(1)
+	return l.unavailable()
+}
+
+// askChecker calls the limiter service and records the outcome.
+func (l *Limiter) askChecker(ctx context.Context, ip string) Decision {
 	start := time.Now()
 	allowed, err := l.checker.Allow(ctx, ip)
 	l.callCount.Add(1)
 	l.callNanos.Add(uint64(time.Since(start)))
 
-	if err != nil {
-		l.errors.Add(1)
-		l.breakerUntil.Store(l.now().Add(l.opts.BreakerTimeout))
-		return l.unavailable()
+	switch {
+	case err != nil:
+		return l.recordFailure(err)
+	case allowed:
+		return l.recordAllowed()
+	default:
+		l.addTo429Cache(ip)
+		return l.recordDenied()
 	}
+}
 
-	if allowed {
-		l.allowed.Add(1)
-		return Decision{Verdict: Allow}
-	}
+func (l *Limiter) recordFailure(err error) Decision {
+	l.errors.Add(1)
+	l.breakerUntil.Store(l.now().Add(l.opts.BreakerTimeout))
+	l.log.Warn("rate limiter call failed, circuit breaker opened", "error", err, "fail_open", l.opts.FailOpen)
+	return l.unavailable()
+}
 
+func (l *Limiter) recordAllowed() Decision {
+	l.allowed.Add(1)
+	return Decision{Verdict: Allow}
+}
+
+func (l *Limiter) recordDenied() Decision {
 	l.denied.Add(1)
-	l.addTo429Cache(ip)
 	return Decision{Verdict: Deny, RetryAfter: l.opts.Cache429TTL}
 }
 
@@ -150,6 +230,7 @@ func (l *Limiter) addTo429Cache(ip string) {
 		}
 	}
 	l.blocked[ip] = l.now().Add(l.opts.Cache429TTL)
+	l.log.Debug("IP " + ip + " added to 429 rate limiter cache")
 }
 
 // GetMetrics returns Prometheus-formatted rate limiter metrics.
