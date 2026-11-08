@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -67,6 +68,10 @@ func Recovery(log *logger.Logger) func(next http.Handler) http.Handler {
 						"error", err,
 						"method", r.Method,
 						"path", r.URL.Path,
+						"remote_addr", r.RemoteAddr,
+						"X-Request-ID", r.Header.Get("X-Request-ID"),
+						"status", http.StatusInternalServerError,
+						"stack", string(debug.Stack()),
 					)
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				}
