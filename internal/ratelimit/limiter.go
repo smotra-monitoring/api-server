@@ -169,7 +169,7 @@ func (l *Limiter) askChecker(ctx context.Context, ip string) Decision {
 		return l.recordAllowed()
 	default:
 		l.addTo429Cache(ip)
-		return l.recordDenied(ip)
+		return l.recordDenied()
 	}
 }
 
@@ -185,7 +185,7 @@ func (l *Limiter) recordAllowed() Decision {
 	return Decision{Verdict: Allow}
 }
 
-func (l *Limiter) recordDenied(ip string) Decision {
+func (l *Limiter) recordDenied() Decision {
 	l.denied.Add(1)
 	return Decision{Verdict: Deny, RetryAfter: l.opts.Cache429TTL}
 }
@@ -230,6 +230,7 @@ func (l *Limiter) addTo429Cache(ip string) {
 		}
 	}
 	l.blocked[ip] = l.now().Add(l.opts.Cache429TTL)
+	l.log.Debug("IP " + ip + " added to 429 rate limiter cache")
 }
 
 // GetMetrics returns Prometheus-formatted rate limiter metrics.
