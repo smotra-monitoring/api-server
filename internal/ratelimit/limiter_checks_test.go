@@ -128,7 +128,7 @@ func TestLimiter_Check_UnknownClientIPIsAllowedWithoutCall(t *testing.T) {
 		l, _ := newTestLimiter(fc, true)
 
 		if d := l.Check(context.Background(), ip, testPath); d.Verdict != Allow {
-			t.Errorf("ip %q: verdict = %v, want Allow", ip, d.Verdict)
+			t.Errorf("ip %q: verdict = %v, want Allow (unknown client IPs are allowed)", ip, d.Verdict)
 		}
 		if fc.calls.Load() != 0 || l.checks.Load() != 0 {
 			t.Errorf("ip %q: calls=%d checks=%d, want 0", ip, fc.calls.Load(), l.checks.Load())
