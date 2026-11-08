@@ -40,6 +40,7 @@ modelcontextprotocol
 Mozilla
 myfeature
 myidp
+netutil
 oaexample
 oapi
 oauth
@@ -66,6 +67,7 @@ Tful
 tokio
 traceroute
 udpconnect
+unparsable
 userinfo
 utilisation
 uuidv
