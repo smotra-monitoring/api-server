@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"sync/atomic"
+
+	"github.com/smotra-monitoring/server/internal/handlers/metrics"
 )
 
 // HTTPMetrics tracks HTTP request counters and exposes them as a MetricsProvider.
@@ -13,9 +15,16 @@ type HTTPMetrics struct {
 	failure atomic.Uint64 // 4xx, 5xx
 }
 
-// NewHTTPMetrics creates a new HTTPMetrics instance.
-func NewHTTPMetrics() *HTTPMetrics {
+// newHTTPMetrics creates a new HTTPMetrics instance.
+func newHTTPMetrics() *HTTPMetrics {
 	return &HTTPMetrics{}
+}
+
+// CountRequests registers a new HTTPMetrics with registry and returns its counting middleware.
+func CountRequests(registry *metrics.Handler) func(next http.Handler) http.Handler {
+	m := newHTTPMetrics()
+	registry.RegisterMetricsProvider(m)
+	return m.Middleware
 }
 
 // Middleware returns a chi-compatible middleware that counts HTTP requests.

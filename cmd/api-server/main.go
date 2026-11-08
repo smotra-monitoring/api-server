@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	healthAPI "github.com/smotra-monitoring/server/internal/api/health"
@@ -18,7 +17,6 @@ import (
 	"github.com/smotra-monitoring/server/internal/handlers"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/middleware"
-	"github.com/smotra-monitoring/server/internal/ratelimit"
 )
 
 var appVersion = "dev"
@@ -88,31 +86,15 @@ func main() {
 	r.Use(middleware.Recovery(log))
 	r.Use(middleware.CORS(cfg.CORS.Origin))
 	r.Use(middleware.ClientInfoMiddleware(cfg.Server.TrustedProxies))
+	r.Use(middleware.RateLimit(log, cfg.RateLimiter, metricsHandler))
+	r.Use(middleware.CountRequests(metricsHandler))
 
-	var limiter *ratelimit.Limiter
-	if rl := cfg.RateLimiter; rl.Enabled {
-		limiter = ratelimit.NewLimiter(ratelimit.NewClient(rl.URL, rl.Timeout), ratelimit.Options{
-			FailOpen:       rl.FailOpen,
-			Cache429TTL:    time.Duration(rl.Cache429Sec) * time.Second,
-			BreakerTimeout: time.Duration(rl.CircuitBreakerSec) * time.Second,
-		})
-		r.Use(middleware.RateLimit(log, limiter, rl.ExemptPaths, rl.WhitelistSubnets))
-		log.Info("rate limiter enabled", "url", rl.URL, "timeout", rl.Timeout, "fail_open", rl.FailOpen)
-	}
-
-	httpMetrics := middleware.NewHTTPMetrics()
-	r.Use(httpMetrics.Middleware)
-
-	// Authentication middleware - only attempts authentication, doesn't require it
+	// Authentication middleware - only attempts authentication (adds auth to the context), doesn't require it
 	// This allows public endpoints to work while authenticated endpoints can check the context
 	r.Use(middleware.AgentAPIKeyAuth(log, db))
 	r.Use(middleware.OAuth2Auth(log, db))
 
-	metricsHandler.RegisterMetricsProvider(httpMetrics)
 	metricsHandler.RegisterMetricsProvider(database.NewDBMetrics(db))
-	if limiter != nil {
-		metricsHandler.RegisterMetricsProvider(limiter)
-	}
 
 	// Register Health handler
 	healthHandler := handlers.NewHealthHandler(log, db, cfg, appVersion, metricsHandler)

@@ -19,8 +19,8 @@ type Checker interface {
 	Allow(ctx context.Context, ip string) (bool, error)
 }
 
-// Client is a Checker backed by the limiter's HTTP API.
-type Client struct {
+// ExternalChecker is a ExternalChecker backed by the limiter's HTTP API.
+type ExternalChecker struct {
 	url        string
 	ctxTimeout time.Duration
 	http       *http.Client
@@ -30,8 +30,8 @@ type checkRequest struct {
 	IP string `json:"ip"`
 }
 
-// NewClient creates a Client that reuses keep-alive connections to the limiter.
-func NewClient(url string, timeout time.Duration) *Client {
+// NewExternalChecker creates a Checker that reuses keep-alive connections to the limiter.
+func NewExternalChecker(url string, timeout time.Duration) *ExternalChecker {
 	transport := &http.Transport{
 		// this timeout only measured DNS and TCP handshake
 		DialContext:         (&net.Dialer{Timeout: timeout}).DialContext,
@@ -39,7 +39,7 @@ func NewClient(url string, timeout time.Duration) *Client {
 		MaxIdleConnsPerHost: 256,
 		IdleConnTimeout:     90 * time.Second,
 	}
-	return &Client{
+	return &ExternalChecker{
 		url: url,
 		// the context timeout is used for the request context
 		ctxTimeout: timeout,
@@ -51,7 +51,7 @@ func NewClient(url string, timeout time.Duration) *Client {
 }
 
 // Allow implements Checker.
-func (c *Client) Allow(ctx context.Context, ip string) (bool, error) {
+func (c *ExternalChecker) Allow(ctx context.Context, ip string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.ctxTimeout)
 	defer cancel()
 

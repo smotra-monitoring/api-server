@@ -38,9 +38,11 @@ func newRLHarness(t *testing.T, checker *stubChecker, failOpen bool, exempt, whi
 	t.Helper()
 
 	limiter := ratelimit.NewLimiter(checker, ratelimit.Options{
-		FailOpen:       failOpen,
-		Cache429TTL:    15 * time.Second,
-		BreakerTimeout: 60 * time.Second,
+		FailOpen:         failOpen,
+		Cache429TTL:      15 * time.Second,
+		BreakerTimeout:   60 * time.Second,
+		ExemptPaths:      exempt,
+		WhitelistSubnets: whitelist,
 	})
 	var reached atomic.Int32
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -48,7 +50,7 @@ func newRLHarness(t *testing.T, checker *stubChecker, failOpen bool, exempt, whi
 		w.WriteHeader(http.StatusOK)
 	})
 
-	chain := ClientInfoMiddleware(nil)(RateLimit(testutil.NewSilentLogger(), limiter, exempt, whitelist)(next))
+	chain := ClientInfoMiddleware(nil)(newRateLimitHandler(testutil.NewSilentLogger(), limiter)(next))
 	return &rlHarness{checker: checker, limiter: limiter, handler: chain, reached: &reached}
 }
 
@@ -191,9 +193,9 @@ func TestRateLimit_WhitelistWorksWhileBreakerOpenAndFailClosed(t *testing.T) {
 
 func TestRateLimit_WhitelistUsesTrustedProxyResolvedIP(t *testing.T) {
 	checker := &stubChecker{allowed: false}
-	limiter := ratelimit.NewLimiter(checker, ratelimit.Options{FailOpen: true, Cache429TTL: 15 * time.Second, BreakerTimeout: time.Minute})
+	limiter := ratelimit.NewLimiter(checker, ratelimit.Options{FailOpen: true, Cache429TTL: 15 * time.Second, BreakerTimeout: time.Minute, WhitelistSubnets: []string{"10.0.0.0/8"}})
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-	handler := ClientInfoMiddleware([]string{"172.16.0.1"})(RateLimit(testutil.NewSilentLogger(), limiter, nil, []string{"10.0.0.0/8"})(next))
+	handler := ClientInfoMiddleware([]string{"172.16.0.1"})(newRateLimitHandler(testutil.NewSilentLogger(), limiter)(next))
 
 	do := func(remote, xff string) int {
 		req := httptest.NewRequest("GET", "/v1/x", nil)
@@ -222,7 +224,7 @@ func TestRateLimit_UnknownClientIPPassesThrough(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { reached.Add(1) })
 
 	// No ClientInfoMiddleware: context carries no IP.
-	RateLimit(testutil.NewSilentLogger(), limiter, nil, nil)(next).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/v1/x", nil))
+	newRateLimitHandler(testutil.NewSilentLogger(), limiter)(next).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/v1/x", nil))
 
 	if reached.Load() != 1 || checker.calls.Load() != 0 {
 		t.Errorf("reached=%d calls=%d, want 1 and 0", reached.Load(), checker.calls.Load())
