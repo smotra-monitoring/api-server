@@ -126,7 +126,7 @@ The API is defined using OpenAPI 3.0 specification maintained in the [smotra-mon
 - `GET /healthz/ready` - Readiness check (includes DB connectivity)
 - `GET /healthz/live` - Liveness check
 - `GET /metrics` - Prometheus metrics
-- `GET /v1/agent/{agentId}/configuration` - Agent configuration (authenticated)
+- `GET /v1/agent/{agentId}/configuration` - Agent configuration patch (agent API key or OAuth2 session)
 - `POST /v1/agent/register` - Agent self-registration
 - `GET /v1/agents/{agentId}/claim-status` - Agent claim status polling
 - `POST /v1/agents/claim` - Administrator claims agent

@@ -470,8 +470,10 @@ server/
 - **Future-Proof**: Clean separation allows adding `/api/v2` without conflicts
 
 ### Agent Configuration
-- **Configuration Endpoint**: GET `/agent/{agentId}/configuration` to retrieve agent-specific configuration
-- **Database-Backed**: Configuration stored in database with version tracking
+- **Configuration Endpoint**: GET `/agent/{agentId}/configuration` returns `{id, workspace_id, name, config_version_desired, base_config, tags, endpoints}`
+- **Stored Patch**: `base_config` is the stored JSON object returned unchanged (RFC 7396 JSON Merge Patch over the agent configuration); the server never fills defaults, so an unset key stays absent and `{}` is returned for an empty row. `base_config` must not carry `tags` or `endpoints`; those are resolved by the server and returned as top-level fields
+- **Access**: agents authenticate with `X-Agent-API-Key`; OAuth2 users may read agents of their own workspace (other workspaces get 401, unknown agents 404). OAuth2 reads do not update the agent's `last_seen_at`
+- **Database-Backed**: Configuration stored in database; `config_version_desired` (int64) is bumped by triggers only when `name`, `base_config` or another config-relevant value actually changes
 - **sqlc Integration**: Type-safe database queries generated from SQL
 - **Tags Support**: Agent-level and endpoint-level tags with scoping (agent, endpoint, global)
 - **JSON Configuration**: Base configuration stored as JSON blob for flexibility
@@ -661,7 +663,7 @@ go mod download
 - `GET /v1` - API version information
 
 ### Agent Configuration
-- `GET /agent/{agentId}/configuration` - Retrieve agent-specific configuration including monitoring settings, endpoints, and tags (requires `X-Agent-API-Key` header)
+- `GET /agent/{agentId}/configuration` - Retrieve the agent's stored configuration patch (`base_config`) with its resolved tags and endpoints (requires `X-Agent-API-Key` header, or an OAuth2 session for a user in the agent's workspace)
 
 ### Agent Registration and Claiming
 - `POST /agent/register` - Agent self-registration (unclaimed agents)

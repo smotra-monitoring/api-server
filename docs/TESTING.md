@@ -56,6 +56,9 @@ The project includes comprehensive unit tests and integration tests for all majo
    - Unit tests with mock database
    - Integration tests with real HTTP server and authentication
    - Tests for configuration retrieval with tags and endpoints
+   - Tests that `base_config` is returned exactly as stored (nulls, nested objects, arrays) and that `{}` is returned for an empty row
+   - SQLite trigger tests proving `config_version_desired` bumps on value changes only
+   - Metric `smotra_agent_configuration_get_configuration_oauth2_total` counts reads made with an OAuth2 session
 
 9. **internal/handlers/agent_register** - Agent self-registration
    - Unit tests for registration request validation and response format
