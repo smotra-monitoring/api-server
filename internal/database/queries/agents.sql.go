@@ -92,12 +92,13 @@ func (q *Queries) CreateAgentFromClaim(ctx context.Context, arg CreateAgentFromC
 }
 
 const getAgentConfigurationBase = `-- name: GetAgentConfigurationBase :one
-SELECT id, config_version_desired, name, base_config FROM agents WHERE id = ?
+SELECT id, workspace_id, config_version_desired, name, base_config FROM agents WHERE id = ?
 LIMIT 1
 `
 
 type GetAgentConfigurationBaseRow struct {
 	ID                   string
+	WorkspaceID          string
 	ConfigVersionDesired int64
 	Name                 string
 	BaseConfig           string
@@ -108,6 +109,7 @@ func (q *Queries) GetAgentConfigurationBase(ctx context.Context, id string) (Get
 	var i GetAgentConfigurationBaseRow
 	err := row.Scan(
 		&i.ID,
+		&i.WorkspaceID,
 		&i.ConfigVersionDesired,
 		&i.Name,
 		&i.BaseConfig,
@@ -142,6 +144,17 @@ func (q *Queries) GetAgentTags(ctx context.Context, agentID string) ([]string, e
 		return nil, err
 	}
 	return items, nil
+}
+
+const getAgentWorkspaceID = `-- name: GetAgentWorkspaceID :one
+SELECT workspace_id FROM agents WHERE id = ?
+`
+
+func (q *Queries) GetAgentWorkspaceID(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getAgentWorkspaceID, id)
+	var workspace_id string
+	err := row.Scan(&workspace_id)
+	return workspace_id, err
 }
 
 const getEndpointTags = `-- name: GetEndpointTags :many
