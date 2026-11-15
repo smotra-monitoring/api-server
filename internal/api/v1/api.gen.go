@@ -104,10 +104,10 @@ type Agent struct {
 	// ConfigVersionCurrent Configuration version last reported by the agent in a heartbeat, null if the agent
 	// has not sent one yet. Lower than config_version_desired means the agent has not
 	// applied the latest configuration.
-	ConfigVersionCurrent *int `json:"config_version_current"`
+	ConfigVersionCurrent *int64 `json:"config_version_current"`
 
 	// ConfigVersionDesired Configuration version the server wants the agent to run
-	ConfigVersionDesired int `json:"config_version_desired"`
+	ConfigVersionDesired int64 `json:"config_version_desired"`
 
 	// CreatedAt Timestamp when the agent was registered
 	CreatedAt time.Time `json:"created_at"`
@@ -143,26 +143,38 @@ type AgentCacheStats struct {
 	Len int `json:"len"`
 }
 
-// AgentConfig defines model for AgentConfig.
-type AgentConfig struct {
-	// AgentId UUID version 7 as per RFC 4122
-	AgentId UUIDv7 `json:"agent_id"`
+// AgentConfigPatch Agent record with its stored configuration patch, as returned by the server.
+type AgentConfigPatch struct {
+	// BaseConfig JSON Merge Patch (RFC 7396) over the `AgentConfig` structure, stored and returned
+	// unprocessed (a partial object, not a full `AgentConfig`).
+	// The agent builds its configuration as: built-in defaults, then local overrides,
+	// then this patch.
+	// - Objects merge key by key; scalars and arrays replace the whole value.
+	// - `null` removes the key from the local overrides, so the agent default applies again.
+	// - A key absent from the patch leaves the agent's current value unchanged.
+	// - Must not contain `agent_id`, `agent_name`, `version`, `server.api_key`, `storage.cache_dir`.
+	// - Must not contain `tags` or `endpoints`; the server resolves them and returns them
+	//   only as the top-level `tags` and `endpoints` fields.
+	// - Unknown keys or values of the wrong type make the agent reject the whole patch.
+	BaseConfig map[string]interface{} `json:"base_config"`
 
-	// AgentName Human-readable agent name
-	AgentName string `json:"agent_name"`
+	// ConfigVersionDesired Configuration version the agent must run after applying `base_config`
+	ConfigVersionDesired int64 `json:"config_version_desired"`
 
-	// Endpoints Endpoints to monitor
-	Endpoints   []Endpoint        `json:"endpoints"`
-	Monitoring  MonitoringConfig  `json:"monitoring"`
-	SelfUpgrade SelfUpgradeConfig `json:"self_upgrade"`
-	Server      ServerConfig      `json:"server"`
-	Storage     StorageConfig     `json:"storage"`
+	// Endpoints Endpoints the agent must monitor, resolved by the server via topology membership
+	Endpoints []Endpoint `json:"endpoints"`
 
-	// Tags Tags for this agent (used for mesh organization)
+	// Id UUID version 7 as per RFC 4122
+	Id UUIDv7 `json:"id"`
+
+	// Name Human-readable agent name; the agent maps it to `agent_name`
+	Name string `json:"name"`
+
+	// Tags Agent tags resolved by the server; they replace the agent's tags wholesale
 	Tags []string `json:"tags"`
 
-	// Version Configuration version (used for syncing with server)
-	Version int32 `json:"version"`
+	// WorkspaceId UUID version 7 as per RFC 4122
+	WorkspaceId UUIDv7 `json:"workspace_id"`
 }
 
 // AgentHealthStatus Health status of the agent
@@ -184,7 +196,7 @@ type AgentHeartbeat struct {
 type AgentHeartbeatResponse struct {
 	// ConfigVersionDesired Configuration version the server wants the agent to run. When higher than the
 	// agent's current version, the agent fetches GET /agent/{agentId}/configuration.
-	ConfigVersionDesired int32 `json:"config_version_desired"`
+	ConfigVersionDesired int64 `json:"config_version_desired"`
 }
 
 // AgentListResponse defines model for AgentListResponse.
@@ -283,7 +295,7 @@ type AgentStatus struct {
 	ChecksSuccessful int `json:"checks_successful"`
 
 	// ConfigVersion Version of the agent configuration
-	ConfigVersion int `json:"config_version"`
+	ConfigVersion int64 `json:"config_version"`
 
 	// DroppedResultCount Number of results discarded because the server permanently rejected them (HTTP 400/422)
 	DroppedResultCount int `json:"dropped_result_count"`
@@ -341,12 +353,6 @@ type ClaimAgentResponse struct {
 
 	// Status Status in claim response
 	Status ClaimResponseStatus `json:"status"`
-}
-
-// ClaimConfig defines model for ClaimConfig.
-type ClaimConfig struct {
-	// MaxRegistrationRetries Maximum registration retry attempts
-	MaxRegistrationRetries int64 `json:"max_registration_retries"`
 }
 
 // ClaimResponseStatus Status in claim response
@@ -437,27 +443,6 @@ type HttpGetResult struct {
 
 // IpAddressFamily IP address family (IPv4 or IPv6)
 type IpAddressFamily string
-
-// MonitoringConfig defines model for MonitoringConfig.
-type MonitoringConfig struct {
-	// IntervalSecs Interval between checks in seconds
-	IntervalSecs int64 `json:"interval_secs"`
-
-	// MaxConcurrent Maximum number of concurrent checks
-	MaxConcurrent int `json:"max_concurrent"`
-
-	// PingCount Number of pings to send per check
-	PingCount int32 `json:"ping_count"`
-
-	// TimeoutSecs Timeout for each check in seconds
-	TimeoutSecs int64 `json:"timeout_secs"`
-
-	// TracerouteMaxHops Maximum TTL for traceroute
-	TracerouteMaxHops int32 `json:"traceroute_max_hops"`
-
-	// TracerouteOnFailure Enable traceroute on failed pings
-	TracerouteOnFailure bool `json:"traceroute_on_failure"`
-}
 
 // MonitoringResult defines model for MonitoringResult.
 type MonitoringResult struct {
@@ -551,40 +536,6 @@ type ResultsBatchAcknowledgment struct {
 	SubmissionId UUIDv7 `json:"submission_id"`
 }
 
-// SelfUpgradeConfig defines model for SelfUpgradeConfig.
-type SelfUpgradeConfig struct {
-	// CheckIntervalSecs Periodic self-upgrade check interval in seconds
-	CheckIntervalSecs int64 `json:"check_interval_secs"`
-
-	// Enabled Enables self-upgrade checks when true
-	Enabled bool `json:"enabled"`
-
-	// GithubRepoUrl GitHub repository URL for checking latest releases (must be a public repo)
-	GithubRepoUrl string `json:"github_repo_url"`
-}
-
-// ServerConfig defines model for ServerConfig.
-type ServerConfig struct {
-	// ApiKey API key for authentication
-	ApiKey   *string     `json:"api_key"`
-	Claiming ClaimConfig `json:"claiming"`
-
-	// HeartbeatIntervalSecs Heartbeat interval in seconds
-	HeartbeatIntervalSecs int64 `json:"heartbeat_interval_secs"`
-
-	// RetryAttempts Retry attempts on failure
-	RetryAttempts int32 `json:"retry_attempts"`
-
-	// TimeoutSecs Connection timeout in seconds
-	TimeoutSecs int64 `json:"timeout_secs"`
-
-	// Url Server URL
-	Url string `json:"url"`
-
-	// VerifyTls Enable TLS verification
-	VerifyTls bool `json:"verify_tls"`
-}
-
 // Session defines model for Session.
 type Session struct {
 	CreatedAt time.Time `json:"created_at"`
@@ -612,27 +563,6 @@ type Session struct {
 // SessionListResponse defines model for SessionListResponse.
 type SessionListResponse struct {
 	Sessions []Session `json:"sessions"`
-}
-
-// StorageConfig defines model for StorageConfig.
-type StorageConfig struct {
-	// CacheBatchSize Number of results sent to the server in a single POST request
-	CacheBatchSize int64 `json:"cache_batch_size"`
-
-	// CacheDir Directory for storing cached data
-	CacheDir string `json:"cache_dir"`
-
-	// CacheEnabled Enable in-memory result caching and batch reporting
-	CacheEnabled bool `json:"cache_enabled"`
-
-	// CacheReportIntervalSecs How often (in seconds) the result reporter drains and sends a batch
-	CacheReportIntervalSecs int64 `json:"cache_report_interval_secs"`
-
-	// MaxCacheAgeSecs Maximum age of cached results in seconds (e.g., 86400 = 24 hours)
-	MaxCacheAgeSecs int64 `json:"max_cache_age_secs"`
-
-	// MaxCachedResults Maximum number of results to cache
-	MaxCachedResults int `json:"max_cached_results"`
 }
 
 // TcpConnectCheck defines model for TcpConnectCheck.
@@ -2087,7 +2017,7 @@ type GetAgentConfigurationResponseObject interface {
 	VisitGetAgentConfigurationResponse(w http.ResponseWriter) error
 }
 
-type GetAgentConfiguration200JSONResponse AgentConfig
+type GetAgentConfiguration200JSONResponse AgentConfigPatch
 
 func (response GetAgentConfiguration200JSONResponse) VisitGetAgentConfigurationResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")

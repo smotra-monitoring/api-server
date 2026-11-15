@@ -163,13 +163,13 @@ func (h *Handler) rowToItem(row queries.ListAgentsByWorkspaceRow) api.Agent {
 		Id:                   api.UUIDv7(uuid.MustParse(row.ID)),
 		WorkspaceId:          api.UUIDv7(uuid.MustParse(row.WorkspaceID)),
 		Name:                 row.Name,
-		ConfigVersionDesired: int(row.ConfigVersionDesired),
+		ConfigVersionDesired: row.ConfigVersionDesired,
 		CreatedAt:            row.CreatedAt,
 		UpdatedAt:            row.UpdatedAt,
 	}
 
 	if row.ConfigVersionCurrent.Valid {
-		current := int(row.ConfigVersionCurrent.Int64)
+		current := row.ConfigVersionCurrent.Int64
 		item.ConfigVersionCurrent = &current
 	}
 

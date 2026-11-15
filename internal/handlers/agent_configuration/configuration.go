@@ -13,6 +13,7 @@ import (
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/database/queries"
 	"github.com/smotra-monitoring/server/internal/logger"
+	"github.com/smotra-monitoring/server/internal/middleware"
 )
 
 // Handler handles agent configuration endpoints
@@ -24,6 +25,7 @@ type Handler struct {
 	getConfigurationTotal   atomic.Uint64
 	getConfigurationSuccess atomic.Uint64
 	getConfigurationFailure atomic.Uint64
+	getConfigurationOAuth2  atomic.Uint64
 
 	// Topology resolution metrics
 	topologyResolutionsTotal  atomic.Uint64
@@ -66,17 +68,15 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 		return nil, fmt.Errorf("failed to get agent configuration: %w", err)
 	}
 
-	// Parse the base_config JSON into the expected structure
-	var baseConfig struct {
-		Monitoring api.MonitoringConfig `json:"monitoring"`
-		Server     api.ServerConfig     `json:"server"`
-		Storage    api.StorageConfig    `json:"storage"`
-	}
-
+	// A stored JSON null decodes to a nil map, which would serialise as null instead of {}.
+	var baseConfig map[string]any
 	if err := json.Unmarshal([]byte(configRow.BaseConfig), &baseConfig); err != nil {
 		h.getConfigurationFailure.Add(1)
 		h.logger.Error("Failed to parse base configuration", "error", err, "agent_id", agentID)
 		return nil, fmt.Errorf("failed to parse base configuration: %w", err)
+	}
+	if baseConfig == nil {
+		baseConfig = make(map[string]any)
 	}
 
 	// Get agent tags
@@ -152,30 +152,49 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 		return nil, fmt.Errorf("failed to parse agent ID: %w", err)
 	}
 
-	// Update last_seen_at — non-fatal, log and continue
-	if err := q.UpdateAgentLastSeen(ctx, queries.UpdateAgentLastSeenParams{
-		LastSeenAt: sql.NullTime{Time: time.Now(), Valid: true},
-		ID:         agentID,
-	}); err != nil {
-		h.logger.Warn("Failed to update agent last_seen_at", "agent_id", agentID, "error", err.Error())
+	workspaceUUID, err := uuid.Parse(configRow.WorkspaceID)
+	if err != nil {
+		h.getConfigurationFailure.Add(1)
+		h.logger.Error("Failed to parse workspace ID", "error", err, "agent_id", agentID, "workspace_id", configRow.WorkspaceID)
+		return nil, fmt.Errorf("failed to parse workspace ID: %w", err)
 	}
 
-	// Build the response
-	config := api.AgentConfig{
-		Version:    int32(configRow.ConfigVersionDesired), // Convert from int to int32
-		AgentId:    agentUUID,
-		AgentName:  configRow.Name,
-		Tags:       agentTags,
-		Monitoring: baseConfig.Monitoring,
-		Server:     baseConfig.Server,
-		Storage:    baseConfig.Storage,
-		Endpoints:  endpoints,
+	// last_seen_at tracks agent liveness, so a user read must not refresh it.
+	{
+		authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+		if !ok || authInfo == nil {
+			h.getConfigurationFailure.Add(1)
+			h.logger.Error("Failed to get auth info from context", "agent_id", agentID)
+			return nil, fmt.Errorf("failed to get auth info from context")
+		}
+		switch authInfo.AuthType {
+		case "oauth2":
+			h.getConfigurationOAuth2.Add(1)
+		case "agent_api_key":
+			if err := q.UpdateAgentLastSeen(ctx, queries.UpdateAgentLastSeenParams{
+				LastSeenAt: sql.NullTime{Time: time.Now(), Valid: true},
+				ID:         agentID,
+			}); err != nil {
+				h.logger.Warn("Failed to update agent last_seen_at", "agent_id", agentID, "error", err.Error())
+			}
+		default:
+			h.logger.Warn("Unknown auth type", "agent_id", agentID, "auth_type", authInfo.AuthType)
+			h.getConfigurationFailure.Add(1)
+			return nil, fmt.Errorf("unknown auth type: %s", authInfo.AuthType)
+		}
 	}
-
 	h.getConfigurationSuccess.Add(1)
 	h.logger.Info("Agent configuration retrieved", "agent_id", agentID, "config_version", configRow.ConfigVersionDesired)
 
-	return api.GetAgentConfiguration200JSONResponse(config), nil
+	return api.GetAgentConfiguration200JSONResponse(api.AgentConfigPatch{
+		Id:                   agentUUID,
+		WorkspaceId:          workspaceUUID,
+		Name:                 configRow.Name,
+		ConfigVersionDesired: configRow.ConfigVersionDesired,
+		BaseConfig:           baseConfig,
+		Tags:                 agentTags,
+		Endpoints:            endpoints,
+	}), nil
 }
 
 // GetMetrics returns the metrics for this handler
@@ -194,6 +213,11 @@ func (h *Handler) GetMetrics() string {
 	metrics += "# HELP smotra_agent_configuration_get_configuration_failure_total Failed get configuration requests\n"
 	metrics += "# TYPE smotra_agent_configuration_get_configuration_failure_total counter\n"
 	metrics += fmt.Sprintf("smotra_agent_configuration_get_configuration_failure_total %d\n", h.getConfigurationFailure.Load())
+	metrics += "\n"
+
+	metrics += "# HELP smotra_agent_configuration_get_configuration_oauth2_total Get configuration requests made with an OAuth2 session\n"
+	metrics += "# TYPE smotra_agent_configuration_get_configuration_oauth2_total counter\n"
+	metrics += fmt.Sprintf("smotra_agent_configuration_get_configuration_oauth2_total %d\n", h.getConfigurationOAuth2.Load())
 	metrics += "\n"
 
 	metrics += "# HELP smotra_agent_configuration_topology_resolutions_total Total topology resolution calls\n"

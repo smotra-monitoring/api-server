@@ -1,6 +1,9 @@
 -- name: GetAgentConfigurationBase :one
-SELECT id, config_version_desired, name, base_config FROM agents WHERE id = ?
+SELECT id, workspace_id, config_version_desired, name, base_config FROM agents WHERE id = ?
 LIMIT 1;
+
+-- name: GetAgentWorkspaceID :one
+SELECT workspace_id FROM agents WHERE id = ?;
 
 -- name: CreateAgent :one
 INSERT INTO agents (id, workspace_id, name, api_key_hash, base_config) VALUES 

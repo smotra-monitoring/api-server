@@ -336,7 +336,7 @@ func TestHeartbeat_Integration_StoresAgentStatus(t *testing.T) {
 	}
 }
 
-func versionHeartbeat(agentVersion string, configVersion int) *api.AgentHeartbeat {
+func versionHeartbeat(agentVersion string, configVersion int64) *api.AgentHeartbeat {
 	now := time.Now().UTC()
 	return &api.AgentHeartbeat{
 		Timestamp:    now,
@@ -362,7 +362,7 @@ func versionHeartbeat(agentVersion string, configVersion int) *api.AgentHeartbea
 	}
 }
 
-func readAgentVersions(t *testing.T, db database.Database, agentID uuid.UUID) (agentVersion *string, desired int, current *int) {
+func readAgentVersions(t *testing.T, db database.Database, agentID uuid.UUID) (agentVersion *string, desired int64, current *int64) {
 	t.Helper()
 	if err := db.DB().QueryRowContext(context.Background(),
 		`SELECT agent_version, config_version_desired, config_version_current FROM agents WHERE id = ?`,
@@ -442,7 +442,7 @@ func TestHeartbeat_Integration_ConfigDrift_DetectedAndResolved(t *testing.T) {
 	}
 }
 
-func decodeDesired(t *testing.T, rr *httptest.ResponseRecorder) int32 {
+func decodeDesired(t *testing.T, rr *httptest.ResponseRecorder) int64 {
 	t.Helper()
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
@@ -460,7 +460,7 @@ func TestHeartbeat_Integration_ReturnsConfigVersionDesired(t *testing.T) {
 	router := setupTestRouter(h)
 
 	_, desired, _ := readAgentVersions(t, db, agentID)
-	if got := decodeDesired(t, postHeartbeat(t, router, agentID, versionHeartbeat("1.0.0", desired))); int(got) != desired {
+	if got := decodeDesired(t, postHeartbeat(t, router, agentID, versionHeartbeat("1.0.0", desired))); got != desired {
 		t.Errorf("config_version_desired = %d, want %d", got, desired)
 	}
 	if h.heartbeatConfigOutdatedTotal.Load() != 0 {
@@ -474,7 +474,7 @@ func TestHeartbeat_Integration_ReturnsConfigVersionDesired(t *testing.T) {
 	}
 	_, newDesired, _ := readAgentVersions(t, db, agentID)
 
-	if got := decodeDesired(t, postHeartbeat(t, router, agentID, versionHeartbeat("1.0.0", desired))); int(got) != newDesired {
+	if got := decodeDesired(t, postHeartbeat(t, router, agentID, versionHeartbeat("1.0.0", desired))); got != newDesired {
 		t.Errorf("config_version_desired = %d, want %d after bump", got, newDesired)
 	}
 	if h.heartbeatConfigOutdatedTotal.Load() != 1 {
