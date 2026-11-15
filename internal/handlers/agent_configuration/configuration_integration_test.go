@@ -264,7 +264,7 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 			t.Errorf("Expected agent name 'Test Agent', got %s", config.Name)
 		}
 
-		if want := readDesiredVersion(t, db, agentID); config.ConfigVersionDesired != want {
+		if want := queryDesiredVersion(t, db, agentID); config.ConfigVersionDesired != want {
 			t.Errorf("Expected config_version_desired %d, got %d", want, config.ConfigVersionDesired)
 		}
 

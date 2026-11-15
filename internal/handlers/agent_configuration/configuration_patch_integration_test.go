@@ -45,7 +45,7 @@ func insertAgent(t *testing.T, db database.Database, workspaceID, baseConfig str
 	return id
 }
 
-func readDesiredVersion(t *testing.T, db database.Database, agentID string) int64 {
+func queryDesiredVersion(t *testing.T, db database.Database, agentID string) int64 {
 	t.Helper()
 	var v int64
 	if err := db.DB().QueryRowContext(context.Background(),
@@ -173,8 +173,8 @@ func TestGetAgentConfiguration_ConfigVersionBumpsOnValueChangesOnly(t *testing.T
 	handler := NewHandler(logger.Default(), db, "1.0.0")
 	agentID := insertAgent(t, db, workspaceID, `{"a":1}`)
 
-	version := func() int64 { return readDesiredVersion(t, db, agentID) }
-	served := func() int64 {
+	dbVersion := func() int64 { return queryDesiredVersion(t, db, agentID) }
+	apiServed := func() int64 {
 		var resp struct {
 			V int64 `json:"config_version_desired"`
 		}
@@ -196,13 +196,13 @@ func TestGetAgentConfiguration_ConfigVersionBumpsOnValueChangesOnly(t *testing.T
 		{"name changed", "UPDATE agents SET name = ? WHERE id = ?", []any{"renamed", agentID}, 1},
 	}
 	for _, s := range steps {
-		before := version()
+		before := dbVersion()
 		mustExec(t, db, s.query, s.args...)
-		if got := version() - before; got != s.bump {
+		if got := dbVersion() - before; got != s.bump {
 			t.Errorf("%s: config_version_desired changed by %d, want %d", s.name, got, s.bump)
 		}
-		if got := served(); got != version() {
-			t.Errorf("%s: served config_version_desired = %d, want %d", s.name, got, version())
+		if got := apiServed(); got != dbVersion() {
+			t.Errorf("%s: served config_version_desired = %d, want %d", s.name, got, dbVersion())
 		}
 	}
 }
@@ -241,9 +241,9 @@ func TestConfigVersionTriggers_IgnoreDummyUpdates(t *testing.T) {
 		{"member role changed", "UPDATE topology_members SET role = ? WHERE topology_id = ? AND tag_id = ?", []any{"target", topologyID, tagID}, 1},
 	}
 	for _, c := range cases {
-		before := readDesiredVersion(t, db, agentID)
+		before := queryDesiredVersion(t, db, agentID)
 		mustExec(t, db, c.query, c.args...)
-		if got := readDesiredVersion(t, db, agentID) - before; got != c.bump {
+		if got := queryDesiredVersion(t, db, agentID) - before; got != c.bump {
 			t.Errorf("%s: config_version_desired changed by %d, want %d", c.name, got, c.bump)
 		}
 	}
