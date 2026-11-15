@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/database/queries"
 	"github.com/smotra-monitoring/server/internal/logger"
+	"github.com/smotra-monitoring/server/internal/middleware"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
 
@@ -86,8 +88,19 @@ func (t *testServerImpl) ListAgents(ctx context.Context, request api.ListAgentsR
 }
 
 func setupTestRouter(handler *Handler) *chi.Mux {
+	return setupTestRouterWithAuth(handler, "agent_api_key")
+}
+
+// setupTestRouterWithAuth injects the AuthInfo that AuthenticatedHandler would normally guarantee.
+func setupTestRouterWithAuth(handler *Handler, authType string) *chi.Mux {
 	testImpl := &testServerImpl{Handler: handler}
 	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			info := &middleware.AuthInfo{AuthType: authType, Authenticated: true}
+			next.ServeHTTP(w, req.WithContext(context.WithValue(req.Context(), middleware.AuthContextKey, info)))
+		})
+	})
 	strictHandler := api.NewStrictHandler(testImpl, nil)
 	api.HandlerFromMux(strictHandler, r)
 	return r
@@ -227,22 +240,32 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
 		}
 
-		var config api.AgentConfig
-		if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response: %v", err)
+		}
+
+		var config api.AgentConfigPatch
+		if err := json.Unmarshal(body, &config); err != nil {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
+		assertTopLevelKeys(t, body)
 
 		// Verify configuration
-		if config.AgentId.String() != agentID {
-			t.Errorf("Expected agent ID %s, got %s", agentID, config.AgentId.String())
+		if config.Id.String() != agentID {
+			t.Errorf("Expected agent ID %s, got %s", agentID, config.Id.String())
 		}
 
-		if config.AgentName != "Test Agent" {
-			t.Errorf("Expected agent name 'Test Agent', got %s", config.AgentName)
+		if config.WorkspaceId.String() != workspaceID {
+			t.Errorf("Expected workspace ID %s, got %s", workspaceID, config.WorkspaceId.String())
 		}
 
-		if config.Version != 9 {
-			t.Errorf("Expected version 9, got %d", config.Version)
+		if config.Name != "Test Agent" {
+			t.Errorf("Expected agent name 'Test Agent', got %s", config.Name)
+		}
+
+		if want := readDesiredVersion(t, db, agentID); config.ConfigVersionDesired != want {
+			t.Errorf("Expected config_version_desired %d, got %d", want, config.ConfigVersionDesired)
 		}
 
 		// Verify tags
@@ -276,32 +299,8 @@ func TestGetAgentConfiguration_Integration(t *testing.T) {
 			}
 		}
 
-		// Verify monitoring config
-		if config.Monitoring.IntervalSecs != 60 {
-			t.Errorf("Expected interval_secs 60, got %d", config.Monitoring.IntervalSecs)
-		}
-
-		// Verify server config
-		if config.Server.Url != "https://api.smotra.net" {
-			t.Errorf("Expected server URL 'https://api.smotra.net', got %s", config.Server.Url)
-		}
-		if config.Server.Claiming.MaxRegistrationRetries != 5 {
-			t.Errorf("Expected max_registration_retries 5, got %d", config.Server.Claiming.MaxRegistrationRetries)
-		}
-
-		// Verify storage config
-		if config.Storage.CacheDir != "./cache" {
-			t.Errorf("Expected cache_dir './cache', got %s", config.Storage.CacheDir)
-		}
-		if !config.Storage.CacheEnabled {
-			t.Errorf("Expected cache_enabled true")
-		}
-		if config.Storage.CacheBatchSize != 100 {
-			t.Errorf("Expected cache_batch_size 100, got %d", config.Storage.CacheBatchSize)
-		}
-		if config.Storage.CacheReportIntervalSecs != 60 {
-			t.Errorf("Expected cache_report_interval_secs 60, got %d", config.Storage.CacheReportIntervalSecs)
-		}
+		// base_config is returned exactly as stored.
+		assertJSONEqual(t, baseConfig, config.BaseConfig)
 	})
 
 	t.Run("GetConfiguration_NotFound", func(t *testing.T) {

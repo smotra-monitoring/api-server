@@ -62,7 +62,7 @@ func (h *Handler) Handle(ctx context.Context, req api.SendAgentHeartbeatRequestO
 	configVersionDesired, stateErr := q.UpdateAgentHeartbeatState(ctx, queries.UpdateAgentHeartbeatStateParams{
 		LastSeenAt:           sql.NullTime{Time: receivedAt, Valid: true},
 		AgentVersion:         req.Body.AgentStatus.AgentVersion,
-		ConfigVersionCurrent: sql.NullInt64{Int64: int64(req.Body.AgentStatus.ConfigVersion), Valid: true},
+		ConfigVersionCurrent: sql.NullInt64{Int64: req.Body.AgentStatus.ConfigVersion, Valid: true},
 		ID:                   agentID,
 	})
 	if stateErr != nil {
@@ -71,7 +71,7 @@ func (h *Handler) Handle(ctx context.Context, req api.SendAgentHeartbeatRequestO
 			slog.String("agent_id", agentID),
 			slog.String("error", stateErr.Error()),
 		)
-	} else if configVersionDesired > int64(req.Body.AgentStatus.ConfigVersion) {
+	} else if configVersionDesired > req.Body.AgentStatus.ConfigVersion {
 		h.heartbeatConfigOutdatedTotal.Add(1)
 	}
 
@@ -97,7 +97,7 @@ func (h *Handler) Handle(ctx context.Context, req api.SendAgentHeartbeatRequestO
 	if stateErr != nil {
 		return api.SendAgentHeartbeat204Response{}, nil
 	}
-	return api.SendAgentHeartbeat200JSONResponse{ConfigVersionDesired: int32(configVersionDesired)}, nil
+	return api.SendAgentHeartbeat200JSONResponse{ConfigVersionDesired: configVersionDesired}, nil
 }
 
 func (h *Handler) storeVitals(ctx context.Context, q *queries.Queries, agentID string, body *api.AgentHeartbeat) error {
