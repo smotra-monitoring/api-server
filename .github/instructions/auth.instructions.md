@@ -11,8 +11,12 @@ Authentication is a **two-tier system**:
 1. **Middleware** (`internal/middleware/auth.go`) — populates `AuthInfo` into the request context
 2. **Wrapper** (`internal/handlers/authenticated_handler.go`) — enforces auth requirements before delegating to the actual handler
 
-**Rule: Auth checks MUST live in `AuthenticatedHandler` wrappers — never inside handler bodies.**
-Handler bodies can safely cast `ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)` without nil/ok guards because the wrapper guarantees a valid, authenticated `AuthInfo` is present.
+**Rule: authentication lives in `AuthenticatedHandler` wrappers; resource authorization lives in the handler.**
+
+- *Authentication* answers "is this a valid caller of the right type?" (credential present and valid, correct auth type, agent ID matches the URL). It stays in the wrapper, which must not query the DB — wrappers only call `requireAgent` / `requireOAuth2User`.
+- *Resource authorization* answers "may this caller access this specific resource?" (e.g. the OAuth2 user's workspace owns the agent). It needs the resource row, so it belongs in the handler body next to the query that loads the resource. `sessions/`, `agent_list/` and `agent_configuration/` are the reference implementations.
+
+On endpoints where the wrapper guarantees one auth type, handler bodies can cast `ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)` without nil/ok guards. On an endpoint shared by agents and OAuth2 users (e.g. `GET /v1/agent/{agentId}/configuration`), branch on `AuthType`.
 
 ## AuthInfo Struct
 
@@ -109,6 +113,13 @@ func (h *Handler) MyUserEndpoint(ctx context.Context, _ api.MyRequestObject) (ap
 }
 ```
 
+**Resource-scoped OAuth2 endpoints** (an ID in the path that belongs to a workspace) must verify ownership in the handler: resolve the user's workspace with `GetUserByID` and compare it to the resource's `workspace_id`.
+
+- A missing user or a different workspace returns 401, so the response never confirms the resource exists.
+- A failed lookup returns the operation's 503 response.
+- Count denials with a handler metric.
+- An unknown resource returns 404 before the ownership check.
+
 ---
 
 ## Middleware Registration
@@ -186,6 +197,7 @@ Built-in provider defaults are defined in the `defaultProviders` map in `auth.go
 | `GET /v1/sessions` | `ListSessions` | **Yes** (oauth2) |
 | `DELETE /v1/sessions/{session_id}` | `PurgeSession` | **Yes** (oauth2) |
 | `DELETE /v1/sessions` | `PurgeSessions` | **Yes** (oauth2) |
+| `GET /v1/agent/{agentId}/configuration` | `GetAgentConfiguration` | **Yes** — agent API key, or oauth2 for a user in the agent's workspace (checked in the handler) |
 
 The `sessions/` handler package implements the last three; wrappers share `requireOAuth2User` in `authenticated_handler.go`. Ownership is enforced in the handler (403 for another user's session, 404 for unknown/inactive) and in the SQL `WHERE user_id = ?` of the revoke query.
 
@@ -203,6 +215,6 @@ See [docs/features/authentication.md](../../docs/features/authentication.md) for
 ## Adding a New Protected Endpoint
 
 1. **Add a wrapper method** in `authenticated_handler.go` following the pattern above for the appropriate auth type (agent or oauth2).
-2. **Do NOT add auth checks** inside the handler body in `internal/handlers/auth/` or other handler packages.
-3. **Update tests**: add a test in `authenticated_handler_test.go` (or `authenticated_handler_integration_test.go`) covering the unauthenticated path via the wrapper.
+2. **Do NOT add authentication checks** (credential presence, auth type, agent-ID match) inside handler bodies. Resource-ownership checks that need the resource row **do** go in the handler; see the resource-scoped OAuth2 endpoints note above.
+3. **Update tests**: add a test in `authenticated_handler_test.go` (or `authenticated_handler_integration_test.go`) covering the unauthenticated path via the wrapper. Test ownership rules (same workspace, foreign workspace, unknown user, unknown resource) in the handler package by calling the handler with an OAuth2 `AuthInfo` in the context.
 
