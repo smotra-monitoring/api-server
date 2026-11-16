@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -16,6 +17,8 @@ import (
 	"github.com/smotra-monitoring/server/internal/middleware"
 )
 
+var sessionUnauthorized = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Valid session required"}
+
 // Handler handles agent configuration endpoints
 type Handler struct {
 	logger *logger.Logger
@@ -26,6 +29,8 @@ type Handler struct {
 	getConfigurationSuccess atomic.Uint64
 	getConfigurationFailure atomic.Uint64
 	getConfigurationOAuth2  atomic.Uint64
+
+	getConfigurationWorkspaceDenied atomic.Uint64
 
 	// Topology resolution metrics
 	topologyResolutionsTotal  atomic.Uint64
@@ -66,6 +71,20 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 		h.getConfigurationFailure.Add(1)
 		h.logger.Error("Failed to get agent configuration", "error", err, "agent_id", agentID)
 		return nil, fmt.Errorf("failed to get agent configuration: %w", err)
+	}
+
+	// Authorization
+	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+	if !ok || authInfo == nil {
+		h.getConfigurationFailure.Add(1)
+		h.logger.Error("Failed to get auth info from context", "agent_id", agentID)
+		return nil, fmt.Errorf("failed to get auth info from context")
+	}
+
+	if authInfo.AuthType == "oauth2" {
+		if denied := h.denyOutsideWorkspace(ctx, q, authInfo.UserID, configRow.WorkspaceID, agentID); denied != nil {
+			return denied, nil
+		}
 	}
 
 	// A stored JSON null decodes to a nil map, which would serialise as null instead of {}.
@@ -160,28 +179,20 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 	}
 
 	// last_seen_at tracks agent liveness, so a user read must not refresh it.
-	{
-		authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
-		if !ok || authInfo == nil {
-			h.getConfigurationFailure.Add(1)
-			h.logger.Error("Failed to get auth info from context", "agent_id", agentID)
-			return nil, fmt.Errorf("failed to get auth info from context")
+	switch authInfo.AuthType {
+	case "oauth2":
+		h.getConfigurationOAuth2.Add(1)
+	case "agent_api_key":
+		if err := q.UpdateAgentLastSeen(ctx, queries.UpdateAgentLastSeenParams{
+			LastSeenAt: sql.NullTime{Time: time.Now(), Valid: true},
+			ID:         agentID,
+		}); err != nil {
+			h.logger.Warn("Failed to update agent last_seen_at", "agent_id", agentID, "error", err.Error())
 		}
-		switch authInfo.AuthType {
-		case "oauth2":
-			h.getConfigurationOAuth2.Add(1)
-		case "agent_api_key":
-			if err := q.UpdateAgentLastSeen(ctx, queries.UpdateAgentLastSeenParams{
-				LastSeenAt: sql.NullTime{Time: time.Now(), Valid: true},
-				ID:         agentID,
-			}); err != nil {
-				h.logger.Warn("Failed to update agent last_seen_at", "agent_id", agentID, "error", err.Error())
-			}
-		default:
-			h.logger.Warn("Unknown auth type", "agent_id", agentID, "auth_type", authInfo.AuthType)
-			h.getConfigurationFailure.Add(1)
-			return nil, fmt.Errorf("unknown auth type: %s", authInfo.AuthType)
-		}
+	default:
+		h.getConfigurationFailure.Add(1)
+		h.logger.Warn("Unknown auth type", "agent_id", agentID, "auth_type", authInfo.AuthType)
+		return nil, fmt.Errorf("unknown auth type: %s", authInfo.AuthType)
 	}
 	h.getConfigurationSuccess.Add(1)
 	h.logger.Info("Agent configuration retrieved", "agent_id", agentID, "config_version", configRow.ConfigVersionDesired)
@@ -195,6 +206,33 @@ func (h *Handler) GetAgentConfiguration(ctx context.Context, request api.GetAgen
 		Tags:                 agentTags,
 		Endpoints:            endpoints,
 	}), nil
+}
+
+// denyOutsideWorkspace returns a response when the OAuth2 user may not read an agent of agentWorkspaceID, nil when allowed.
+// A foreign workspace gets the same 401 as an unknown user so the response does not confirm the agent exists.
+func (h *Handler) denyOutsideWorkspace(ctx context.Context, q *queries.Queries, userID, agentWorkspaceID, agentID string) api.GetAgentConfigurationResponseObject {
+	user, err := q.GetUserByID(ctx, userID)
+	if err != nil {
+		h.getConfigurationFailure.Add(1)
+		if errors.Is(err, sql.ErrNoRows) {
+			h.logger.Warn("User not found in DB", "user_id", userID, "agent_id", agentID)
+			return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}
+		}
+		h.logger.Error("Failed to query user from DB", "error", err, "user_id", userID, "agent_id", agentID)
+		return api.GetAgentConfiguration503JSONResponse{InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
+			Error:   "internal_error",
+			Message: "Failed to authorize request",
+		}}
+	}
+
+	if user.WorkspaceID != agentWorkspaceID {
+		h.getConfigurationFailure.Add(1)
+		h.getConfigurationWorkspaceDenied.Add(1)
+		h.logger.Warn("OAuth2 user denied access to agent outside workspace", "user_id", userID, "agent_id", agentID)
+		return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}
+	}
+
+	return nil
 }
 
 // GetMetrics returns the metrics for this handler
@@ -218,6 +256,11 @@ func (h *Handler) GetMetrics() string {
 	metrics += "# HELP smotra_agent_configuration_get_configuration_oauth2_total Get configuration requests made with an OAuth2 session\n"
 	metrics += "# TYPE smotra_agent_configuration_get_configuration_oauth2_total counter\n"
 	metrics += fmt.Sprintf("smotra_agent_configuration_get_configuration_oauth2_total %d\n", h.getConfigurationOAuth2.Load())
+	metrics += "\n"
+
+	metrics += "# HELP smotra_agent_configuration_get_configuration_workspace_denied_total Get configuration requests denied because the OAuth2 user's workspace does not own the agent\n"
+	metrics += "# TYPE smotra_agent_configuration_get_configuration_workspace_denied_total counter\n"
+	metrics += fmt.Sprintf("smotra_agent_configuration_get_configuration_workspace_denied_total %d\n", h.getConfigurationWorkspaceDenied.Load())
 	metrics += "\n"
 
 	metrics += "# HELP smotra_agent_configuration_topology_resolutions_total Total topology resolution calls\n"

@@ -9,11 +9,13 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/smotra-monitoring/server/internal/database"
 	"github.com/smotra-monitoring/server/internal/logger"
+	"github.com/smotra-monitoring/server/internal/middleware"
 	"github.com/smotra-monitoring/server/internal/testutil"
 )
 
@@ -249,6 +251,25 @@ func TestConfigVersionTriggers_IgnoreDummyUpdates(t *testing.T) {
 	}
 }
 
+func insertUser(t *testing.T, db database.Database, workspaceID string) string {
+	t.Helper()
+	id := uuid.NewString()
+	mustExec(t, db, "INSERT INTO users (id, workspace_id, oauth_provider, oauth_subject, display_name) VALUES (?, ?, ?, ?, ?)",
+		id, workspaceID, "test_provider", "sub-"+id, "User")
+	return id
+}
+
+func oauth2Info(userID string) *middleware.AuthInfo {
+	return &middleware.AuthInfo{AuthType: "oauth2", Authenticated: true, UserID: userID, SessionID: "session-" + userID}
+}
+
+func serveConfiguration(handler *Handler, info *middleware.AuthInfo, agentID string) *httptest.ResponseRecorder {
+	rr := httptest.NewRecorder()
+	setupTestRouterWithAuth(handler, info).ServeHTTP(rr,
+		httptest.NewRequest(http.MethodGet, fmt.Sprintf("/agent/%s/configuration", agentID), nil))
+	return rr
+}
+
 func TestGetAgentConfiguration_LastSeenByAuthType(t *testing.T) {
 	for _, tc := range []struct {
 		authType string
@@ -262,10 +283,12 @@ func TestGetAgentConfiguration_LastSeenByAuthType(t *testing.T) {
 			handler := NewHandler(logger.Default(), db, "1.0.0")
 			agentID := insertAgent(t, db, workspaceID, `{}`)
 
-			rr := httptest.NewRecorder()
-			setupTestRouterWithAuth(handler, tc.authType).ServeHTTP(rr,
-				httptest.NewRequest(http.MethodGet, fmt.Sprintf("/agent/%s/configuration", agentID), nil))
-			if rr.Code != http.StatusOK {
+			info := &middleware.AuthInfo{AuthType: "agent_api_key", Authenticated: true, AgentID: agentID}
+			if tc.authType == "oauth2" {
+				info = oauth2Info(insertUser(t, db, workspaceID))
+			}
+
+			if rr := serveConfiguration(handler, info, agentID); rr.Code != http.StatusOK {
 				t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 			}
 
@@ -278,5 +301,48 @@ func TestGetAgentConfiguration_LastSeenByAuthType(t *testing.T) {
 				t.Errorf("last_seen_at set = %v, want %v", lastSeen.Valid, tc.updated)
 			}
 		})
+	}
+}
+
+func TestGetAgentConfiguration_OAuth2WorkspaceScope(t *testing.T) {
+	db, workspaceID := newPatchTestDB(t)
+	handler := NewHandler(logger.Default(), db, "1.0.0")
+	agentID := insertAgent(t, db, workspaceID, `{}`)
+
+	var tenantID string
+	if err := db.DB().QueryRowContext(context.Background(), "SELECT tenant_id FROM workspaces WHERE id = ?", workspaceID).Scan(&tenantID); err != nil {
+		t.Fatalf("read tenant: %v", err)
+	}
+	otherWorkspaceID := uuid.NewString()
+	mustExec(t, db, "INSERT INTO workspaces (id, tenant_id, name) VALUES (?, ?, ?)", otherWorkspaceID, tenantID, "Other")
+
+	sameUser := insertUser(t, db, workspaceID)
+	foreignUser := insertUser(t, db, otherWorkspaceID)
+
+	cases := []struct {
+		name    string
+		userID  string
+		agentID string
+		want    int
+	}{
+		{"same workspace", sameUser, agentID, http.StatusOK},
+		{"foreign workspace", foreignUser, agentID, http.StatusUnauthorized},
+		{"unknown user", uuid.NewString(), agentID, http.StatusUnauthorized},
+		{"unknown agent", sameUser, uuid.NewString(), http.StatusNotFound},
+	}
+	for _, tc := range cases {
+		if rr := serveConfiguration(handler, oauth2Info(tc.userID), tc.agentID); rr.Code != tc.want {
+			t.Errorf("%s: status = %d, want %d: %s", tc.name, rr.Code, tc.want, rr.Body.String())
+		}
+	}
+
+	if got := handler.getConfigurationWorkspaceDenied.Load(); got != 1 {
+		t.Errorf("workspace denied counter = %d, want 1 (foreign workspace only)", got)
+	}
+	if got := handler.getConfigurationOAuth2.Load(); got != 1 {
+		t.Errorf("oauth2 counter = %d, want 1 (successful same-workspace read only)", got)
+	}
+	if m := handler.GetMetrics(); !strings.Contains(m, "smotra_agent_configuration_get_configuration_workspace_denied_total 1") {
+		t.Errorf("metrics missing workspace denied counter:\n%s", m)
 	}
 }

@@ -98,7 +98,7 @@ Codebase must include unit tests and integration tests. CI/CD pipelines automate
 - API codegen, routing, error handling, handlers → `.github/instructions/api.instructions.md`
 - Authentication, API keys, agent claiming, OAuth2 session flow → `.github/instructions/auth.instructions.md`
 
-**Critical auth rule**: Auth checks always live in `AuthenticatedHandler` wrapper methods (`internal/handlers/authenticated_handler.go`). Handler bodies in `internal/handlers/auth/` and other packages must **never** contain inline auth guards — they may cast `ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)` directly since the wrapper guarantees auth.
+**Critical auth rule**: Authentication checks (credential present and valid, correct auth type, agent ID matches the URL) always live in `AuthenticatedHandler` wrapper methods (`internal/handlers/authenticated_handler.go`), which must stay free of DB queries. Resource authorization (for example, an OAuth2 user's workspace owning the requested agent) lives in the handler, next to the query that loads the resource. Handlers on OAuth2-only endpoints may cast `ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)` directly since the wrapper guarantees it; handlers shared by agents and OAuth2 users branch on `AuthType`.
 - Configuration management, config structs → `.github/instructions/config.instructions.md`
 - Metrics, Prometheus, observability → `.github/instructions/metrics.instructions.md`
 
