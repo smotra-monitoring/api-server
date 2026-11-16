@@ -146,17 +146,6 @@ func (q *Queries) GetAgentTags(ctx context.Context, agentID string) ([]string, e
 	return items, nil
 }
 
-const getAgentWorkspaceID = `-- name: GetAgentWorkspaceID :one
-SELECT workspace_id FROM agents WHERE id = ?
-`
-
-func (q *Queries) GetAgentWorkspaceID(ctx context.Context, id string) (string, error) {
-	row := q.db.QueryRowContext(ctx, getAgentWorkspaceID, id)
-	var workspace_id string
-	err := row.Scan(&workspace_id)
-	return workspace_id, err
-}
-
 const getEndpointTags = `-- name: GetEndpointTags :many
 SELECT t.name FROM endpoint_tags et
 JOIN tags t ON et.tag_id = t.id

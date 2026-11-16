@@ -88,16 +88,15 @@ func (t *testServerImpl) ListAgents(ctx context.Context, request api.ListAgentsR
 }
 
 func setupTestRouter(handler *Handler) *chi.Mux {
-	return setupTestRouterWithAuth(handler, "agent_api_key")
+	return setupTestRouterWithAuth(handler, &middleware.AuthInfo{AuthType: "agent_api_key", Authenticated: true})
 }
 
 // setupTestRouterWithAuth injects the AuthInfo that AuthenticatedHandler would normally guarantee.
-func setupTestRouterWithAuth(handler *Handler, authType string) *chi.Mux {
+func setupTestRouterWithAuth(handler *Handler, info *middleware.AuthInfo) *chi.Mux {
 	testImpl := &testServerImpl{Handler: handler}
 	r := chi.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			info := &middleware.AuthInfo{AuthType: authType, Authenticated: true}
 			next.ServeHTTP(w, req.WithContext(context.WithValue(req.Context(), middleware.AuthContextKey, info)))
 		})
 	})

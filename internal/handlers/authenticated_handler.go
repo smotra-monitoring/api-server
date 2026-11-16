@@ -2,15 +2,12 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"sync/atomic"
 
 	api "github.com/smotra-monitoring/server/internal/api/v1"
 	"github.com/smotra-monitoring/server/internal/config"
 	"github.com/smotra-monitoring/server/internal/database"
-	"github.com/smotra-monitoring/server/internal/database/queries"
 	"github.com/smotra-monitoring/server/internal/handlers/metrics"
 	"github.com/smotra-monitoring/server/internal/logger"
 	"github.com/smotra-monitoring/server/internal/middleware"
@@ -81,22 +78,10 @@ func (h *AuthenticatedHandler) requireAgent(ctx context.Context, endpoint, agent
 }
 
 // GetAgentConfiguration wraps the configuration handler with authentication.
-// Agents authenticate with their API key; OAuth2 users may read agents of their own workspace.
+// Agents authenticate with their API key; OAuth2 sessions are additionally scoped to a workspace by the handler.
 func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, request api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
 	if authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo); ok && authInfo != nil && authInfo.AuthType == "oauth2" {
 		if !h.requireOAuth2User(ctx, "agent_configuration") {
-			return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
-		}
-		owns, err := h.isUserOwnsAgent(ctx, authInfo.UserID, request.AgentId.String())
-		if err != nil {
-			h.logger.Error("Failed to resolve workspace for agent configuration", "error", err, "agent_id", request.AgentId.String())
-			return api.GetAgentConfiguration503JSONResponse{InternalServerErrorJSONResponse: api.InternalServerErrorJSONResponse{
-				Error: "internal_error", Message: "Failed to authorize request",
-			}}, nil
-		}
-		if !owns {
-			h.authInvalidTotal.Add(1)
-			h.logger.Warn("OAuth2 user denied access to agent outside workspace", "user_id", authInfo.UserID, "agent_id", request.AgentId.String())
 			return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
 		}
 		return h.APIHandler.GetAgentConfiguration(ctx, request)
@@ -237,30 +222,6 @@ func (h *AuthenticatedHandler) PurgeSessions(ctx context.Context, request api.Pu
 		return api.PurgeSessions401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
 	}
 	return h.APIHandler.PurgeSessions(ctx, request)
-}
-
-// isUserOwnsAgent reports whether the user may read agentID: the agent must live in the user's workspace.
-// A missing agent is allowed so the downstream handler can answer 404.
-func (h *AuthenticatedHandler) isUserOwnsAgent(ctx context.Context, userID, agentID string) (bool, error) {
-	q := queries.New(h.db.DB())
-
-	user, err := q.GetUserByID(ctx, userID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-
-	agentWorkspace, err := q.GetAgentWorkspaceID(ctx, agentID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return true, nil
-	}
-	if err != nil {
-		return false, err
-	}
-
-	return agentWorkspace == user.WorkspaceID, nil
 }
 
 // GetMetrics returns current authentication metrics in Prometheus format
