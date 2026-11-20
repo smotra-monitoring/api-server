@@ -60,7 +60,7 @@ func (c *ExternalChecker) Allow(ctx context.Context, ip string) (bool, error) {
 		return false, fmt.Errorf("marshal limiter request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
 	if err != nil {
 		return false, fmt.Errorf("build limiter request: %w", err)
 	}
