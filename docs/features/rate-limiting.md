@@ -24,7 +24,7 @@ Allowed decisions are never cached, so the limiter sees every allowed request an
 ## Limiter protocol
 
 ```
-GET <url>
+POST <url>
 Content-Type: application/json
 
 {"ip":"203.0.113.5"}

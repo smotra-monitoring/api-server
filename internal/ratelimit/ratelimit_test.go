@@ -41,7 +41,7 @@ func TestClient_Allow_StatusMapping(t *testing.T) {
 	}
 }
 
-func TestClient_Allow_SendsGetWithJSONBody(t *testing.T) {
+func TestClient_Allow_SendsPostWithJSONBody(t *testing.T) {
 	var method, contentType string
 	var got checkRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -55,8 +55,8 @@ func TestClient_Allow_SendsGetWithJSONBody(t *testing.T) {
 	if _, err := NewExternalChecker(srv.URL, time.Second).Allow(context.Background(), "203.0.113.7"); err != nil {
 		t.Fatalf("Allow: %v", err)
 	}
-	if method != http.MethodGet {
-		t.Errorf("method = %s, want GET", method)
+	if method != http.MethodPost {
+		t.Errorf("method = %s, want POST", method)
 	}
 	if contentType != "application/json" {
 		t.Errorf("Content-Type = %q", contentType)

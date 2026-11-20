@@ -109,7 +109,7 @@ type RateLimiterConfig struct {
 	// Enabled turns the rate limiter on. When false, all other fields are ignored.
 	Enabled bool `json:"enabled" yaml:"enabled"`
 
-	// URL of the limiter service; it receives GET with body {"ip":"<client-ip>"}
+	// URL of the limiter service; it receives POST with body {"ip":"<client-ip>"}
 	// and answers 200 (allow) or 429 (deny).
 	URL string `json:"url" yaml:"url"`
 
