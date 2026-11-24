@@ -28,6 +28,7 @@ import (
 	"github.com/smotra-monitoring/server/internal/handlers/agent_claim"
 	"github.com/smotra-monitoring/server/internal/handlers/agent_claim_status"
 	"github.com/smotra-monitoring/server/internal/handlers/agent_configuration"
+	"github.com/smotra-monitoring/server/internal/handlers/agent_get"
 	"github.com/smotra-monitoring/server/internal/handlers/agent_heartbeat"
 	"github.com/smotra-monitoring/server/internal/handlers/agent_list"
 	"github.com/smotra-monitoring/server/internal/handlers/agent_register"
@@ -49,6 +50,7 @@ type APIHandler struct {
 	agent_submit_results *agent_submit_results.Handler
 	agent_heartbeat      *agent_heartbeat.Handler
 	agent_list           *agent_list.Handler
+	agent_get            *agent_get.Handler
 	sessions             *sessions.Handler
 }
 
@@ -62,6 +64,7 @@ func NewAPIHandler(logger *logger.Logger, db database.Database, cfg *config.Conf
 	submitResultsHandler := agent_submit_results.NewHandler(logger, db)
 	heartbeatHandler := agent_heartbeat.NewHandler(logger, db)
 	agentListHandler := agent_list.NewHandler(logger, db)
+	agentGetHandler := agent_get.NewHandler(logger, db)
 	sessionsHandler := sessions.NewHandler(logger, db)
 
 	// Register handlers as metrics providers
@@ -73,6 +76,7 @@ func NewAPIHandler(logger *logger.Logger, db database.Database, cfg *config.Conf
 	metricsHandler.RegisterMetricsProvider(submitResultsHandler)
 	metricsHandler.RegisterMetricsProvider(heartbeatHandler)
 	metricsHandler.RegisterMetricsProvider(agentListHandler)
+	metricsHandler.RegisterMetricsProvider(agentGetHandler)
 	metricsHandler.RegisterMetricsProvider(sessionsHandler)
 
 	// Note: Claim-related handlers use string metrics, not metrics provider interface
@@ -88,6 +92,7 @@ func NewAPIHandler(logger *logger.Logger, db database.Database, cfg *config.Conf
 		agent_heartbeat:      heartbeatHandler,
 		auth:                 authHandler,
 		agent_list:           agentListHandler,
+		agent_get:            agentGetHandler,
 		sessions:             sessionsHandler,
 	}
 }
@@ -125,6 +130,11 @@ func (h *APIHandler) SendAgentHeartbeat(ctx context.Context, request api.SendAge
 // ListAgents delegates to the agent list handler.
 func (h *APIHandler) ListAgents(ctx context.Context, request api.ListAgentsRequestObject) (api.ListAgentsResponseObject, error) {
 	return h.agent_list.Handle(ctx, request)
+}
+
+// GetAgent delegates to the single-agent get handler.
+func (h *APIHandler) GetAgent(ctx context.Context, request api.GetAgentRequestObject) (api.GetAgentResponseObject, error) {
+	return h.agent_get.Handle(ctx, request)
 }
 
 // ─── Auth handlers ─────────────────────────────────────────────────────────────

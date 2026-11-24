@@ -197,6 +197,8 @@ Built-in provider defaults are defined in the `defaultProviders` map in `auth.go
 | `GET /v1/sessions` | `ListSessions` | **Yes** (oauth2) |
 | `DELETE /v1/sessions/{session_id}` | `PurgeSession` | **Yes** (oauth2) |
 | `DELETE /v1/sessions` | `PurgeSessions` | **Yes** (oauth2) |
+| `GET /v1/agents` | `ListAgents` | **Yes** (oauth2) |
+| `GET /v1/agents/{agentId}` | `GetAgent` | **Yes** (oauth2; workspace ownership checked in the handler) |
 | `GET /v1/agent/{agentId}/configuration` | `GetAgentConfiguration` | **Yes** — agent API key, or oauth2 for a user in the agent's workspace (checked in the handler) |
 
 The `sessions/` handler package implements the last three; wrappers share `requireOAuth2User` in `authenticated_handler.go`. Ownership is enforced in the handler (403 for another user's session, 404 for unknown/inactive) and in the SQL `WHERE user_id = ?` of the revoke query.

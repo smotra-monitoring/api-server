@@ -70,3 +70,12 @@ LIMIT ? OFFSET ?;
 -- Returns total count of agents belonging to a workspace.
 SELECT COUNT(*) FROM agents
 WHERE workspace_id = ?;
+
+-- name: GetAgentByID :one
+-- Returns all non-sensitive fields for a single agent by ID.
+SELECT a.id, a.workspace_id, a.name, a.config_version_desired, a.config_version_current, a.agent_version,
+       a.ip_addresses_json, a.last_seen_at, a.last_result_submitted_at,
+       a.updated_at, a.created_at
+FROM agents a
+WHERE a.id = ?
+LIMIT 1;

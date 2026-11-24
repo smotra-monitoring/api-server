@@ -1015,6 +1015,9 @@ type ServerInterface interface {
 	// List agents
 	// (GET /agents)
 	ListAgents(w http.ResponseWriter, r *http.Request, params ListAgentsParams)
+	// Get agent details
+	// (GET /agents/{agentId})
+	GetAgent(w http.ResponseWriter, r *http.Request, agentId AgentId)
 	// User logout
 	// (POST /auth/logout)
 	Logout(w http.ResponseWriter, r *http.Request)
@@ -1090,6 +1093,12 @@ func (_ Unimplemented) SubmitAgentResults(w http.ResponseWriter, r *http.Request
 // List agents
 // (GET /agents)
 func (_ Unimplemented) ListAgents(w http.ResponseWriter, r *http.Request, params ListAgentsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get agent details
+// (GET /agents/{agentId})
+func (_ Unimplemented) GetAgent(w http.ResponseWriter, r *http.Request, agentId AgentId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1350,6 +1359,39 @@ func (siw *ServerInterfaceWrapper) ListAgents(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAgents(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAgent operation middleware
+func (siw *ServerInterfaceWrapper) GetAgent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "agentId" -------------
+	var agentId AgentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentId", chi.URLParam(r, "agentId"), &agentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, OAuth2AuthorizationCodeScopes, []string{"agents:read"})
+
+	ctx = context.WithValue(ctx, OAuth2ClientCredentialsScopes, []string{"agents:read"})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAgent(w, r, agentId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1804,6 +1846,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/agents", wrapper.ListAgents)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/agents/{agentId}", wrapper.GetAgent)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/auth/logout", wrapper.Logout)
 	})
 	r.Group(func(r chi.Router) {
@@ -2214,6 +2259,61 @@ func (response ListAgents500JSONResponse) VisitListAgentsResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetAgentRequestObject struct {
+	AgentId AgentId `json:"agentId"`
+}
+
+type GetAgentResponseObject interface {
+	VisitGetAgentResponse(w http.ResponseWriter) error
+}
+
+type GetAgent200JSONResponse Agent
+
+func (response GetAgent200JSONResponse) VisitGetAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAgent400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetAgent400JSONResponse) VisitGetAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAgent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAgent401JSONResponse) VisitGetAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAgent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetAgent404JSONResponse) VisitGetAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAgent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetAgent500JSONResponse) VisitGetAgentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type LogoutRequestObject struct {
 	Body *LogoutJSONRequestBody
 }
@@ -2608,6 +2708,9 @@ type StrictServerInterface interface {
 	// List agents
 	// (GET /agents)
 	ListAgents(ctx context.Context, request ListAgentsRequestObject) (ListAgentsResponseObject, error)
+	// Get agent details
+	// (GET /agents/{agentId})
+	GetAgent(ctx context.Context, request GetAgentRequestObject) (GetAgentResponseObject, error)
 	// User logout
 	// (POST /auth/logout)
 	Logout(ctx context.Context, request LogoutRequestObject) (LogoutResponseObject, error)
@@ -2868,6 +2971,32 @@ func (sh *strictHandler) ListAgents(w http.ResponseWriter, r *http.Request, para
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAgentsResponseObject); ok {
 		if err := validResponse.VisitListAgentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAgent operation middleware
+func (sh *strictHandler) GetAgent(w http.ResponseWriter, r *http.Request, agentId AgentId) {
+	var request GetAgentRequestObject
+
+	request.AgentId = agentId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAgent(ctx, request.(GetAgentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAgent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAgentResponseObject); ok {
+		if err := validResponse.VisitGetAgentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
