@@ -29,6 +29,9 @@ type testServerImpl struct {
 func (s *testServerImpl) ListAgents(ctx context.Context, req api.ListAgentsRequestObject) (api.ListAgentsResponseObject, error) {
 	return s.Handle(ctx, req)
 }
+func (s *testServerImpl) GetAgent(ctx context.Context, req api.GetAgentRequestObject) (api.GetAgentResponseObject, error) {
+	return nil, nil
+}
 
 func (s *testServerImpl) GetAgentConfiguration(ctx context.Context, req api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
 	return nil, nil

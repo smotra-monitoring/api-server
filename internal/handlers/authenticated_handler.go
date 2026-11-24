@@ -200,6 +200,16 @@ func (h *AuthenticatedHandler) ListAgents(ctx context.Context, request api.ListA
 	return h.APIHandler.ListAgents(ctx, request)
 }
 
+// GetAgent wraps the single-agent get handler with authentication.
+// Only OAuth2-authenticated users (web sessions) may access this endpoint.
+// Agent API keys are explicitly rejected.
+func (h *AuthenticatedHandler) GetAgent(ctx context.Context, request api.GetAgentRequestObject) (api.GetAgentResponseObject, error) {
+	if !h.requireOAuth2User(ctx, "get_agent") {
+		return api.GetAgent401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	}
+	return h.APIHandler.GetAgent(ctx, request)
+}
+
 // ListSessions wraps the session list handler; OAuth2 sessions only.
 func (h *AuthenticatedHandler) ListSessions(ctx context.Context, request api.ListSessionsRequestObject) (api.ListSessionsResponseObject, error) {
 	if !h.requireOAuth2User(ctx, "list_sessions") {

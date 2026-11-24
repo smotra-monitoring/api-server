@@ -56,6 +56,13 @@ func TestAuthenticatedHandler_SessionEndpoints_RejectUnauthenticated(t *testing.
 			} else if _, ok := resp.(api.PurgeSession401JSONResponse); !ok {
 				t.Errorf("PurgeSession: expected 401, got %T", resp)
 			}
+
+			getAgentReq := api.GetAgentRequestObject{AgentId: uuid.Must(uuid.NewV7())}
+			if resp, err := h.GetAgent(ctx, getAgentReq); err != nil {
+				t.Fatal(err)
+			} else if _, ok := resp.(api.GetAgent401JSONResponse); !ok {
+				t.Errorf("GetAgent: expected 401, got %T", resp)
+			}
 		})
 	}
 }
@@ -82,6 +89,8 @@ func TestSessionRoutes_UnderV1Only(t *testing.T) {
 		{http.MethodDelete, "/v1/sessions/" + id, http.StatusUnauthorized},
 		{http.MethodGet, "/sessions", http.StatusNotFound},
 		{http.MethodDelete, "/sessions/" + id, http.StatusNotFound},
+		{http.MethodGet, "/v1/agents/" + id, http.StatusUnauthorized},
+		{http.MethodGet, "/agents/" + id, http.StatusNotFound},
 	} {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
 			w := httptest.NewRecorder()

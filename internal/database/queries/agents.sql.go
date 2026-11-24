@@ -91,6 +91,49 @@ func (q *Queries) CreateAgentFromClaim(ctx context.Context, arg CreateAgentFromC
 	return id, err
 }
 
+const getAgentByID = `-- name: GetAgentByID :one
+SELECT a.id, a.workspace_id, a.name, a.config_version_desired, a.config_version_current, a.agent_version,
+       a.ip_addresses_json, a.last_seen_at, a.last_result_submitted_at,
+       a.updated_at, a.created_at
+FROM agents a
+WHERE a.id = ?
+LIMIT 1
+`
+
+type GetAgentByIDRow struct {
+	ID                    string
+	WorkspaceID           string
+	Name                  string
+	ConfigVersionDesired  int64
+	ConfigVersionCurrent  sql.NullInt64
+	AgentVersion          sql.NullString
+	IpAddressesJson       string
+	LastSeenAt            sql.NullTime
+	LastResultSubmittedAt sql.NullTime
+	UpdatedAt             time.Time
+	CreatedAt             time.Time
+}
+
+// Returns all non-sensitive fields for a single agent by ID.
+func (q *Queries) GetAgentByID(ctx context.Context, id string) (GetAgentByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getAgentByID, id)
+	var i GetAgentByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.ConfigVersionDesired,
+		&i.ConfigVersionCurrent,
+		&i.AgentVersion,
+		&i.IpAddressesJson,
+		&i.LastSeenAt,
+		&i.LastResultSubmittedAt,
+		&i.UpdatedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getAgentConfigurationBase = `-- name: GetAgentConfigurationBase :one
 SELECT id, workspace_id, config_version_desired, name, base_config FROM agents WHERE id = ?
 LIMIT 1
