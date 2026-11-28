@@ -93,7 +93,7 @@ func TestOauth2Authorize_StaticProvider_Returns302(t *testing.T) {
 		t.Fatalf("expected 302 response, got %T", resp)
 	}
 
-	loc, err := url.Parse(redirect.Headers.Location)
+	loc, err := url.Parse(*redirect.Headers.Location)
 	if err != nil {
 		t.Fatalf("invalid Location URL: %v", err)
 	}
@@ -162,13 +162,13 @@ func TestOauth2Callback_Success_RedirectsToFrontend(t *testing.T) {
 		t.Fatalf("expected 302 response, got %T", resp)
 	}
 
-	loc, err := url.Parse(redirect.Headers.Location)
+	loc, err := url.Parse(*redirect.Headers.Location)
 	if err != nil {
 		t.Fatalf("invalid Location URL: %v", err)
 	}
 
-	if !strings.HasPrefix(redirect.Headers.Location, "http://frontend.test/auth/callback") {
-		t.Errorf("expected redirect to frontend, got %q", redirect.Headers.Location)
+	if !strings.HasPrefix(*redirect.Headers.Location, "http://frontend.test/auth/callback") {
+		t.Errorf("expected redirect to frontend, got %q", *redirect.Headers.Location)
 	}
 	q := loc.Query()
 	if q.Get("code") != code {
@@ -201,7 +201,7 @@ func TestOauth2Callback_Error_ForwardsErrorToFrontend(t *testing.T) {
 		t.Fatalf("expected 302 response, got %T", resp)
 	}
 
-	loc, err := url.Parse(redirect.Headers.Location)
+	loc, err := url.Parse(*redirect.Headers.Location)
 	if err != nil {
 		t.Fatalf("invalid Location URL: %v", err)
 	}
@@ -343,10 +343,10 @@ func TestLogout_WithEndSessionEndpoint_Returns302(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected 302, got %T", resp)
 	}
-	if !strings.HasPrefix(redirect.Headers.Location, "http://idp.test/logout") {
-		t.Errorf("expected redirect to IDP logout, got %q", redirect.Headers.Location)
+	if !strings.HasPrefix(*redirect.Headers.Location, "http://idp.test/logout") {
+		t.Errorf("expected redirect to IDP logout, got %q", *redirect.Headers.Location)
 	}
-	if !strings.Contains(redirect.Headers.Location, "post_logout_redirect_uri=") {
+	if !strings.Contains(*redirect.Headers.Location, "post_logout_redirect_uri=") {
 		t.Error("expected post_logout_redirect_uri in Location")
 	}
 }
@@ -614,8 +614,8 @@ func TestOauth2Authorize_GitHubBuiltin_UsesStaticEndpoints(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected 302, got %T", resp)
 	}
-	if !strings.HasPrefix(redirect.Headers.Location, "https://github.com/login/oauth/authorize") {
-		t.Errorf("expected GitHub authorization URL, got %q", redirect.Headers.Location)
+	if !strings.HasPrefix(*redirect.Headers.Location, "https://github.com/login/oauth/authorize") {
+		t.Errorf("expected GitHub authorization URL, got %q", *redirect.Headers.Location)
 	}
 }
 
@@ -666,8 +666,8 @@ func TestOauth2Authorize_OIDCProvider_UsesDiscoveryEndpoints(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected 302, got %T", resp1)
 	}
-	if !strings.HasPrefix(redirect1.Headers.Location, authEndpoint) {
-		t.Errorf("expected redirect to discovery-resolved endpoint %q, got %q", authEndpoint, redirect1.Headers.Location)
+	if !strings.HasPrefix(*redirect1.Headers.Location, authEndpoint) {
+		t.Errorf("expected redirect to discovery-resolved endpoint %q, got %q", authEndpoint, *redirect1.Headers.Location)
 	}
 
 	// Second call — must use cache, not re-fetch discovery.
