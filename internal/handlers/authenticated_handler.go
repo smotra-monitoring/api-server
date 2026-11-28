@@ -44,10 +44,12 @@ const (
 )
 
 var (
-	noAuth              = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "No authentication provided"}
-	agentInvalidAuth    = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Invalid authentication"}
-	sessionUnauthorized = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Valid session required"}
-	agentIDMismatch     = api.InternalServerErrorJSONResponse{Error: "forbidden", Message: "Access denied due to internal server error"}
+	noAuth             = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "No authentication provided"}
+	agentInvalidAuth   = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Invalid authentication"}
+	sessionWrongAuth   = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "OAuth2 session required"}
+	sessionInvalidUser = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Session has no associated user"}
+	sessionInvalidID   = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Session has no identifier"}
+	agentIDMismatch    = api.InternalServerErrorJSONResponse{Error: "forbidden", Message: "Access denied due to internal server error"}
 )
 
 // authTypeOf returns the auth type in ctx, or "" when no AuthInfo is present.
@@ -120,23 +122,24 @@ func (h *AuthenticatedHandler) requireOAuth2User(ctx context.Context, endpoint s
 	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
 	if !ok || authInfo == nil || !authInfo.Authenticated {
 		h.authNoAuthTotal.Add(1)
-		return &sessionUnauthorized
+		h.logger.Warn("No authentication provided", "endpoint", endpoint)
+		return &noAuth
 	}
 	if authInfo.AuthType != authTypeOAuth2 {
 		h.authInvalidTotal.Add(1)
 		h.logger.Warn("Invalid authentication type (expected "+authTypeOAuth2+")", "endpoint", endpoint, "auth_type", authInfo.AuthType)
-		return &sessionUnauthorized
+		return &sessionWrongAuth
 	}
 	if authInfo.UserID == "" {
 		h.authInvalidTotal.Add(1)
 		h.logger.Warn("Missing user ID in authentication info", "endpoint", endpoint)
-		return &sessionUnauthorized
+		return &sessionInvalidUser
 	}
 
 	if authInfo.SessionID == "" {
 		h.authInvalidTotal.Add(1)
 		h.logger.Warn("Missing session ID in authentication info", "endpoint", endpoint)
-		return &sessionUnauthorized
+		return &sessionInvalidID
 	}
 
 	h.authSuccessTotal.Add(1)
