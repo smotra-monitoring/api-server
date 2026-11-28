@@ -210,7 +210,7 @@ func (h *Handler) Oauth2Authorize(ctx context.Context, req api.Oauth2AuthorizeRe
 	location := endpoints.AuthorizationEndpoint + "?" + params.Encode()
 
 	return api.Oauth2Authorize302Response{
-		Headers: api.Oauth2Authorize302ResponseHeaders{Location: location},
+		Headers: api.Oauth2Authorize302ResponseHeaders{Location: &location},
 	}, nil
 }
 
@@ -258,7 +258,7 @@ func (h *Handler) Oauth2Callback(ctx context.Context, req api.Oauth2CallbackRequ
 	location := frontendURL + "?" + params.Encode()
 
 	return api.Oauth2Callback302Response{
-		Headers: api.Oauth2Callback302ResponseHeaders{Location: location},
+		Headers: api.Oauth2Callback302ResponseHeaders{Location: &location},
 	}, nil
 }
 
@@ -801,7 +801,7 @@ func (h *Handler) Logout(ctx context.Context, req api.LogoutRequestObject) (api.
 	}
 
 	return api.Logout302Response{
-		Headers: api.Logout302ResponseHeaders{Location: location},
+		Headers: api.Logout302ResponseHeaders{Location: &location},
 	}, nil
 }
 
