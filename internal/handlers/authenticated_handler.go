@@ -38,6 +38,11 @@ func NewAuthenticatedHandler(logger *logger.Logger, db database.Database, cfg *c
 	return h
 }
 
+const (
+	authTypeAgentAPIKey = "agent_api_key"
+	authTypeOAuth2      = "oauth2"
+)
+
 var (
 	agentNoAuth      = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "No authentication provided"}
 	agentInvalidAuth = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Invalid authentication"}
@@ -63,6 +68,12 @@ func (h *AuthenticatedHandler) requireAgent(ctx context.Context, endpoint, agent
 		return &agentInvalidAuth, nil
 	}
 
+	if authInfo.AuthType != authTypeAgentAPIKey {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Invalid authentication type (expected "+authTypeAgentAPIKey+")", "endpoint", endpoint, "agent", agentID, "auth_type", authInfo.AuthType)
+		return &agentInvalidAuth, nil
+	}
+
 	if authInfo.AgentID != agentID {
 		h.authAgentIDMismatchTotal.Add(1)
 		h.logger.Warn("Agent ID mismatch in authentication",
@@ -78,21 +89,47 @@ func (h *AuthenticatedHandler) requireAgent(ctx context.Context, endpoint, agent
 }
 
 // GetAgentConfiguration wraps the configuration handler with authentication.
-// Agents authenticate with their API key; OAuth2 sessions are additionally scoped to a workspace by the handler.
+// Each supported auth type has its own case; any other type is rejected with 401.
+// OAuth2 sessions are additionally scoped to a workspace by the handler.
 func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, request api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
-	if authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo); ok && authInfo != nil && authInfo.AuthType == "oauth2" {
+	switch authTypeOf(ctx) {
+	case authTypeAgentAPIKey:
+		if unauth, serverErr := h.requireAgent(ctx, "agent_configuration", request.AgentId.String()); unauth != nil {
+			return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
+		} else if serverErr != nil {
+			return api.GetAgentConfiguration503JSONResponse{InternalServerErrorJSONResponse: *serverErr}, nil
+		}
+	case authTypeOAuth2:
 		if !h.requireOAuth2User(ctx, "agent_configuration") {
 			return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
 		}
-		return h.APIHandler.GetAgentConfiguration(ctx, request)
-	}
-
-	if unauth, serverErr := h.requireAgent(ctx, "agent_configuration", request.AgentId.String()); unauth != nil {
-		return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
-	} else if serverErr != nil {
-		return api.GetAgentConfiguration503JSONResponse{InternalServerErrorJSONResponse: *serverErr}, nil
+	default:
+		return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: h.rejectAuthType(ctx, "agent_configuration")}, nil
 	}
 	return h.APIHandler.GetAgentConfiguration(ctx, request)
+}
+
+// authTypeOf returns the auth type in ctx, or "" when no AuthInfo is present.
+func authTypeOf(ctx context.Context) string {
+	if authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo); ok && authInfo != nil {
+		return authInfo.AuthType
+	}
+	return ""
+}
+
+// rejectAuthType records the failed attempt for a missing or unsupported auth type and returns the 401 body.
+func (h *AuthenticatedHandler) rejectAuthType(ctx context.Context, endpoint string) api.UnauthorizedJSONResponse {
+	h.authAttemptsTotal.Add(1)
+
+	if authType := authTypeOf(ctx); authType != "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Unsupported authentication type", "endpoint", endpoint, "auth_type", authType)
+		return agentInvalidAuth
+	}
+
+	h.authNoAuthTotal.Add(1)
+	h.logger.Warn("No authentication provided", "endpoint", endpoint)
+	return agentNoAuth
 }
 
 // SubmitAgentResults wraps the submit results handler with authentication
@@ -125,9 +162,9 @@ func (h *AuthenticatedHandler) requireOAuth2User(ctx context.Context, endpoint s
 		h.authNoAuthTotal.Add(1)
 		return false
 	}
-	if authInfo.AuthType != "oauth2" {
+	if authInfo.AuthType != authTypeOAuth2 {
 		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication type", "endpoint", endpoint, "auth_type", authInfo.AuthType)
+		h.logger.Warn("Invalid authentication type (expected "+authTypeOAuth2+")", "endpoint", endpoint, "auth_type", authInfo.AuthType)
 		return false
 	}
 	if authInfo.UserID == "" {

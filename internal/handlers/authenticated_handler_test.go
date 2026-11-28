@@ -180,6 +180,25 @@ func TestAuthenticatedHandler_GetMetrics_InvalidAuth(t *testing.T) {
 	}
 }
 
+func TestAuthenticatedHandler_GetAgentConfiguration_UnknownAuthType(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	handler := NewAuthenticatedHandler(log, testutil.NewMockDatabase(), testutil.DefaultTestConfig(), "test", NewMetricsHandler(log, "test"))
+
+	agentID := uuid.MustParse("019bdeb2-50dc-794e-808b-cf47526b867f")
+	for _, authType := range []string{"", "service_api_key", "oauth2_client_credentials"} {
+		authInfo := &middleware.AuthInfo{AgentID: agentID.String(), AuthType: authType, Authenticated: true}
+		ctx := context.WithValue(context.Background(), middleware.AuthContextKey, authInfo)
+
+		resp, err := handler.GetAgentConfiguration(ctx, api.GetAgentConfigurationRequestObject{AgentId: agentID})
+		if err != nil {
+			t.Fatalf("auth type %q: unexpected error %v", authType, err)
+		}
+		if _, ok := resp.(api.GetAgentConfiguration401JSONResponse); !ok {
+			t.Errorf("auth type %q: expected 401 response, got %T", authType, resp)
+		}
+	}
+}
+
 func TestAuthenticatedHandler_GetMetrics_AgentIDMismatch(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
