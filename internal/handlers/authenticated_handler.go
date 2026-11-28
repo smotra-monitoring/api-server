@@ -38,11 +38,42 @@ func NewAuthenticatedHandler(logger *logger.Logger, db database.Database, cfg *c
 	return h
 }
 
-var (
-	agentNoAuth      = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "No authentication provided"}
-	agentInvalidAuth = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Invalid authentication"}
-	agentIDMismatch  = api.InternalServerErrorJSONResponse{Error: "forbidden", Message: "Access denied due to internal server error"}
+const (
+	authTypeAgentAPIKey = "agent_api_key"
+	authTypeOAuth2      = "oauth2"
 )
+
+var (
+	noAuth             = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "No authentication provided"}
+	agentInvalidAuth   = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Invalid authentication"}
+	sessionWrongAuth   = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "OAuth2 session required"}
+	sessionInvalidUser = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Session has no associated user"}
+	sessionInvalidID   = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Session has no identifier"}
+	agentIDMismatch    = api.InternalServerErrorJSONResponse{Error: "forbidden", Message: "Access denied due to internal server error"}
+)
+
+// authTypeOf returns the auth type in ctx, or "" when no AuthInfo is present.
+func authTypeOf(ctx context.Context) string {
+	if authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo); ok && authInfo != nil {
+		return authInfo.AuthType
+	}
+	return ""
+}
+
+// rejectAuthType records the failed attempt for a missing or unsupported auth type and returns the 401 body.
+func (h *AuthenticatedHandler) rejectAuthType(ctx context.Context, endpoint string) api.UnauthorizedJSONResponse {
+	h.authAttemptsTotal.Add(1)
+
+	if authType := authTypeOf(ctx); authType != "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Unsupported authentication type", "endpoint", endpoint, "auth_type", authType)
+		return agentInvalidAuth
+	}
+
+	h.authNoAuthTotal.Add(1)
+	h.logger.Warn("No authentication provided", "endpoint", endpoint)
+	return noAuth
+}
 
 // requireAgent checks that ctx carries authentication for agentID, recording auth metrics and logging failures.
 // It returns the 401 body, or the 503 body for an agent ID mismatch; both are nil on success.
@@ -53,13 +84,19 @@ func (h *AuthenticatedHandler) requireAgent(ctx context.Context, endpoint, agent
 	if raw == nil {
 		h.authNoAuthTotal.Add(1)
 		h.logger.Warn("No authentication provided", "endpoint", endpoint, "agent", agentID)
-		return &agentNoAuth, nil
+		return &noAuth, nil
 	}
 
 	authInfo, ok := raw.(*middleware.AuthInfo)
 	if !ok || authInfo == nil || !authInfo.Authenticated {
 		h.authInvalidTotal.Add(1)
 		h.logger.Warn("Invalid authentication", "endpoint", endpoint, "agent", agentID)
+		return &agentInvalidAuth, nil
+	}
+
+	if authInfo.AuthType != authTypeAgentAPIKey {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Invalid authentication type (expected "+authTypeAgentAPIKey+")", "endpoint", endpoint, "agent", agentID, "auth_type", authInfo.AuthType)
 		return &agentInvalidAuth, nil
 	}
 
@@ -77,23 +114,62 @@ func (h *AuthenticatedHandler) requireAgent(ctx context.Context, endpoint, agent
 	return nil, nil
 }
 
-// GetAgentConfiguration wraps the configuration handler with authentication.
-// Agents authenticate with their API key; OAuth2 sessions are additionally scoped to a workspace by the handler.
-func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, request api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
-	if authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo); ok && authInfo != nil && authInfo.AuthType == "oauth2" {
-		if !h.requireOAuth2User(ctx, "agent_configuration") {
-			return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
-		}
-		return h.APIHandler.GetAgentConfiguration(ctx, request)
+// requireOAuth2User checks that ctx carries an authenticated OAuth2 session with a user ID,
+// recording auth metrics and logging failures. It returns the 401 body, or nil on success.
+func (h *AuthenticatedHandler) requireOAuth2User(ctx context.Context, endpoint string) *api.UnauthorizedJSONResponse {
+	h.authAttemptsTotal.Add(1)
+
+	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
+	if !ok || authInfo == nil || !authInfo.Authenticated {
+		h.authNoAuthTotal.Add(1)
+		h.logger.Warn("No authentication provided", "endpoint", endpoint)
+		return &noAuth
+	}
+	if authInfo.AuthType != authTypeOAuth2 {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Invalid authentication type (expected "+authTypeOAuth2+")", "endpoint", endpoint, "auth_type", authInfo.AuthType)
+		return &sessionWrongAuth
+	}
+	if authInfo.UserID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing user ID in authentication info", "endpoint", endpoint)
+		return &sessionInvalidUser
 	}
 
-	if unauth, serverErr := h.requireAgent(ctx, "agent_configuration", request.AgentId.String()); unauth != nil {
-		return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
-	} else if serverErr != nil {
-		return api.GetAgentConfiguration503JSONResponse{InternalServerErrorJSONResponse: *serverErr}, nil
+	if authInfo.SessionID == "" {
+		h.authInvalidTotal.Add(1)
+		h.logger.Warn("Missing session ID in authentication info", "endpoint", endpoint)
+		return &sessionInvalidID
+	}
+
+	h.authSuccessTotal.Add(1)
+	return nil
+}
+
+// ---- Either auth type (Agent API Key or OAuth2)
+
+// GetAgentConfiguration wraps the configuration handler with authentication.
+// Each supported auth type has its own case; any other type is rejected with 401.
+// OAuth2 sessions are additionally scoped to a workspace by the handler.
+func (h *AuthenticatedHandler) GetAgentConfiguration(ctx context.Context, request api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
+	switch authTypeOf(ctx) {
+	case authTypeAgentAPIKey:
+		if unauth, serverErr := h.requireAgent(ctx, "agent_configuration", request.AgentId.String()); unauth != nil {
+			return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
+		} else if serverErr != nil {
+			return api.GetAgentConfiguration503JSONResponse{InternalServerErrorJSONResponse: *serverErr}, nil
+		}
+	case authTypeOAuth2:
+		if unauth := h.requireOAuth2User(ctx, "agent_configuration"); unauth != nil {
+			return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
+		}
+	default:
+		return api.GetAgentConfiguration401JSONResponse{UnauthorizedJSONResponse: h.rejectAuthType(ctx, "agent_configuration")}, nil
 	}
 	return h.APIHandler.GetAgentConfiguration(ctx, request)
 }
+
+// --- Agent API Key auth only
 
 // SubmitAgentResults wraps the submit results handler with authentication
 func (h *AuthenticatedHandler) SubmitAgentResults(ctx context.Context, request api.SubmitAgentResultsRequestObject) (api.SubmitAgentResultsResponseObject, error) {
@@ -115,67 +191,36 @@ func (h *AuthenticatedHandler) SendAgentHeartbeat(ctx context.Context, request a
 	return h.APIHandler.SendAgentHeartbeat(ctx, request)
 }
 
-// requireOAuth2User reports whether ctx carries an authenticated OAuth2 session with a user ID,
-// recording auth metrics and logging the reason when it does not.
-func (h *AuthenticatedHandler) requireOAuth2User(ctx context.Context, endpoint string) bool {
-	h.authAttemptsTotal.Add(1)
-
-	authInfo, ok := ctx.Value(middleware.AuthContextKey).(*middleware.AuthInfo)
-	if !ok || authInfo == nil || !authInfo.Authenticated {
-		h.authNoAuthTotal.Add(1)
-		return false
-	}
-	if authInfo.AuthType != "oauth2" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Invalid authentication type", "endpoint", endpoint, "auth_type", authInfo.AuthType)
-		return false
-	}
-	if authInfo.UserID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing user ID in authentication info", "endpoint", endpoint)
-		return false
-	}
-
-	if authInfo.SessionID == "" {
-		h.authInvalidTotal.Add(1)
-		h.logger.Warn("Missing session ID in authentication info", "endpoint", endpoint)
-		return false
-	}
-
-	h.authSuccessTotal.Add(1)
-	return true
-}
-
-var sessionUnauthorized = api.UnauthorizedJSONResponse{Error: "unauthorized", Message: "Valid session required"}
+// --- OAuth2 auth only
 
 // Oauth2Revoke wraps the revoke handler with authentication.
 func (h *AuthenticatedHandler) Oauth2Revoke(ctx context.Context, request api.Oauth2RevokeRequestObject) (api.Oauth2RevokeResponseObject, error) {
-	if !h.requireOAuth2User(ctx, "oauth2_revoke") {
-		return api.Oauth2Revoke401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	if unauth := h.requireOAuth2User(ctx, "oauth2_revoke"); unauth != nil {
+		return api.Oauth2Revoke401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
 	}
 	return h.APIHandler.Oauth2Revoke(ctx, request)
 }
 
 // AuthRefresh wraps the refresh handler with authentication.
 func (h *AuthenticatedHandler) AuthRefresh(ctx context.Context, request api.AuthRefreshRequestObject) (api.AuthRefreshResponseObject, error) {
-	if !h.requireOAuth2User(ctx, "auth_refresh") {
-		return api.AuthRefresh401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	if unauth := h.requireOAuth2User(ctx, "auth_refresh"); unauth != nil {
+		return api.AuthRefresh401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
 	}
 	return h.APIHandler.AuthRefresh(ctx, request)
 }
 
 // Logout wraps the logout handler with authentication.
 func (h *AuthenticatedHandler) Logout(ctx context.Context, request api.LogoutRequestObject) (api.LogoutResponseObject, error) {
-	if !h.requireOAuth2User(ctx, "logout") {
-		return api.Logout401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	if unauth := h.requireOAuth2User(ctx, "logout"); unauth != nil {
+		return api.Logout401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
 	}
 	return h.APIHandler.Logout(ctx, request)
 }
 
 // GetUserInfo wraps the userinfo handler with authentication.
 func (h *AuthenticatedHandler) GetUserInfo(ctx context.Context, request api.GetUserInfoRequestObject) (api.GetUserInfoResponseObject, error) {
-	if !h.requireOAuth2User(ctx, "userinfo") {
-		return api.GetUserInfo401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	if unauth := h.requireOAuth2User(ctx, "userinfo"); unauth != nil {
+		return api.GetUserInfo401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
 	}
 	return h.APIHandler.GetUserInfo(ctx, request)
 }
@@ -184,8 +229,8 @@ func (h *AuthenticatedHandler) GetUserInfo(ctx context.Context, request api.GetU
 // Only OAuth2-authenticated users (web sessions) may claim agents.
 // Agent API keys are explicitly rejected.
 func (h *AuthenticatedHandler) PostClaimAgent(ctx context.Context, request api.PostClaimAgentRequestObject) (api.PostClaimAgentResponseObject, error) {
-	if !h.requireOAuth2User(ctx, "claim_agent") {
-		return api.PostClaimAgent401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	if unauth := h.requireOAuth2User(ctx, "claim_agent"); unauth != nil {
+		return api.PostClaimAgent401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
 	}
 	return h.APIHandler.PostClaimAgent(ctx, request)
 }
@@ -194,8 +239,8 @@ func (h *AuthenticatedHandler) PostClaimAgent(ctx context.Context, request api.P
 // Only OAuth2-authenticated users (web sessions) may access this endpoint.
 // Agent API keys are explicitly rejected.
 func (h *AuthenticatedHandler) ListAgents(ctx context.Context, request api.ListAgentsRequestObject) (api.ListAgentsResponseObject, error) {
-	if !h.requireOAuth2User(ctx, "list_agents") {
-		return api.ListAgents401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	if unauth := h.requireOAuth2User(ctx, "list_agents"); unauth != nil {
+		return api.ListAgents401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
 	}
 	return h.APIHandler.ListAgents(ctx, request)
 }
@@ -204,32 +249,32 @@ func (h *AuthenticatedHandler) ListAgents(ctx context.Context, request api.ListA
 // Only OAuth2-authenticated users (web sessions) may access this endpoint.
 // Agent API keys are explicitly rejected.
 func (h *AuthenticatedHandler) GetAgent(ctx context.Context, request api.GetAgentRequestObject) (api.GetAgentResponseObject, error) {
-	if !h.requireOAuth2User(ctx, "get_agent") {
-		return api.GetAgent401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	if unauth := h.requireOAuth2User(ctx, "get_agent"); unauth != nil {
+		return api.GetAgent401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
 	}
 	return h.APIHandler.GetAgent(ctx, request)
 }
 
 // ListSessions wraps the session list handler; OAuth2 sessions only.
 func (h *AuthenticatedHandler) ListSessions(ctx context.Context, request api.ListSessionsRequestObject) (api.ListSessionsResponseObject, error) {
-	if !h.requireOAuth2User(ctx, "list_sessions") {
-		return api.ListSessions401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	if unauth := h.requireOAuth2User(ctx, "list_sessions"); unauth != nil {
+		return api.ListSessions401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
 	}
 	return h.APIHandler.ListSessions(ctx, request)
 }
 
 // PurgeSession wraps the single-session purge handler; OAuth2 sessions only.
 func (h *AuthenticatedHandler) PurgeSession(ctx context.Context, request api.PurgeSessionRequestObject) (api.PurgeSessionResponseObject, error) {
-	if !h.requireOAuth2User(ctx, "purge_session") {
-		return api.PurgeSession401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	if unauth := h.requireOAuth2User(ctx, "purge_session"); unauth != nil {
+		return api.PurgeSession401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
 	}
 	return h.APIHandler.PurgeSession(ctx, request)
 }
 
 // PurgeSessions wraps the purge-all handler; OAuth2 sessions only.
 func (h *AuthenticatedHandler) PurgeSessions(ctx context.Context, request api.PurgeSessionsRequestObject) (api.PurgeSessionsResponseObject, error) {
-	if !h.requireOAuth2User(ctx, "purge_sessions") {
-		return api.PurgeSessions401JSONResponse{UnauthorizedJSONResponse: sessionUnauthorized}, nil
+	if unauth := h.requireOAuth2User(ctx, "purge_sessions"); unauth != nil {
+		return api.PurgeSessions401JSONResponse{UnauthorizedJSONResponse: *unauth}, nil
 	}
 	return h.APIHandler.PurgeSessions(ctx, request)
 }

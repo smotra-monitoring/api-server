@@ -180,6 +180,54 @@ func TestAuthenticatedHandler_GetMetrics_InvalidAuth(t *testing.T) {
 	}
 }
 
+func TestAuthenticatedHandler_GetAgentConfiguration_UnknownAuthType(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	handler := NewAuthenticatedHandler(log, testutil.NewMockDatabase(), testutil.DefaultTestConfig(), "test", NewMetricsHandler(log, "test"))
+
+	agentID := uuid.MustParse("019bdeb2-50dc-794e-808b-cf47526b867f")
+	for _, authType := range []string{"", "service_api_key", "oauth2_client_credentials"} {
+		authInfo := &middleware.AuthInfo{AgentID: agentID.String(), AuthType: authType, Authenticated: true}
+		ctx := context.WithValue(context.Background(), middleware.AuthContextKey, authInfo)
+
+		resp, err := handler.GetAgentConfiguration(ctx, api.GetAgentConfigurationRequestObject{AgentId: agentID})
+		if err != nil {
+			t.Fatalf("auth type %q: unexpected error %v", authType, err)
+		}
+		if _, ok := resp.(api.GetAgentConfiguration401JSONResponse); !ok {
+			t.Errorf("auth type %q: expected 401 response, got %T", authType, resp)
+		}
+	}
+}
+
+func TestAuthenticatedHandler_RequireOAuth2User_Messages(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Format: "json"})
+	handler := NewAuthenticatedHandler(log, testutil.NewMockDatabase(), testutil.DefaultTestConfig(), "test", NewMetricsHandler(log, "test"))
+
+	tests := []struct {
+		name string
+		info *middleware.AuthInfo
+		want string
+	}{
+		{"no auth info", nil, noAuth.Message},
+		{"unauthenticated", &middleware.AuthInfo{AuthType: "oauth2"}, noAuth.Message},
+		{"wrong type", &middleware.AuthInfo{AuthType: "agent_api_key", Authenticated: true}, sessionWrongAuth.Message},
+		{"missing user", &middleware.AuthInfo{AuthType: "oauth2", Authenticated: true, SessionID: "s"}, sessionInvalidUser.Message},
+		{"missing session", &middleware.AuthInfo{AuthType: "oauth2", Authenticated: true, UserID: "u"}, sessionInvalidID.Message},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			if tt.info != nil {
+				ctx = context.WithValue(ctx, middleware.AuthContextKey, tt.info)
+			}
+			got := handler.requireOAuth2User(ctx, "test")
+			if got == nil || got.Message != tt.want {
+				t.Errorf("expected message %q, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
 func TestAuthenticatedHandler_GetMetrics_AgentIDMismatch(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Format: "json"})
 	mockDB := testutil.NewMockDatabase()
