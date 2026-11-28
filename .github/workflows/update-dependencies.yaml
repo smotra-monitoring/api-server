@@ -24,11 +24,20 @@ jobs:
         with:
           go-version: 'stable'
 
+      - name: Set up just
+        uses: extractions/setup-just@v3
+
       - name: Update Dependencies and Generate Report
         id: update
         run: |
           # 1. Run the update
           go get -u ./...
+
+          # Regenerate API code with the latest oapi-codegen so generated imports
+          # match the upgraded github.com/oapi-codegen/runtime
+          just install-tools
+          just generate-oapi
+
           go mod tidy
 
           # 2. Capture the diff into a variable first
@@ -74,7 +83,7 @@ jobs:
 
           # 3. Commit and Push
           git checkout -b auto-update-deps
-          git add go.mod go.sum
+          git add go.mod go.sum internal/api/health/api.gen.go internal/api/v1/api.gen.go
           git commit -m "chore: monthly go dependency update"
           git push origin auto-update-deps --force
 
